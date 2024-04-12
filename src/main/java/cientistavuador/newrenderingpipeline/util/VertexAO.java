@@ -27,10 +27,13 @@
 package cientistavuador.newrenderingpipeline.util;
 
 import cientistavuador.newrenderingpipeline.util.raycast.BVH;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -38,6 +41,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import org.joml.Matrix3f;
 import org.joml.Vector3f;
+import org.joml.Vector3fc;
 
 /**
  *
@@ -95,11 +99,20 @@ public class VertexAO {
     private final float aoSize;
     private final int aoRays;
     private final float rayOffset;
+    private final Vector3fc[] randomTangents;
 
     private BVH bvh = null;
     private final Map<Vertex, List<Vertex>> mappedVertices = new HashMap<>();
 
-    private VertexAO(float[] vertices, int vertexSize, int xyzOffset, int outAoOffset, float aoSize, int aoRays, float rayOffset) {
+    private VertexAO(
+            float[] vertices,
+            int vertexSize,
+            int xyzOffset,
+            int outAoOffset,
+            float aoSize,
+            int aoRays,
+            float rayOffset
+    ) {
         this.vertices = vertices;
         this.vertexSize = vertexSize;
         this.xyzOffset = xyzOffset;
@@ -107,6 +120,47 @@ public class VertexAO {
         this.aoSize = aoSize;
         this.aoRays = aoRays;
         this.rayOffset = rayOffset;
+        
+        int hash = Objects.hash(
+                Arrays.hashCode(this.vertices),
+                this.vertexSize,
+                this.xyzOffset,
+                this.outAoOffset,
+                this.aoSize,
+                this.aoRays,
+                this.rayOffset
+        );
+        
+        Random random = new Random(new Random(hash).nextLong());
+        
+        this.randomTangents = new Vector3fc[this.aoRays];
+        
+        for (int i = 0; i < this.randomTangents.length; i++) {
+            Vector3f direction = new Vector3f();
+            randomTangentDirection(direction, random);
+            this.randomTangents[i] = direction;
+        }
+    }
+    
+    private void randomTangentDirection(Vector3f outDirection, Random random) {
+        float x;
+        float y;
+        float z;
+        float dist;
+
+        do {
+            x = (random.nextFloat() * 2f) - 1f;
+            y = (random.nextFloat() * 2f) - 1f;
+            z = random.nextFloat();
+            dist = (x * x) + (y * y) + (z * z);
+        } while (dist > 1f);
+
+        outDirection.set(
+                x,
+                y,
+                z
+        )
+                .normalize();
     }
 
     private void createBVH() {
@@ -179,27 +233,6 @@ public class VertexAO {
         );
     }
 
-    private void randomTangentDirection(Vector3f outDirection, Random random) {
-        float x;
-        float y;
-        float z;
-        float dist;
-
-        do {
-            x = (random.nextFloat() * 2f) - 1f;
-            y = (random.nextFloat() * 2f) - 1f;
-            z = random.nextFloat();
-            dist = (x * x) + (y * y) + (z * z);
-        } while (dist > 1f);
-
-        outDirection.set(
-                x,
-                y,
-                z
-        )
-                .normalize();
-    }
-
     private void computeAO(List<Vertex> vertices) {
         float nX = 0f;
         float nY = 0f;
@@ -240,12 +273,11 @@ public class VertexAO {
                 this.vertices[vertex + this.xyzOffset + 1],
                 this.vertices[vertex + this.xyzOffset + 2]
         );
-
-        Random random = new Random();
+        
         Vector3f tangentDirection = new Vector3f();
         float result = 0f;
         for (int i = 0; i < this.aoRays; i++) {
-            randomTangentDirection(tangentDirection, random);
+            tangentDirection.set(this.randomTangents[i]);
             TBN.transform(tangentDirection).normalize();
 
             if (this.bvh.fastTestRay(offsetPosition, tangentDirection, this.aoSize)) {

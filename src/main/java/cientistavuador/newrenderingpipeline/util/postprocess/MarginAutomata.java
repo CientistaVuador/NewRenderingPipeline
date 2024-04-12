@@ -44,9 +44,11 @@ public class MarginAutomata {
         public int width();
 
         public int height();
-
-        public boolean outOfBounds(int x, int y);
-
+        
+        public default boolean outOfBounds(int x, int y) {
+            return x < 0 || x >= width() || y < 0 || y >= height();
+        }
+        
         public boolean empty(int x, int y);
 
         public void read(int x, int y, MarginAutomataColor color);
@@ -203,7 +205,7 @@ public class MarginAutomata {
                         numSamples++;
                     }
                 }
-                
+
                 if (numSamples == 0) {
                     this.nextEmptyMap[emptyIndex] = true;
                     continue;
@@ -218,7 +220,7 @@ public class MarginAutomata {
                 this.nextColorMap[colorIndex + 1] = g;
                 this.nextColorMap[colorIndex + 2] = b;
                 this.nextEmptyMap[emptyIndex] = false;
-                
+
                 finished = false;
             }
         }
@@ -268,4 +270,3 @@ public class MarginAutomata {
         output();
     }
 }
-

@@ -237,9 +237,10 @@ public class Main {
     public static final ConcurrentLinkedQueue<Runnable> MAIN_TASKS = new ConcurrentLinkedQueue<>();
     public static final Vector3f DEFAULT_CLEAR_COLOR = new Vector3f(0.2f, 0.4f, 0.6f);
     public static final String WINDOW_ICON = "cientistavuador/physicsexperiment/resources/image/window_icon.png";
+    public static final Thread MAIN_THREAD = Thread.currentThread();
     private static final int[] savedWindowStatus = new int[4];
     private static GLDebugMessageCallback DEBUG_CALLBACK = null;
-
+    
     private static String debugSource(int source) {
         return switch (source) {
             case GL_DEBUG_SOURCE_API ->
@@ -457,7 +458,6 @@ public class Main {
         glCullFace(GL_BACK);
         glLineWidth(1f);
         glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-        glHint(GL_TEXTURE_COMPRESSION_HINT, GL_NICEST);
         int maxUBOBindings = glGetInteger(GL_MAX_UNIFORM_BUFFER_BINDINGS);
         if (maxUBOBindings < MIN_UNIFORM_BUFFER_BINDINGS) {
             throw new IllegalStateException("Max UBO Bindings too small! Update your drivers or buy a new GPU.");
@@ -467,7 +467,8 @@ public class Main {
             throw new IllegalStateException("Max texture size must be 8192 or more! Update your drivers or buy a new GPU.");
         }
         
-        if (USE_MSAA && GL.getCapabilities().GL_NV_multisample_filter_hint) {
+        glHint(GL_TEXTURE_COMPRESSION_HINT, GL_NICEST);
+        if (GL.getCapabilities().GL_NV_multisample_filter_hint) {
             glHint(NVMultisampleFilterHint.GL_MULTISAMPLE_FILTER_HINT_NV, GL_NICEST);
         }
         

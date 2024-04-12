@@ -33,6 +33,9 @@ import cientistavuador.newrenderingpipeline.debug.LineRender;
 import cientistavuador.newrenderingpipeline.geometry.Geometries;
 import cientistavuador.newrenderingpipeline.geometry.GeometriesLoader;
 import cientistavuador.newrenderingpipeline.geometry.Geometry;
+import cientistavuador.newrenderingpipeline.newrendering.NMesh;
+import cientistavuador.newrenderingpipeline.newrendering.NTextures;
+import cientistavuador.newrenderingpipeline.newrendering.NTexturesIO;
 import cientistavuador.newrenderingpipeline.popups.BakePopup;
 import cientistavuador.newrenderingpipeline.resources.mesh.MeshConfiguration;
 import cientistavuador.newrenderingpipeline.resources.mesh.MeshData;
@@ -69,6 +72,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import org.joml.Matrix3f;
@@ -185,7 +190,7 @@ public class Game {
     private final List<PhysicsRigidBody> rigidBodies = new ArrayList<>();
     private final Scene.DirectionalLight sun = new Scene.DirectionalLight();
     private final SphereCollisionShape sphereShape = new SphereCollisionShape((0.35f / 2f) * Main.TO_PHYSICS_ENGINE_UNITS);
-    
+
     private Geometry stairGeometry = null;
     private final Geometry monkeyGeometry = new Geometry(Geometries.MONKEY);
     private final MeshData monkeyCollisionMesh;
@@ -237,26 +242,42 @@ public class Game {
         );
     }
 
+    NTextures textures;
+
+    {
+        try {
+            textures = NTexturesIO.loadFromJar(
+                    "cientistavuador/newrenderingpipeline/resources/image/diffuse.jpg",
+                    "cientistavuador/newrenderingpipeline/resources/image/height.jpg",
+                    "cientistavuador/newrenderingpipeline/resources/image/exponent.jpg",
+                    "cientistavuador/newrenderingpipeline/resources/image/normal.jpg",
+                    "cientistavuador/newrenderingpipeline/resources/image/reflectiveness.jpg"
+            );
+        } catch (IOException ex) {
+            throw new UncheckedIOException(ex);
+        }
+    }
+
     private final PlayerController player = new PlayerController();
     private boolean playerActive = false;
-    
+
     private final HullCollisionShape stoneShape;
     private final MeshData stoneShapeMesh;
-    
+
     {
         MeshData stone = Geometries.ASTEROID;
-        
+
         this.stoneShape = MeshUtils.createHullCollisionShapeFromMeshes(
-                new float[][] {stone.getVertices()},
-                new int[][] {stone.getIndices()},
-                new Matrix4fc[] {null},
+                new float[][]{stone.getVertices()},
+                new int[][]{stone.getIndices()},
+                new Matrix4fc[]{null},
                 MeshData.SIZE,
                 MeshData.XYZ_OFFSET
         );
-        
+
         this.stoneShapeMesh = MeshUtils.createMeshFromCollisionShape("stoneShapeMesh", this.stoneShape);
     }
-    
+
     private Game() {
 
     }
@@ -288,6 +309,8 @@ public class Game {
         }
 
         geometry.setLightmapMesh(mesh);
+        
+        Geometries.GARAGE[1].setTextureHint(this.textures.r_g_b_a_or_h());
     }
 
     public void start() {
@@ -340,21 +363,21 @@ public class Game {
             loadLightmap(stair, "stairs.lightmap");
 
             this.scene.getGeometries().add(stair);
-            
+
             HullCollisionShape clippedStairs = MeshUtils.createHullCollisionShapeFromMeshes(
-                    new float[][] {stair.getMesh().getVertices()},
-                    new int[][] {stair.getMesh().getIndices()},
-                    new Matrix4fc[] {stair.getModel()},
+                    new float[][]{stair.getMesh().getVertices()},
+                    new int[][]{stair.getMesh().getIndices()},
+                    new Matrix4fc[]{stair.getModel()},
                     MeshData.SIZE,
                     MeshData.XYZ_OFFSET
             );
-            
+
             PhysicsRigidBody clippedStairsBody = new PhysicsRigidBody(clippedStairs, 0f);
             clippedStairsBody.setFriction(1f);
             clippedStairsBody.setRestitution(1f);
             this.physicsSpace.addCollisionObject(clippedStairsBody);
         }
-        
+
         {
             Geometry stair = new Geometry(GeometriesLoader.load(
                     MeshConfiguration.lightmapped("not_so_stupid_stair.obj")
@@ -364,10 +387,10 @@ public class Game {
                     .translate(5f, 5f, 0f)
                     .rotateY((float) Math.toRadians(-90f))
             );
-            
+
             this.stairGeometry = stair;
         }
-        
+
         this.scene.setIndirectLightingEnabled(true);
         this.scene.setDirectLightingEnabled(true);
         this.scene.setShadowsEnabled(true);
@@ -399,7 +422,7 @@ public class Game {
         meshVertices.add(this.monkeyGeometry.getMesh().getVertices());
         meshIndices.add(this.monkeyGeometry.getMesh().getIndices());
         meshModels.add(this.monkeyGeometry.getModel());
-        
+
         meshVertices.add(this.stairGeometry.getMesh().getVertices());
         meshIndices.add(this.stairGeometry.getMesh().getIndices());
         meshModels.add(this.stairGeometry.getModel());
@@ -494,7 +517,7 @@ public class Game {
 
             MeshData mesh = geo.getMesh();
             MeshData.LightmapMesh lightmap = geo.getLightmapMesh();
-
+            
             if (lightmap == null || !lightmap.isDone()) {
                 glBindVertexArray(mesh.getVAO());
             } else {
@@ -544,7 +567,7 @@ public class Game {
         glBindTexture(GL_TEXTURE_2D_ARRAY, Textures.EMPTY_LIGHTMAP);
         program.setModel(this.monkeyGeometry.getModel());
         this.monkeyGeometry.getMesh().bindRenderUnbind();
-        
+
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, this.stairGeometry.getMesh().getTextureHint());
         glActiveTexture(GL_TEXTURE1);
@@ -716,8 +739,8 @@ public class Game {
         this.rigidBodies.removeAll(removed);
 
         this.physicsSpace.update((float) Main.TPF);
-        
-        Main.WINDOW_TITLE += " (Speed: "+String.format("%.2f", this.player.getCharacterController().getRigidBody().getLinearVelocity(null).length())+")";
+
+        Main.WINDOW_TITLE += " (Speed: " + String.format("%.2f", this.player.getCharacterController().getRigidBody().getLinearVelocity(null).length()) + ")";
     }
 
     public void bakePopupCallback(BakePopup popup) {

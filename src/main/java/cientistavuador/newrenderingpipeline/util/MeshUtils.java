@@ -280,37 +280,37 @@ public class MeshUtils {
         }
         return totalSum;
     }
-    
+
     public static int conservativeMergeByDistance(float[] vertices, int vertexSize, int offset, int size, float distance) {
         float distanceSquared = distance * distance;
-        
+
         int altered = 0;
         boolean[] processed = new boolean[vertices.length / vertexSize];
-        
+
         float[] current = new float[size];
         float[] other = new float[size];
-        
+
         for (int v = 0; v < vertices.length; v += vertexSize) {
             if (processed[v / vertexSize]) {
                 continue;
             }
             processed[v / vertexSize] = true;
-            
+
             System.arraycopy(vertices, v + offset, current, 0, size);
-            
+
             for (int vOther = (v + vertexSize); vOther < vertices.length; vOther += vertexSize) {
                 if (processed[vOther / vertexSize]) {
                     continue;
                 }
-                
+
                 System.arraycopy(vertices, vOther + offset, other, 0, size);
-                
+
                 for (int i = 0; i < other.length; i++) {
                     other[i] = current[i] - other[i];
                 }
-                
+
                 float otherDistanceSquared = valuesDistanceSquared(other);
-                
+
                 if (otherDistanceSquared == 0f) {
                     processed[vOther / vertexSize] = true;
                     continue;
@@ -326,22 +326,22 @@ public class MeshUtils {
 
         return altered;
     }
-    
+
     public static int conservativeMergeByDistanceXYZ(float[] vertices, int vertexSize, int xyzOffset, float distance) {
         return conservativeMergeByDistance(vertices, vertexSize, xyzOffset, 3, distance);
     }
-    
+
     public static void vertexAO(float[] vertices, int vertexSize, int xyzOffset, int outAoOffset, float aoSize, int aoRays, float rayOffset) {
         VertexAO.vertexAO(vertices, vertexSize, xyzOffset, outAoOffset, aoSize, aoRays, rayOffset);
     }
-    
+
     private static Pair<float[], int[]> transformAndReindex(float[][] vertices, int[][] indices, Matrix4fc[] models, int vertexSize, int xyzOffset) {
         float[] collisionVertices = new float[64];
         int collisionVerticesIndex = 0;
-        
+
         Vector3f vertexPosition = new Vector3f();
         Matrix4fc identity = new Matrix4f();
-        
+
         for (int mesh = 0; mesh < vertices.length; mesh++) {
             float[] meshVertices = vertices[mesh];
             int[] meshIndices = indices[mesh];
@@ -349,9 +349,9 @@ public class MeshUtils {
             if (meshModel == null) {
                 meshModel = identity;
             }
-            
+
             float[] unindexedVertices = unindex(meshVertices, meshIndices, vertexSize).getA();
-            
+
             for (int v = 0; v < unindexedVertices.length; v += vertexSize) {
                 vertexPosition.set(
                         unindexedVertices[v + xyzOffset + 0],
@@ -368,80 +368,78 @@ public class MeshUtils {
                 collisionVerticesIndex += 3;
             }
         }
-        
+
         collisionVertices = Arrays.copyOf(collisionVertices, collisionVerticesIndex);
-        
+
         return generateIndices(collisionVertices, 3);
     }
-    
+
     public static GImpactCollisionShape createGImpactCollisionShapeFromMeshes(float[][] vertices, int[][] indices, Matrix4fc[] models, int vertexSize, int xyzOffset) {
         Pair<float[], int[]> indexedCollisionVerticesPair = transformAndReindex(vertices, indices, models, vertexSize, xyzOffset);
-        
+
         float[] indexedCollisionVertices = indexedCollisionVerticesPair.getA();
         int[] indexedCollisionIndices = indexedCollisionVerticesPair.getB();
-        
+
         FloatBuffer verticesBuffer = BufferUtils
                 .createFloatBuffer(indexedCollisionVertices.length)
                 .put(indexedCollisionVertices)
-                .flip()
-                ;
+                .flip();
         IntBuffer indicesBuffer = BufferUtils
                 .createIntBuffer(indexedCollisionIndices.length)
                 .put(indexedCollisionIndices)
                 .flip();
-        
+
         return new GImpactCollisionShape(new IndexedMesh(verticesBuffer, indicesBuffer));
     }
-    
+
     public static MeshCollisionShape createStaticCollisionShapeFromMeshes(float[][] vertices, int[][] indices, Matrix4fc[] models, int vertexSize, int xyzOffset) {
         Pair<float[], int[]> indexedCollisionVerticesPair = transformAndReindex(vertices, indices, models, vertexSize, xyzOffset);
-        
+
         float[] indexedCollisionVertices = indexedCollisionVerticesPair.getA();
         int[] indexedCollisionIndices = indexedCollisionVerticesPair.getB();
-        
+
         FloatBuffer verticesBuffer = BufferUtils
                 .createFloatBuffer(indexedCollisionVertices.length)
                 .put(indexedCollisionVertices)
-                .flip()
-                ;
+                .flip();
         IntBuffer indicesBuffer = BufferUtils
                 .createIntBuffer(indexedCollisionIndices.length)
                 .put(indexedCollisionIndices)
                 .flip();
-        
+
         return new MeshCollisionShape(true, new IndexedMesh(verticesBuffer, indicesBuffer));
     }
-    
+
     public static CompoundCollisionShape createConvexCollisionShapeFromMeshes(float[][] vertices, int[][] indices, Matrix4fc[] models, int vertexSize, int xyzOffset, Vhacd4Parameters parameters) {
         Pair<float[], int[]> indexedCollisionVerticesPair = transformAndReindex(vertices, indices, models, vertexSize, xyzOffset);
-        
+
         float[] indexedCollisionVertices = indexedCollisionVerticesPair.getA();
         int[] indexedCollisionIndices = indexedCollisionVerticesPair.getB();
-        
+
         List<Vhacd4Hull> hulls = Vhacd4.compute(
                 indexedCollisionVertices,
                 indexedCollisionIndices,
                 parameters
         );
-        
+
         if (hulls.isEmpty()) {
             return null;
         }
-        
+
         CompoundCollisionShape compound = new CompoundCollisionShape();
-        for (Vhacd4Hull hull:hulls) {
+        for (Vhacd4Hull hull : hulls) {
             compound.addChildShape(new HullCollisionShape(hull));
         }
-        
+
         return compound;
     }
-    
+
     public static HullCollisionShape createHullCollisionShapeFromMeshes(float[][] vertices, int[][] indices, Matrix4fc[] models, int vertexSize, int xyzOffset) {
         Pair<float[], int[]> indexedCollisionVerticesPair = transformAndReindex(vertices, indices, models, vertexSize, xyzOffset);
-        
+
         return new HullCollisionShape(indexedCollisionVerticesPair.getA());
     }
-    
+
     public static MeshData createMeshFromCollisionShape(String name, CollisionShape shape) {
         FloatBuffer verts = DebugShapeFactory.getDebugTriangles(shape, DebugShapeFactory.highResolution);
         verts.flip();
@@ -462,7 +460,7 @@ public class MeshUtils {
             int i0 = v + 0;
             int i1 = v + 1;
             int i2 = v + 2;
-            
+
             calculateTriangleNormal(
                     vertices, MeshData.SIZE, MeshData.XYZ_OFFSET,
                     i0, i1, i2,
@@ -485,56 +483,56 @@ public class MeshUtils {
             vertices[v2 + MeshData.N_XYZ_OFFSET + 1] = normal.y();
             vertices[v2 + MeshData.N_XYZ_OFFSET + 2] = normal.z();
         }
-        
+
         MeshUtils.conservativeMergeByDistanceXYZ(
                 vertices, MeshData.SIZE, MeshData.XYZ_OFFSET,
                 0.0001f
         );
-        
+
         Pair<float[], int[]> generated = MeshUtils.generateIndices(vertices, MeshData.SIZE);
-        
+
         return new MeshData(name, generated.getA(), generated.getB());
     }
-    
+
     public static SphereCollisionShape sphereCollisionFromVertices(float[] vertices, int vertexSize, int xyzOffset, float centerX, float centerY, float centerZ) {
         float maxRadius = 0f;
-        
+
         for (int i = 0; i < vertices.length; i += vertexSize) {
             float x = vertices[i + xyzOffset + 0];
             float y = vertices[i + xyzOffset + 1];
             float z = vertices[i + xyzOffset + 2];
-            
+
             x -= centerX;
             y -= centerY;
             z -= centerZ;
-            
+
             maxRadius = (float) Math.max(maxRadius, Math.sqrt(
                     (x * x) + (y * y) + (z * z)
             ));
         }
-        
+
         if (maxRadius <= 0f) {
             return null;
         }
-        
+
         return new SphereCollisionShape(maxRadius * Main.TO_PHYSICS_ENGINE_UNITS);
     }
-    
+
     public static CylinderCollisionShape cylinderCollisionFromVertices(float[] vertices, int vertexSize, int xyzOffset, float centerX, float centerY, float centerZ, int axis) {
         float maxRadius = 0f;
         float maxHeight = 0f;
-        
+
         for (int i = 0; i < vertices.length; i += vertexSize) {
             float x = vertices[i + xyzOffset + 0];
             float y = vertices[i + xyzOffset + 1];
             float z = vertices[i + xyzOffset + 2];
-            
+
             x -= centerX;
             y -= centerY;
             z -= centerZ;
-            
+
             float radiusX, heightY, radiusZ;
-            
+
             switch (axis) {
                 case 0 -> {
                     radiusX = y;
@@ -551,71 +549,72 @@ public class MeshUtils {
                     heightY = z;
                     radiusZ = y;
                 }
-                default -> throw new UnsupportedOperationException("Unknown axis "+axis);
+                default ->
+                    throw new UnsupportedOperationException("Unknown axis " + axis);
             }
-            
+
             float radius = (float) Math.sqrt((radiusX * radiusX) + (radiusZ * radiusZ));
             float height = Math.abs(heightY);
-            
+
             maxRadius = Math.max(maxRadius, radius);
             maxHeight = Math.max(maxHeight, height);
         }
-        
+
         if (maxRadius <= 0f) {
             return null;
         }
         if (maxHeight <= 0f) {
             return null;
         }
-        
+
         return new CylinderCollisionShape(
                 maxRadius * Main.TO_PHYSICS_ENGINE_UNITS,
                 maxHeight * 2f * Main.TO_PHYSICS_ENGINE_UNITS,
                 axis
         );
     }
-    
+
     public static BoxCollisionShape boxCollisionFromVertices(float[] vertices, int vertexSize, int xyzOffset, float centerX, float centerY, float centerZ) {
         float halfExtentX = 0f;
         float halfExtentY = 0f;
         float halfExtentZ = 0f;
-        
+
         for (int i = 0; i < vertices.length; i += vertexSize) {
             float x = vertices[i + xyzOffset + 0];
             float y = vertices[i + xyzOffset + 1];
             float z = vertices[i + xyzOffset + 2];
-            
+
             x -= centerX;
             y -= centerY;
             z -= centerZ;
-            
+
             halfExtentX = Math.max(halfExtentX, Math.abs(x));
             halfExtentY = Math.max(halfExtentY, Math.abs(y));
             halfExtentZ = Math.max(halfExtentZ, Math.abs(z));
         }
-        
+
         return new BoxCollisionShape(
                 halfExtentX * Main.TO_PHYSICS_ENGINE_UNITS,
                 halfExtentY * Main.TO_PHYSICS_ENGINE_UNITS,
                 halfExtentZ * Main.TO_PHYSICS_ENGINE_UNITS
         );
     }
-    
+
     public static CapsuleCollisionShape capsuleCollisionFromVertices(float[] vertices, int vertexSize, int xyzOffset, float centerX, float centerY, float centerZ, int axis) {
         float maxRadius = 0f;
         float maxHeight = 0f;
-        
+
         for (int i = 0; i < vertices.length; i += vertexSize) {
             float x = vertices[i + xyzOffset + 0];
             float y = vertices[i + xyzOffset + 1];
             float z = vertices[i + xyzOffset + 2];
-            
+
             x -= centerX;
             y -= centerY;
             z -= centerZ;
-            
+
             float radiusX, heightY, radiusZ;
-            
+
             switch (axis) {
                 case 0 -> {
                     radiusX = y;
@@ -632,63 +631,69 @@ public class MeshUtils {
                     heightY = z;
                     radiusZ = y;
                 }
-                default -> throw new UnsupportedOperationException("Unknown axis "+axis);
+                default ->
+                    throw new UnsupportedOperationException("Unknown axis " + axis);
             }
-            
+
             float radius = (float) Math.sqrt((radiusX * radiusX) + (radiusZ * radiusZ));
             float height = Math.abs(heightY);
-            
+
             maxRadius = Math.max(maxRadius, radius);
             maxHeight = Math.max(maxHeight, height);
         }
-        
+
         float radius = maxRadius;
         float height = (maxHeight * 2f) - (maxRadius * 2f);
-        
+
         if (radius <= 0f) {
             return null;
         }
         if (height <= 0f) {
             return null;
         }
-        
+
         return new CapsuleCollisionShape(
                 radius * Main.TO_PHYSICS_ENGINE_UNITS,
                 height * Main.TO_PHYSICS_ENGINE_UNITS,
                 axis
         );
     }
-    
-    public static void aabCenter(float[] vertices, int vertexSize, int xyzOffset, Vector3f centerOut) {
+
+    public static void aabb(float[] vertices, int vertexSize, int xyzOffset, Vector3f outMin, Vector3f outMax, Vector3f outCenter) {
         float minX = Float.POSITIVE_INFINITY;
         float minY = Float.POSITIVE_INFINITY;
         float minZ = Float.POSITIVE_INFINITY;
-        
+
         float maxX = Float.NEGATIVE_INFINITY;
         float maxY = Float.NEGATIVE_INFINITY;
         float maxZ = Float.NEGATIVE_INFINITY;
-        
+
         for (int i = 0; i < vertices.length; i += vertexSize) {
             float x = vertices[i + xyzOffset + 0];
             float y = vertices[i + xyzOffset + 1];
             float z = vertices[i + xyzOffset + 2];
-            
+
             minX = Math.min(minX, x);
             minY = Math.min(minY, y);
             minZ = Math.min(minZ, z);
-            
+
             maxX = Math.max(maxX, x);
             maxY = Math.max(maxY, y);
             maxZ = Math.max(maxZ, z);
         }
+
+        outMin.set(minX, minY, minZ);
+        outMax.set(maxX, maxY, maxZ);
         
-        float centerX = (minX * 0.5f) + (maxX * 0.5f);
-        float centerY = (minY * 0.5f) + (maxY * 0.5f);
-        float centerZ = (minZ * 0.5f) + (maxZ * 0.5f);
-        
-        centerOut.set(centerX, centerY, centerZ);
+        if (outCenter != null) {
+            float centerX = (minX * 0.5f) + (maxX * 0.5f);
+            float centerY = (minY * 0.5f) + (maxY * 0.5f);
+            float centerZ = (minZ * 0.5f) + (maxZ * 0.5f);
+
+            outCenter.set(centerX, centerY, centerZ);
+        }
     }
-    
+
     private MeshUtils() {
 
     }
