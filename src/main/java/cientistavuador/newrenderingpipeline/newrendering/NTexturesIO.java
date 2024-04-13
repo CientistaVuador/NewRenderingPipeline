@@ -251,10 +251,14 @@ public class NTexturesIO {
             int re = fetch(reflectivenessMap, (p * 4) + 0, 0);
             int ny = fetch(normalMap, (p * 4) + 1, 127);
             
+            if (NBlendingMode.OPAQUE.equals(mode) && hei != 255) {
+                mode = NBlendingMode.OPAQUE_WITH_HEIGHT_MAP;
+            }
+            
             rgbaorh[(p * 4) + 0] = (byte) r;
             rgbaorh[(p * 4) + 1] = (byte) g;
             rgbaorh[(p * 4) + 2] = (byte) b;
-            rgbaorh[(p * 4) + 3] = (byte) (NBlendingMode.OPAQUE.equals(mode) ? hei : a);
+            rgbaorh[(p * 4) + 3] = (byte) (NBlendingMode.OPAQUE.equals(mode) || NBlendingMode.OPAQUE_WITH_HEIGHT_MAP.equals(mode) ? hei : a);
             
             exry[(p * 4) + 0] = (byte) exp;
             exry[(p * 4) + 1] = (byte) nx;

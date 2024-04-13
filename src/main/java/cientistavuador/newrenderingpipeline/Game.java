@@ -33,7 +33,9 @@ import cientistavuador.newrenderingpipeline.debug.LineRender;
 import cientistavuador.newrenderingpipeline.geometry.Geometries;
 import cientistavuador.newrenderingpipeline.geometry.GeometriesLoader;
 import cientistavuador.newrenderingpipeline.geometry.Geometry;
+import cientistavuador.newrenderingpipeline.newrendering.NBlendingMode;
 import cientistavuador.newrenderingpipeline.newrendering.NMesh;
+import cientistavuador.newrenderingpipeline.newrendering.NProgram;
 import cientistavuador.newrenderingpipeline.newrendering.NTextures;
 import cientistavuador.newrenderingpipeline.newrendering.NTexturesIO;
 import cientistavuador.newrenderingpipeline.popups.BakePopup;
@@ -46,15 +48,16 @@ import cientistavuador.newrenderingpipeline.text.GLFontSpecifications;
 import cientistavuador.newrenderingpipeline.texture.Textures;
 import cientistavuador.newrenderingpipeline.ubo.CameraUBO;
 import cientistavuador.newrenderingpipeline.ubo.UBOBindingPoints;
+import cientistavuador.newrenderingpipeline.util.BetterUniformSetter;
 import cientistavuador.newrenderingpipeline.util.CollisionShapeStore;
 import cientistavuador.newrenderingpipeline.util.LightmapFile;
 import cientistavuador.newrenderingpipeline.util.MeshUtils;
+import cientistavuador.newrenderingpipeline.util.ProgramCompiler;
 import cientistavuador.newrenderingpipeline.util.bakedlighting.BakedLighting;
 import cientistavuador.newrenderingpipeline.util.raycast.RayResult;
 import cientistavuador.newrenderingpipeline.util.bakedlighting.SamplingMode;
 import cientistavuador.newrenderingpipeline.util.bakedlighting.Scene;
 import com.jme3.bullet.PhysicsSpace;
-import com.jme3.bullet.collision.PhysicsCollisionObject;
 import com.jme3.bullet.collision.shapes.CollisionShape;
 import com.jme3.bullet.collision.shapes.HullCollisionShape;
 import com.jme3.bullet.collision.shapes.MeshCollisionShape;
@@ -72,13 +75,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
+import org.joml.Vector3d;
 import org.joml.Vector3f;
 import org.joml.Vector3fc;
 import static org.lwjgl.glfw.GLFW.*;
@@ -242,7 +244,7 @@ public class Game {
         );
     }
 
-    NTextures textures;
+    private final NTextures textures;
 
     {
         try {
@@ -251,11 +253,43 @@ public class Game {
                     "cientistavuador/newrenderingpipeline/resources/image/height.jpg",
                     "cientistavuador/newrenderingpipeline/resources/image/exponent.jpg",
                     "cientistavuador/newrenderingpipeline/resources/image/normal.jpg",
-                    "cientistavuador/newrenderingpipeline/resources/image/reflectiveness.jpg"
+                    null
             );
         } catch (IOException ex) {
             throw new UncheckedIOException(ex);
         }
+    }
+
+    private final NMesh mesh;
+
+    {
+        float[] vertices = new float[]{
+            0f, 0f, 0f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f, 1f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f,
+            20f, 0f, 0f, 10f, 0f, 0f, 1f, 0f, 0f, 0f, 1f, 1f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f,
+            20f, 0f, -20f, 10f, 10f, 0f, 1f, 0f, 0f, 0f, 1f, 1f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f,
+            0f, 0f, 0f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f, 1f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f,
+            20f, 0f, -20f, 10f, 10f, 0f, 1f, 0f, 0f, 0f, 1f, 1f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f,
+            0f, 0f, -20f, 0f, 10f, 0f, 1f, 0f, 0f, 0f, 1f, 1f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f
+        };
+        int[] indices = new int[]{
+            0, 1, 2,
+            3, 4, 5
+        };
+        
+        MeshUtils.generateTangent(
+                vertices,
+                NMesh.VERTEX_SIZE,
+                NMesh.OFFSET_POSITION_XYZ,
+                NMesh.OFFSET_TEXTURE_XY,
+                NMesh.OFFSET_TANGENT_XYZ
+        );
+        
+        mesh = new NMesh(
+                "newmesh",
+                vertices,
+                indices,
+                null
+        );
     }
 
     private final PlayerController player = new PlayerController();
@@ -309,8 +343,6 @@ public class Game {
         }
 
         geometry.setLightmapMesh(mesh);
-        
-        Geometries.GARAGE[1].setTextureHint(this.textures.r_g_b_a_or_h());
     }
 
     public void start() {
@@ -517,7 +549,7 @@ public class Game {
 
             MeshData mesh = geo.getMesh();
             MeshData.LightmapMesh lightmap = geo.getLightmapMesh();
-            
+
             if (lightmap == null || !lightmap.isDone()) {
                 glBindVertexArray(mesh.getVAO());
             } else {
@@ -648,6 +680,83 @@ public class Game {
         program.setLightingEnabled(false);
 
         glUseProgram(0);
+
+        BetterUniformSetter opaqueVariant = NProgram.VARIANT_ALPHA_BLENDING;
+
+        glDisable(GL_BLEND);
+        glUseProgram(opaqueVariant.getProgram());
+
+        Matrix4fc projection = this.camera.getProjection();
+        Matrix4fc view = this.camera.getView();
+        Vector3d position = new Vector3d(0f, 3f, -10f);
+        Matrix4f model = new Matrix4f().translate(
+                (float) (position.x() - this.camera.getPosition().x()),
+                (float) (position.y() - this.camera.getPosition().y()),
+                (float) (position.z() - this.camera.getPosition().z())
+        );
+
+        BetterUniformSetter.uniformMatrix4fv(
+                opaqueVariant.locationOf(NProgram.UNIFORM_PROJECTION),
+                projection
+        );
+        BetterUniformSetter.uniformMatrix4fv(
+                opaqueVariant.locationOf(NProgram.UNIFORM_VIEW),
+                view
+        );
+        BetterUniformSetter.uniformMatrix4fv(
+                opaqueVariant.locationOf(NProgram.UNIFORM_MODEL),
+                model
+        );
+        BetterUniformSetter.uniformMatrix3fv(
+                opaqueVariant.locationOf(NProgram.UNIFORM_NORMAL_MODEL),
+                new Matrix3f()
+        );
+
+        NProgram.sendMaterial(opaqueVariant, null);
+
+        for (int i = 0; i < NProgram.MAX_AMOUNT_OF_LIGHTS; i++) {
+            NProgram.sendLight(opaqueVariant, null, i);
+        }
+
+        Vector3d lightPosition = new Vector3d(
+                5f, 4f, -15f
+        );
+        NProgram.NProgramLight light = new NProgram.NProgramLight(
+                NProgram.DIRECTIONAL_LIGHT_TYPE,
+                new Vector3f(
+                        (float) (lightPosition.x() - this.camera.getPosition().x()),
+                        (float) (lightPosition.y() - this.camera.getPosition().y()),
+                        (float) (lightPosition.z() - this.camera.getPosition().z())
+                ),
+                new Vector3f(1f, -1f, 1f),
+                0f, 0f,
+                new Vector3f(1.0f),
+                new Vector3f(0.25f),
+                new Vector3f(0.05f)
+        );
+        NProgram.sendLight(opaqueVariant, light, 0);
+
+        glUniform1i(opaqueVariant.locationOf(NProgram.UNIFORM_PARALLAX_ENABLED), 1);
+        glUniform1i(
+                opaqueVariant.locationOf(NProgram.UNIFORM_PARALLAX_SUPPORTED),
+                NBlendingMode.OPAQUE_WITH_HEIGHT_MAP.equals(this.textures.getBlendingMode()) ? 1 : 0
+        );
+
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, this.textures.r_g_b_a_or_h());
+
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, this.textures.e_nx_r_ny());
+
+        glUniform1i(opaqueVariant.locationOf(NProgram.UNIFORM_R_G_B_A_OR_H), 0);
+        glUniform1i(opaqueVariant.locationOf(NProgram.UNIFORM_E_NX_R_NY), 1);
+
+        glBindVertexArray(this.mesh.getVAO());
+        glDrawElements(GL_TRIANGLES, this.mesh.getIndices().length, GL_UNSIGNED_INT, 0);
+        glBindVertexArray(0);
+
+        glUseProgram(0);
+        glEnable(GL_BLEND);
 
         AabRender.renderQueue(camera);
         LineRender.renderQueue(camera);

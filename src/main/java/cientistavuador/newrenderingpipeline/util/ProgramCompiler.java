@@ -27,6 +27,8 @@
 package cientistavuador.newrenderingpipeline.util;
 
 import cientistavuador.newrenderingpipeline.Main;
+import java.util.Date;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import org.lwjgl.opengl.GL;
@@ -38,7 +40,7 @@ import org.lwjgl.opengl.KHRDebug;
  * @author Cien
  */
 public class ProgramCompiler {
-
+    
     private static final boolean ONLY_OUTPUT_ERRORS = false;
 
     public static int compile(String vertexSource, String fragmentSource) {
@@ -147,14 +149,92 @@ public class ProgramCompiler {
             glDeleteShader(geometryShader);
         }
         glDeleteShader(fragmentShader);
-
-        if (Main.DEBUG_ENABLED && shaderName != null && GL.getCapabilities().GL_KHR_debug) {
+        
+        if (shaderName != null && GL.getCapabilities().GL_KHR_debug) {
             KHRDebug.glObjectLabel(KHRDebug.GL_PROGRAM, program, "Program_" + shaderName);
         }
-
+        
         return program;
     }
+    
+    public static class ShaderConstant {
+        private final String name;
+        private final Object constant;
+        
+        public ShaderConstant(String name, Object constant) {
+            this.name = name;
+            this.constant = constant;
+        }
 
+        public String getName() {
+            return name;
+        }
+
+        public Object getConstant() {
+            return constant;
+        }
+    }
+    
+    public static Map<String, Integer> compile(String vertex, String geometry, String fragment, String[] variations, ShaderConstant[] constants) {
+        StringBuilder headerBuilder = new StringBuilder();
+        
+        headerBuilder.append("#version ").append(Main.OPENGL_MAJOR_VERSION).append(Main.OPENGL_MINOR_VERSION).append("0 core\n\n");
+        
+        headerBuilder.append("//Compiled at ").append(new Date().toString()).append("\n\n");
+        
+        int[] glslVersions = {
+            3, 3,
+            4, 0,
+            4, 1,
+            4, 2,
+            4, 3,
+            4, 4,
+            4, 5,
+            4, 6
+        };
+        
+        headerBuilder.append("//The supported glsl versions by this gpu:\n");
+        for (int i = 0; i < glslVersions.length; i += 2) {
+            int major = glslVersions[i + 0];
+            int minor = glslVersions[i + 1];
+            if (Main.isSupported(major, minor)) {
+                headerBuilder.append("#define SUPPORTED_").append(major).append(minor).append("0\n");
+            }
+        }
+        
+        headerBuilder.append("\n");
+        
+        headerBuilder.append("//The shader constants:\n");
+        for (ShaderConstant constant:constants) {
+            headerBuilder.append("#define ").append(constant.getName()).append(" ").append(constant.getConstant()).append("\n");
+        }
+        
+        headerBuilder.append("\n");
+        
+        String header = headerBuilder.toString();
+        
+        Map<String, Integer> programs = new HashMap<>();
+        
+        for (String variant:variations) {
+            String variantHeader = header+"//The variant of this program:\n#define VARIANT_"+variant+"\n\n";
+            
+            String modifiedVertex = variantHeader+vertex;
+            String modifiedGeometry = null;
+            if (geometry != null) {
+                modifiedGeometry = variantHeader+geometry;
+            }
+            String modifiedFrag = variantHeader+fragment;
+            
+            programs.put(variant, compile(modifiedVertex, modifiedGeometry, modifiedFrag));
+        }
+        
+        return programs;
+    }
+    
+    public static Map<String, Integer> compile(String vertex, String fragment, String[] variations, ShaderConstant[] constants) {
+        return compile(vertex, null, fragment, variations, constants);
+    }
+    
     private ProgramCompiler() {
 
     }

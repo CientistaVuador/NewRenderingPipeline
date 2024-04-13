@@ -31,5 +31,5 @@ package cientistavuador.newrenderingpipeline.newrendering;
  * @author Cien
  */
 public enum NBlendingMode {
-    OPAQUE, ALPHA_TESTING, ALPHA_BLENDING;
+    OPAQUE, OPAQUE_WITH_HEIGHT_MAP, ALPHA_TESTING, ALPHA_BLENDING;
 }
