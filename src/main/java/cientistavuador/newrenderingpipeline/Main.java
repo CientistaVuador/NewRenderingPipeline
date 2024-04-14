@@ -612,7 +612,7 @@ public class Main {
         long nextFpsUpdate = System.currentTimeMillis() + 1000;
         long nextTitleUpdate = System.currentTimeMillis() + 100;
         long timeFrameBegin = System.nanoTime();
-
+        
         while (!glfwWindowShouldClose(WINDOW_POINTER)) {
             Main.TPF = (System.nanoTime() - timeFrameBegin) / 1E9d;
             timeFrameBegin = System.nanoTime();

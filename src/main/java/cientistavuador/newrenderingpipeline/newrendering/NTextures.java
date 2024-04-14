@@ -46,7 +46,56 @@ import org.lwjgl.system.MemoryUtil;
  * @author Cien
  */
 public class NTextures {
-
+    
+    public static final NTextures NULL_TEXTURE;
+    
+    static {
+        int blackPixel = 0x00_00_00_FF;
+        int pinkPixel = 0xFF_00_FF_FF;
+        int nullTextureSize = 64;
+        int[] nullTexturePixels = new int[nullTextureSize * nullTextureSize];
+        for (int y = 0; y < nullTextureSize; y++) {
+            int pixelA = pinkPixel;
+            int pixelB = blackPixel;
+            if (y % 2 != 0) {
+                pixelA = blackPixel;
+                pixelB = pinkPixel;
+            }
+            for (int x = 0; x < nullTextureSize; x++) {
+                if (x % 2 == 0) {
+                    nullTexturePixels[x + (y * nullTextureSize)] = pixelA;
+                } else {
+                    nullTexturePixels[x + (y * nullTextureSize)] = pixelB;
+                }
+            }
+        }
+        
+        byte[] nullTextureData = new byte[nullTexturePixels.length * 4];
+        for (int i = 0; i < nullTexturePixels.length; i++) {
+            int pixel = nullTexturePixels[i];
+            
+            int r = (pixel >>> 24) & 0xFF;
+            int g = (pixel >>> 16) & 0xFF;
+            int b = (pixel >>> 8) & 0xFF;
+            int a = (pixel >>> 0) & 0xFF;
+            
+            nullTextureData[(i * 4) + 0] = (byte) r;
+            nullTextureData[(i * 4) + 1] = (byte) g;
+            nullTextureData[(i * 4) + 2] = (byte) b;
+            nullTextureData[(i * 4) + 3] = (byte) a;
+        }
+        
+        NULL_TEXTURE = NTexturesIO.load(
+                "Error/Null/Empty Texture",
+                nullTextureSize, nullTextureSize,
+                nullTextureData,
+                null,
+                null,
+                null,
+                null
+        );
+    }
+    
     private static final AtomicLong textureIds = new AtomicLong();
     
     private static class WrappedTexture {
@@ -86,7 +135,7 @@ public class NTextures {
         if (exponentNormalXreflectivenessNormalY.length != pixels) {
             throw new IllegalArgumentException("exponentNormalXreflectivenessNormalY has a invalid amount of bytes, found: " + exponentNormalXreflectivenessNormalY.length + ", required: " + pixels);
         }
-        
+
         this.width = width;
         this.height = height;
         this.redGreenBlueAlphaOrHeight = redGreenBlueAlphaOrHeight;
@@ -121,7 +170,7 @@ public class NTextures {
             hash = b.toString();
         }
         this.sha256 = hash;
-        
+
         if (name == null) {
             this.name = this.sha256;
         } else {
@@ -157,15 +206,15 @@ public class NTextures {
     public int getWidth() {
         return width;
     }
-    
+
     public int getHeight() {
         return height;
     }
-    
+
     public byte[] getRedGreenBlueAlphaOrHeight() {
         return redGreenBlueAlphaOrHeight;
     }
-    
+
     public byte[] getExponentNormalXreflectivenessNormalY() {
         return exponentNormalXreflectivenessNormalY;
     }
@@ -194,7 +243,7 @@ public class NTextures {
         }
 
         long texId = NTextures.textureIds.getAndIncrement();
-        
+
         glActiveTexture(GL_TEXTURE0);
 
         ByteBuffer rgbahData = MemoryUtil
@@ -205,12 +254,16 @@ public class NTextures {
             int rgbah = glGenTextures();
             glBindTexture(GL_TEXTURE_2D, rgbah);
             glTexImage2D(GL_TEXTURE_2D, 0, internalFormatSRGB, this.width, this.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgbahData);
-
-            glGenerateMipmap(GL_TEXTURE_2D);
-
+            
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-
+            
+            if (NBlendingMode.ALPHA_TESTING.equals(this.blendingMode)) {
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+            } else {
+                glGenerateMipmap(GL_TEXTURE_2D);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+            }
+            
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
@@ -221,18 +274,18 @@ public class NTextures {
                         glGetFloat(EXTTextureFilterAnisotropic.GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT)
                 );
             }
-            
+
             glBindTexture(GL_TEXTURE_2D, 0);
-            
+
             this.r_g_b_a_or_h.texture = rgbah;
-            
+
             if (GL.getCapabilities().GL_KHR_debug) {
-                KHRDebug.glObjectLabel(GL_TEXTURE, rgbah, "r_g_b_a_or_h_"+texId+"_"+this.name);
+                KHRDebug.glObjectLabel(GL_TEXTURE, rgbah, "r_g_b_a_or_h_" + texId + "_" + this.name);
             }
         } finally {
             MemoryUtil.memFree(rgbahData);
         }
-        
+
         ByteBuffer exryData = MemoryUtil
                 .memAlloc(this.exponentNormalXreflectivenessNormalY.length)
                 .put(this.exponentNormalXreflectivenessNormalY)
@@ -241,7 +294,7 @@ public class NTextures {
             int exry = glGenTextures();
             glBindTexture(GL_TEXTURE_2D, exry);
             glTexImage2D(GL_TEXTURE_2D, 0, internalFormatRGB, this.width, this.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, exryData);
-            
+
             glGenerateMipmap(GL_TEXTURE_2D);
 
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -257,13 +310,13 @@ public class NTextures {
                         glGetFloat(EXTTextureFilterAnisotropic.GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT)
                 );
             }
-            
+
             glBindTexture(GL_TEXTURE_2D, 0);
-            
+
             this.e_nx_r_ny.texture = exry;
-            
+
             if (GL.getCapabilities().GL_KHR_debug) {
-                KHRDebug.glObjectLabel(GL_TEXTURE, exry, "e_x_r_y_"+texId+"_"+this.name);
+                KHRDebug.glObjectLabel(GL_TEXTURE, exry, "e_x_r_y_" + texId + "_" + this.name);
             }
         } finally {
             MemoryUtil.memFree(exryData);
@@ -297,4 +350,26 @@ public class NTextures {
         }
     }
 
+    @Override
+    public int hashCode() {
+        int hash = 5;
+        hash = 53 * hash + Objects.hashCode(this.sha256);
+        return hash;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final NTextures other = (NTextures) obj;
+        return Objects.equals(this.sha256, other.sha256);
+    }
+    
 }

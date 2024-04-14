@@ -266,7 +266,7 @@ public class NTexturesIO {
             exry[(p * 4) + 3] = (byte) ny;
         }
         
-        if (!NBlendingMode.OPAQUE.equals(mode)) {
+        if (!NBlendingMode.OPAQUE.equals(mode) && !NBlendingMode.OPAQUE_WITH_HEIGHT_MAP.equals(mode)) {
             MarginAutomata.MarginAutomataIO io = new MarginAutomata.MarginAutomataIO() {
                 @Override
                 public int width() {

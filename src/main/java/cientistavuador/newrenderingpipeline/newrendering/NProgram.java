@@ -40,16 +40,19 @@ import static org.lwjgl.opengl.GL33C.*;
  * @author Cien
  */
 public class NProgram {
-    
+
+    public static final float LIGHT_ATTENUATION = 0.75f;
+
     public static final int MAX_AMOUNT_OF_LIGHTS = 16;
     public static final int MAX_AMOUNT_OF_LIGHTMAPS = 16;
-    
+
     public static final int NULL_LIGHT_TYPE = 0;
     public static final int DIRECTIONAL_LIGHT_TYPE = 1;
     public static final int POINT_LIGHT_TYPE = 2;
     public static final int SPOT_LIGHT_TYPE = 3;
-    
+
     public static class NProgramLight {
+
         public final int type;
         public final Vector3fc position;
         public final Vector3fc direction;
@@ -76,7 +79,7 @@ public class NProgram {
             this.ambient = new Vector3f(ambient);
         }
     }
-    
+
     public static final NProgramLight NULL_LIGHT = new NProgramLight(
             NULL_LIGHT_TYPE,
             new Vector3f(),
@@ -85,8 +88,9 @@ public class NProgram {
             0f,
             new Vector3f(), new Vector3f(), new Vector3f()
     );
-    
+
     public static class NProgramMaterial {
+
         public final Vector4fc diffuseColor;
         public final Vector3fc specularColor;
         public final float minExponent;
@@ -94,7 +98,7 @@ public class NProgram {
         public final float parallaxHeightCoefficient;
         public final float parallaxMinLayers;
         public final float parallaxMaxLayers;
-        
+
         public NProgramMaterial(
                 Vector4fc diffuseColor,
                 Vector3fc specularColor,
@@ -110,17 +114,19 @@ public class NProgram {
             this.parallaxMaxLayers = parallaxMaxLayers;
         }
     }
-    
+
     public static final NProgramMaterial NULL_MATERIAL = new NProgramMaterial(
             new Vector4f(0.75f, 0.75f, 0.75f, 1.0f),
             new Vector3f(0.25f, 0.25f, 0.25f),
-            1f, 256f,
+            1f, 512f,
             0.065f,
             8f, 32f
     );
-    
+
     public static final BetterUniformSetter VARIANT_ALPHA_TESTING;
     public static final BetterUniformSetter VARIANT_ALPHA_BLENDING;
+    public static final BetterUniformSetter VARIANT_LIGHTMAPPED_ALPHA_TESTING;
+    public static final BetterUniformSetter VARIANT_LIGHTMAPPED_ALPHA_BLENDING;
 
     private static final String VERTEX_SHADER = 
             """
@@ -145,7 +151,6 @@ public class NProgram {
                 vec3 worldPosition;
                 vec2 worldTexture;
                 vec3 worldNormal;
-                vec3 worldTangent;
                 float worldAmbientOcclusion;
                 
                 mat3 TBN;
@@ -159,16 +164,15 @@ public class NProgram {
             } outVertex;
             
             void main() {
-                outVertex.worldPosition = (model * vec4(vertexPosition, 1.0)).xyz;
-                outVertex.worldTexture = vertexTexture;
-                outVertex.worldNormal = normalModel * vertexNormal;
-                outVertex.worldTangent = normalModel * vertexTangent;
-                outVertex.worldAmbientOcclusion = vertexAmbientOcclusion;
+                vec3 tangent = normalize(normalModel * vertexTangent);
+                vec3 normal = normalize(normalModel * vertexNormal);
+                vec4 worldPosition = model * vec4(vertexPosition, 1.0);
                 
-                vec3 tangent = normalize(outVertex.worldTangent);
-                vec3 normal = normalize(outVertex.worldNormal);
-                vec3 bitangent = cross(normal, tangent);
-                outVertex.TBN = mat3(tangent, bitangent, normal);
+                outVertex.worldPosition = worldPosition.xyz;
+                outVertex.worldTexture = vertexTexture;
+                outVertex.worldNormal = normal;
+                outVertex.worldAmbientOcclusion = vertexAmbientOcclusion;
+                outVertex.TBN = mat3(tangent, cross(normal, tangent), normal);
                 
                 mat3 transposedTBN = transpose(outVertex.TBN);
                 outVertex.tangentPosition = transposedTBN * outVertex.worldPosition;
@@ -178,7 +182,7 @@ public class NProgram {
                 outVertex.worldLightmapUv = texelFetch(lightmapUvs, gl_VertexID).xy;
                 #endif
                 
-                gl_Position = projection * view * vec4(outVertex.worldPosition, 1.0);
+                gl_Position = projection * view * worldPosition;
             }
             """;
 
@@ -224,7 +228,6 @@ public class NProgram {
                 vec3 worldPosition;
                 vec2 worldTexture;
                 vec3 worldNormal;
-                vec3 worldTangent;
                 float worldAmbientOcclusion;
                 
                 mat3 TBN;
@@ -239,40 +242,60 @@ public class NProgram {
             
             layout (location = 0) out vec4 outputFragColor;
             
-            vec3 calculateDirectionalLight(
-                    Light light,
-                    vec3 diffuseColor,
-                    vec3 specularColor,
-                    float exponent,
-                    float normalizationFactor,
-                    vec3 normal,
-                    vec3 viewDirection
+            vec2 parallaxMapping(
+                vec2 uv,
+                vec3 tangentPosition,
+                vec3 tangentViewPosition,
+                float minLayers,
+                float maxLayers,
+                float heightScale
             ) {
-                vec3 oppositeLightDirection = normalize(-light.direction);
-                vec3 reflectedLightDirection = reflect(-oppositeLightDirection, normal);
-                vec3 halfwayDirection = normalize(oppositeLightDirection + viewDirection);
+                vec3 tangentViewDirection = normalize(tangentViewPosition - tangentPosition);
                 
-                float diffuseFactor = max(dot(normal, oppositeLightDirection), 0.0);
-                float specularFactor = pow(max(dot(normal, halfwayDirection), 0.0), exponent) * normalizationFactor;
+                float numLayers = mix(maxLayers, minLayers, max(dot(vec3(0.0, 0.0, 1.0), tangentViewDirection), 0.0));
                 
-                vec3 diffuse = light.diffuse * diffuseFactor * diffuseColor;
-                vec3 specular = light.specular * specularFactor * specularColor;
-                vec3 ambient = light.ambient * diffuseColor;
+                float layerDepth = 1.0 / numLayers;
+                float currentLayerDepth = 0.0;
                 
-                return diffuse + specular + ambient;
+                vec2 scaledViewDirection = tangentViewDirection.xy * heightScale;
+                vec2 deltaUv = scaledViewDirection / numLayers;
+                
+                vec2 currentUv = uv;
+                float currentDepth = 1.0 - texture(r_g_b_a_or_h, currentUv)[3];
+                
+                while (currentLayerDepth < currentDepth) {
+                    currentUv -= deltaUv;
+                    currentDepth = 1.0 - texture(r_g_b_a_or_h, currentUv)[3];
+                    currentLayerDepth += layerDepth;
+                }
+                 
+                vec2 previousUv = currentUv + deltaUv;
+                
+                float afterDepth = currentDepth - currentLayerDepth;
+                float beforeDepth = (1.0 - texture(r_g_b_a_or_h, previousUv)[3]) - currentLayerDepth + layerDepth;
+                
+                float weight = afterDepth / (afterDepth - beforeDepth);
+                vec2 finalUv = (previousUv * weight) + (currentUv * (1.0 - weight));
+                
+                return finalUv;
             }
             
-            vec3 calculatePointLight(
-                    Light light,
-                    vec3 diffuseColor,
-                    vec3 specularColor,
-                    float exponent,
-                    float normalizationFactor,
-                    vec3 normal,
-                    vec3 viewDirection,
-                    vec3 worldPosition
+            vec3 calculateLight(
+                Light light,
+                vec3 diffuseColor,
+                vec3 specularColor,
+                float exponent,
+                float normalizationFactor,
+                vec3 normal,
+                vec3 viewDirection,
+                vec3 worldPosition
             ) {
-                vec3 oppositeLightDirection = normalize(light.position - worldPosition);
+                int lightType = light.type;
+                
+                vec3 positionalLightDirection = normalize(light.position - worldPosition);
+                vec3 infiniteLightDirection = normalize(-light.direction);
+                
+                vec3 oppositeLightDirection = (lightType == DIRECTIONAL_LIGHT_TYPE ? infiniteLightDirection : positionalLightDirection);
                 vec3 reflectedLightDirection = reflect(-oppositeLightDirection, normal);
                 vec3 halfwayDirection = normalize(oppositeLightDirection + viewDirection);
                 
@@ -284,49 +307,22 @@ public class NProgram {
                 vec3 ambient = light.ambient * diffuseColor;
                 
                 float distance = length(light.position - worldPosition);
-                float attenuation = 1.0 / ((distance * distance) + 0.75);
+                float attenuation = 1.0 / ((distance * distance) + LIGHT_ATTENUATION);
                 
-                diffuse *= attenuation;
-                specular *= attenuation;
-                ambient *= attenuation;
+                float pointAttenuation = (lightType == POINT_LIGHT_TYPE || lightType == SPOT_LIGHT_TYPE ? attenuation : 1.0);
                 
-                return diffuse + specular + ambient;
-            }
-            
-            vec3 calculateSpotLight(
-                    Light light,
-                    vec3 diffuseColor,
-                    vec3 specularColor,
-                    float exponent,
-                    float normalizationFactor,
-                    vec3 normal,
-                    vec3 viewDirection,
-                    vec3 worldPosition
-            ) {
-                vec3 oppositeLightDirection = normalize(light.position - worldPosition);
-                vec3 reflectedLightDirection = reflect(-oppositeLightDirection, normal);
-                vec3 halfwayDirection = normalize(oppositeLightDirection + viewDirection);
-                
-                float diffuseFactor = max(dot(normal, oppositeLightDirection), 0.0);
-                float specularFactor = pow(max(dot(normal, halfwayDirection), 0.0), exponent) * normalizationFactor;
-                
-                vec3 diffuse = light.diffuse * diffuseFactor * diffuseColor;
-                vec3 specular = light.specular * specularFactor * specularColor;
-                vec3 ambient = light.ambient * diffuseColor;
-                
-                float distance = length(light.position - worldPosition);
-                float attenuation = 1.0 / ((distance * distance) + 0.75);
-                
-                diffuse *= attenuation;
-                specular *= attenuation;
-                ambient *= attenuation;
+                diffuse *= pointAttenuation;
+                specular *= pointAttenuation;
+                ambient *= pointAttenuation;
                 
                 float theta = dot(oppositeLightDirection, normalize(-light.direction));
                 float epsilon = light.innerCone - light.outerCone;
                 float intensity = clamp((theta - light.outerCone) / epsilon, 0.0, 1.0);
                 
-                diffuse *= intensity;
-                specular *= intensity;
+                float spotIntensity = (lightType == SPOT_LIGHT_TYPE ? intensity : 1.0);
+                
+                diffuse *= spotIntensity;
+                specular *= spotIntensity;
                 
                 return diffuse + specular + ambient;
             }
@@ -336,39 +332,10 @@ public class NProgram {
                 
                 vec2 textureUv = inVertex.worldTexture;
                 
-                if (parallaxSupported && parallaxEnabled) {
-                    vec3 tangentPosition = inVertex.tangentPosition;
-                    vec3 tangentViewPosition = inVertex.tangentViewPosition;
-                    
-                    vec3 tangentViewDirection = normalize(tangentViewPosition - tangentPosition);
-                    
-                    float heightScale = material.parallaxHeightCoefficient;
-                    
-                    const float numLayers = 32.0;
-                    float layerDepth = 1.0 / numLayers;
-                    float currentLayerDepth = 0.0;
-                    
-                    vec2 P = tangentViewDirection.xy * heightScale;
-                    vec2 deltaTexCoords = P / numLayers;
-                    
-                    vec2 currentTexCoords = inVertex.worldTexture;
-                    float currentHeight = 1.0 - texture(r_g_b_a_or_h, currentTexCoords)[3];
-                    
-                    while (currentLayerDepth < currentHeight) {
-                        currentTexCoords -= deltaTexCoords;
-                        currentHeight = 1.0 - texture(r_g_b_a_or_h, currentTexCoords)[3];
-                        currentLayerDepth += layerDepth;
-                    }
-                    
-                    vec2 prevTexCoords = currentTexCoords + deltaTexCoords;
-                    
-                    float afterHeight = currentHeight - currentLayerDepth;
-                    float beforeHeight = (1.0 - texture(r_g_b_a_or_h, prevTexCoords)[3]) - currentLayerDepth + layerDepth;
-                    
-                    float weight = afterHeight / (afterHeight - beforeHeight);
-                    vec2 finalTexCoords = prevTexCoords * weight + currentTexCoords * (1.0 - weight);
-                    
-                    textureUv = finalTexCoords;
+                float heightScale = material.parallaxHeightCoefficient;
+                
+                if (parallaxSupported && parallaxEnabled && heightScale > 0.0) {
+                    textureUv = parallaxMapping(inVertex.worldTexture, inVertex.tangentPosition, inVertex.tangentViewPosition, material.parallaxMinLayers, material.parallaxMaxLayers, material.parallaxHeightCoefficient);
                 }
                 
                 vec4 rgbaorh = texture(r_g_b_a_or_h, textureUv);
@@ -406,7 +373,7 @@ public class NProgram {
                 
                 normal = normalize(TBN * normal);
                 
-                float exponent = (enxrny[0] * (material.maxExponent - material.minExponent)) + material.minExponent;
+                float exponent = pow(material.maxExponent - material.minExponent, enxrny[0]) + material.minExponent;
                 float normalizationFactor = ((exponent + 2.0) * (exponent + 4.0)) / (8.0 * PI * (pow(2.0, -exponent * 0.5) + exponent));
                 vec3 viewDirection = normalize(-inVertex.worldPosition);
                 vec3 worldPosition = inVertex.worldPosition;
@@ -415,19 +382,10 @@ public class NProgram {
                 
                 for (int i = 0; i < MAX_AMOUNT_OF_LIGHTS; i++) {
                     Light light = lights[i];
-                    
-                    switch (light.type) {
-                        case DIRECTIONAL_LIGHT_TYPE:
-                            finalColor.rgb += calculateDirectionalLight(light, diffuseColor, specularColor, exponent, normalizationFactor, normal, viewDirection);
-                            break;
-                        case POINT_LIGHT_TYPE:
-                            finalColor.rgb += calculatePointLight(light, diffuseColor, specularColor, exponent, normalizationFactor, normal, viewDirection, worldPosition);
-                            break;
-                        case SPOT_LIGHT_TYPE:
-                            finalColor.rgb += calculateSpotLight(light, diffuseColor, specularColor, exponent, normalizationFactor, normal, viewDirection, worldPosition);
-                            break;
+                    if (light.type == NULL_LIGHT_TYPE) {
+                        break;
                     }
-                    
+                    finalColor.rgb += calculateLight(light, diffuseColor, specularColor, exponent, normalizationFactor, normal, viewDirection, worldPosition);
                 }
                 
                 finalColor.rgb = pow(finalColor.rgb, vec3(1.0/2.2));
@@ -456,9 +414,11 @@ public class NProgram {
         new ProgramCompiler.ShaderConstant("PI", Math.PI),
         new ProgramCompiler.ShaderConstant("MAX_AMOUNT_OF_LIGHTS", MAX_AMOUNT_OF_LIGHTS),
         new ProgramCompiler.ShaderConstant("MAX_AMOUNT_OF_LIGHTMAPS", MAX_AMOUNT_OF_LIGHTMAPS),
+        new ProgramCompiler.ShaderConstant("NULL_LIGHT_TYPE", NULL_LIGHT_TYPE),
         new ProgramCompiler.ShaderConstant("DIRECTIONAL_LIGHT_TYPE", DIRECTIONAL_LIGHT_TYPE),
         new ProgramCompiler.ShaderConstant("POINT_LIGHT_TYPE", POINT_LIGHT_TYPE),
-        new ProgramCompiler.ShaderConstant("SPOT_LIGHT_TYPE", SPOT_LIGHT_TYPE)
+        new ProgramCompiler.ShaderConstant("SPOT_LIGHT_TYPE", SPOT_LIGHT_TYPE),
+        new ProgramCompiler.ShaderConstant("LIGHT_ATTENUATION", LIGHT_ATTENUATION)
     };
 
     static {
@@ -475,8 +435,10 @@ public class NProgram {
 
         VARIANT_ALPHA_TESTING = new BetterUniformSetter(programs.get("ALPHA_TESTING"));
         VARIANT_ALPHA_BLENDING = new BetterUniformSetter(programs.get("ALPHA_BLENDING"));
+        VARIANT_LIGHTMAPPED_ALPHA_TESTING = new BetterUniformSetter(programs.get("LIGHTMAPPED_ALPHA_TESTING"));
+        VARIANT_LIGHTMAPPED_ALPHA_BLENDING = new BetterUniformSetter(programs.get("LIGHTMAPPED_ALPHA_BLENDING"));
     }
-    
+
     public static final String UNIFORM_PROJECTION = "projection";
     public static final String UNIFORM_VIEW = "view";
     public static final String UNIFORM_MODEL = "model";
@@ -487,7 +449,7 @@ public class NProgram {
     public static final String UNIFORM_LIGHTMAPS = "lightmaps";
     public static final String UNIFORM_PARALLAX_SUPPORTED = "parallaxSupported";
     public static final String UNIFORM_PARALLAX_ENABLED = "parallaxEnabled";
-    
+
     public static void sendMaterial(BetterUniformSetter uniforms, NProgramMaterial material) {
         if (material == null) {
             material = NULL_MATERIAL;
@@ -500,31 +462,33 @@ public class NProgram {
         glUniform1f(uniforms.locationOf("material.parallaxMinLayers"), material.parallaxMinLayers);
         glUniform1f(uniforms.locationOf("material.parallaxMinLayers"), material.parallaxMaxLayers);
     }
-    
+
     public static void sendLight(BetterUniformSetter uniforms, NProgramLight light, int index) {
         if (index < 0 || index > MAX_AMOUNT_OF_LIGHTS) {
-            throw new IllegalArgumentException("Out of bounds index: "+index);
+            throw new IllegalArgumentException("Out of bounds index: " + index);
         }
         if (light == null) {
             light = NULL_LIGHT;
         }
-        glUniform1i(uniforms.locationOf("lights["+index+"].type"), light.type);
-        glUniform3f(uniforms.locationOf("lights["+index+"].position"), light.position.x(), light.position.y(), light.position.z());
-        glUniform3f(uniforms.locationOf("lights["+index+"].direction"), light.direction.x(), light.direction.y(), light.direction.z());
-        glUniform1f(uniforms.locationOf("lights["+index+"].innerCone"), light.innerCone);
-        glUniform1f(uniforms.locationOf("lights["+index+"].outerCone"), light.outerCone);
-        glUniform3f(uniforms.locationOf("lights["+index+"].diffuse"), light.diffuse.x(), light.diffuse.y(), light.diffuse.z());
-        glUniform3f(uniforms.locationOf("lights["+index+"].specular"), light.specular.x(), light.specular.y(), light.specular.z());
-        glUniform3f(uniforms.locationOf("lights["+index+"].ambient"), light.ambient.x(), light.ambient.y(), light.ambient.z());
+        glUniform1i(uniforms.locationOf("lights[" + index + "].type"), light.type);
+        if (light != NULL_LIGHT) {
+            glUniform3f(uniforms.locationOf("lights[" + index + "].position"), light.position.x(), light.position.y(), light.position.z());
+            glUniform3f(uniforms.locationOf("lights[" + index + "].direction"), light.direction.x(), light.direction.y(), light.direction.z());
+            glUniform1f(uniforms.locationOf("lights[" + index + "].innerCone"), light.innerCone);
+            glUniform1f(uniforms.locationOf("lights[" + index + "].outerCone"), light.outerCone);
+            glUniform3f(uniforms.locationOf("lights[" + index + "].diffuse"), light.diffuse.x(), light.diffuse.y(), light.diffuse.z());
+            glUniform3f(uniforms.locationOf("lights[" + index + "].specular"), light.specular.x(), light.specular.y(), light.specular.z());
+            glUniform3f(uniforms.locationOf("lights[" + index + "].ambient"), light.ambient.x(), light.ambient.y(), light.ambient.z());
+        }
     }
-    
+
     public static void sendLightmapIntensity(BetterUniformSetter uniforms, float intensity, int index) {
         if (index < 0 || index > MAX_AMOUNT_OF_LIGHTMAPS) {
-            throw new IllegalArgumentException("Out of bounds index: "+index);
+            throw new IllegalArgumentException("Out of bounds index: " + index);
         }
-        glUniform1f(uniforms.locationOf("lightmapIntensity["+index+"]"), intensity);
+        glUniform1f(uniforms.locationOf("lightmapIntensity[" + index + "]"), intensity);
     }
-    
+
     public static void init() {
 
     }

@@ -27,6 +27,7 @@
 package cientistavuador.newrenderingpipeline.newrendering;
 
 import java.util.Objects;
+import org.joml.Vector3f;
 import org.joml.Vector4f;
 
 /**
@@ -35,23 +36,136 @@ import org.joml.Vector4f;
  */
 public class NMaterial {
 
-    private final NTextures textures;
+    public static final NMaterial NULL_MATERIAL = new NMaterial();
     
-    private final Vector4f diffuseColor = new Vector4f(1f, 1f, 1f, 1f);
+    static {
+        NULL_MATERIAL.getDiffuseColor().set(1f, 1f, 1f, 1f);
+        NULL_MATERIAL.getSpecularColor().set(0f, 0f, 0f);
+        NULL_MATERIAL.setParallaxHeightCoefficient(0f);
+    }
     
-    public NMaterial(NTextures textures) {
-        Objects.requireNonNull(textures, "textures is null");
-        this.textures = textures;
+    private NTextures textures = NTextures.NULL_TEXTURE;
+    
+    private final Vector4f diffuseColor = new Vector4f(0.75f, 0.75f, 0.75f, 1.0f);
+    private final Vector3f specularColor = new Vector3f(0.25f, 0.25f, 0.25f);
+    
+    private float minExponent = 1f;
+    private float maxExponent = 512f;
+    private float parallaxHeightCoefficient = 0.065f;
+    private float parallaxMinLayers = 8f;
+    private float parallaxMaxLayers = 32;
+    
+    public NMaterial() {
+        
     }
 
     public NTextures getTextures() {
         return textures;
     }
-    
+
+    public void setTextures(NTextures textures) {
+        if (textures == null) {
+            textures = NTextures.NULL_TEXTURE;
+        }
+        this.textures = textures;
+    }
+
     public Vector4f getDiffuseColor() {
         return diffuseColor;
     }
+
+    public Vector3f getSpecularColor() {
+        return specularColor;
+    }
+
+    public float getMinExponent() {
+        return minExponent;
+    }
+
+    public void setMinExponent(float minExponent) {
+        this.minExponent = minExponent;
+    }
+
+    public float getMaxExponent() {
+        return maxExponent;
+    }
     
-    
+    public void setMaxExponent(float maxExponent) {
+        this.maxExponent = maxExponent;
+    }
+
+    public float getParallaxHeightCoefficient() {
+        return parallaxHeightCoefficient;
+    }
+
+    public void setParallaxHeightCoefficient(float parallaxHeightCoefficient) {
+        this.parallaxHeightCoefficient = parallaxHeightCoefficient;
+    }
+
+    public float getParallaxMinLayers() {
+        return parallaxMinLayers;
+    }
+
+    public void setParallaxMinLayers(float parallaxMinLayers) {
+        this.parallaxMinLayers = parallaxMinLayers;
+    }
+
+    public float getParallaxMaxLayers() {
+        return parallaxMaxLayers;
+    }
+
+    public void setParallaxMaxLayers(float parallaxMaxLayers) {
+        this.parallaxMaxLayers = parallaxMaxLayers;
+    }
+
+    @Override
+    public int hashCode() {
+        int hash = 7;
+        hash = 37 * hash + Objects.hashCode(this.textures);
+        hash = 37 * hash + Objects.hashCode(this.diffuseColor);
+        hash = 37 * hash + Objects.hashCode(this.specularColor);
+        hash = 37 * hash + Float.floatToIntBits(this.minExponent);
+        hash = 37 * hash + Float.floatToIntBits(this.maxExponent);
+        hash = 37 * hash + Float.floatToIntBits(this.parallaxHeightCoefficient);
+        hash = 37 * hash + Float.floatToIntBits(this.parallaxMinLayers);
+        hash = 37 * hash + Float.floatToIntBits(this.parallaxMaxLayers);
+        return hash;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final NMaterial other = (NMaterial) obj;
+        if (Float.floatToIntBits(this.minExponent) != Float.floatToIntBits(other.minExponent)) {
+            return false;
+        }
+        if (Float.floatToIntBits(this.maxExponent) != Float.floatToIntBits(other.maxExponent)) {
+            return false;
+        }
+        if (Float.floatToIntBits(this.parallaxHeightCoefficient) != Float.floatToIntBits(other.parallaxHeightCoefficient)) {
+            return false;
+        }
+        if (Float.floatToIntBits(this.parallaxMinLayers) != Float.floatToIntBits(other.parallaxMinLayers)) {
+            return false;
+        }
+        if (Float.floatToIntBits(this.parallaxMaxLayers) != Float.floatToIntBits(other.parallaxMaxLayers)) {
+            return false;
+        }
+        if (!Objects.equals(this.textures, other.textures)) {
+            return false;
+        }
+        if (!Objects.equals(this.diffuseColor, other.diffuseColor)) {
+            return false;
+        }
+        return Objects.equals(this.specularColor, other.specularColor);
+    }
     
 }
