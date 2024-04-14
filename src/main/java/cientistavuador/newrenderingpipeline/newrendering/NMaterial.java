@@ -46,8 +46,8 @@ public class NMaterial {
     
     private NTextures textures = NTextures.NULL_TEXTURE;
     
-    private final Vector4f diffuseColor = new Vector4f(0.75f, 0.75f, 0.75f, 1.0f);
-    private final Vector3f specularColor = new Vector3f(0.25f, 0.25f, 0.25f);
+    private final Vector4f diffuseColor = new Vector4f(0.9f, 0.9f, 0.9f, 1.0f);
+    private final Vector3f specularColor = new Vector3f(0.1f, 0.1f, 0.1f);
     
     private float minExponent = 1f;
     private float maxExponent = 512f;

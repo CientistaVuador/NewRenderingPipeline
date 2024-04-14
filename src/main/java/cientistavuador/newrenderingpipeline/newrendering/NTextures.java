@@ -92,6 +92,7 @@ public class NTextures {
                 null,
                 null,
                 null,
+                null,
                 null
         );
     }
@@ -107,14 +108,14 @@ public class NTextures {
     private final int width;
     private final int height;
     private final byte[] redGreenBlueAlphaOrHeight;
-    private final byte[] exponentNormalXreflectivenessNormalY;
+    private final byte[] invertedExponentNormalXreflectivenessNormalY;
     private final NBlendingMode blendingMode;
     private final String sha256;
 
     private final WrappedTexture r_g_b_a_or_h = new WrappedTexture();
-    private final WrappedTexture e_nx_r_ny = new WrappedTexture();
+    private final WrappedTexture ie_nx_r_ny = new WrappedTexture();
 
-    public NTextures(String name, int width, int height, byte[] redGreenBlueAlphaOrHeight, byte[] exponentNormalXreflectivenessNormalY, NBlendingMode blendingMode) {
+    public NTextures(String name, int width, int height, byte[] redGreenBlueAlphaOrHeight, byte[] invertedExponentNormalXreflectivenessNormalY, NBlendingMode blendingMode) {
         if (width < 0) {
             throw new IllegalArgumentException("width is negative");
         }
@@ -123,7 +124,7 @@ public class NTextures {
         }
 
         Objects.requireNonNull(redGreenBlueAlphaOrHeight, "redGreenBlueAlphaOrHeight is null");
-        Objects.requireNonNull(exponentNormalXreflectivenessNormalY, "exponentNormalXreflectivenessNormalY is null");
+        Objects.requireNonNull(invertedExponentNormalXreflectivenessNormalY, "invertedExponentNormalXreflectivenessNormalY is null");
         Objects.requireNonNull(blendingMode, "blendingMode is null");
 
         int pixels = width * height * 4;
@@ -132,24 +133,24 @@ public class NTextures {
             throw new IllegalArgumentException("redGreenBlueAlphaOrHeight has a invalid amount of bytes, found: " + redGreenBlueAlphaOrHeight.length + ", required: " + pixels);
         }
 
-        if (exponentNormalXreflectivenessNormalY.length != pixels) {
-            throw new IllegalArgumentException("exponentNormalXreflectivenessNormalY has a invalid amount of bytes, found: " + exponentNormalXreflectivenessNormalY.length + ", required: " + pixels);
+        if (invertedExponentNormalXreflectivenessNormalY.length != pixels) {
+            throw new IllegalArgumentException("invertedExponentNormalXreflectivenessNormalY has a invalid amount of bytes, found: " + invertedExponentNormalXreflectivenessNormalY.length + ", required: " + pixels);
         }
 
         this.width = width;
         this.height = height;
         this.redGreenBlueAlphaOrHeight = redGreenBlueAlphaOrHeight;
-        this.exponentNormalXreflectivenessNormalY = exponentNormalXreflectivenessNormalY;
+        this.invertedExponentNormalXreflectivenessNormalY = invertedExponentNormalXreflectivenessNormalY;
         this.blendingMode = blendingMode;
 
         registerForCleaning();
 
         String hash;
         {
-            byte[] data = new byte[redGreenBlueAlphaOrHeight.length + exponentNormalXreflectivenessNormalY.length];
+            byte[] data = new byte[redGreenBlueAlphaOrHeight.length + invertedExponentNormalXreflectivenessNormalY.length];
 
             System.arraycopy(redGreenBlueAlphaOrHeight, 0, data, 0, redGreenBlueAlphaOrHeight.length);
-            System.arraycopy(exponentNormalXreflectivenessNormalY, 0, data, redGreenBlueAlphaOrHeight.length, exponentNormalXreflectivenessNormalY.length);
+            System.arraycopy(invertedExponentNormalXreflectivenessNormalY, 0, data, redGreenBlueAlphaOrHeight.length, invertedExponentNormalXreflectivenessNormalY.length);
 
             byte[] sha256Bytes;
             try {
@@ -180,20 +181,20 @@ public class NTextures {
 
     private void registerForCleaning() {
         final WrappedTexture final_r_g_b_a_or_h = this.r_g_b_a_or_h;
-        final WrappedTexture final_e_nx_r_ny = this.e_nx_r_ny;
+        final WrappedTexture final_ie_nx_r_ny = this.ie_nx_r_ny;
 
         ObjectCleaner.get().register(this, () -> {
             Main.MAIN_TASKS.add(() -> {
                 int tex_r_g_b_a_or_h = final_r_g_b_a_or_h.texture;
-                int tex_e_nx_r_ny = final_e_nx_r_ny.texture;
+                int tex_ie_nx_r_ny = final_ie_nx_r_ny.texture;
 
                 if (tex_r_g_b_a_or_h != 0) {
                     glDeleteTextures(tex_r_g_b_a_or_h);
                     final_r_g_b_a_or_h.texture = 0;
                 }
-                if (tex_e_nx_r_ny != 0) {
-                    glDeleteTextures(tex_e_nx_r_ny);
-                    final_e_nx_r_ny.texture = 0;
+                if (tex_ie_nx_r_ny != 0) {
+                    glDeleteTextures(tex_ie_nx_r_ny);
+                    final_ie_nx_r_ny.texture = 0;
                 }
             });
         });
@@ -215,8 +216,8 @@ public class NTextures {
         return redGreenBlueAlphaOrHeight;
     }
 
-    public byte[] getExponentNormalXreflectivenessNormalY() {
-        return exponentNormalXreflectivenessNormalY;
+    public byte[] getInvertedExponentNormalXreflectivenessNormalY() {
+        return invertedExponentNormalXreflectivenessNormalY;
     }
 
     public NBlendingMode getBlendingMode() {
@@ -287,12 +288,12 @@ public class NTextures {
         }
 
         ByteBuffer exryData = MemoryUtil
-                .memAlloc(this.exponentNormalXreflectivenessNormalY.length)
-                .put(this.exponentNormalXreflectivenessNormalY)
+                .memAlloc(this.invertedExponentNormalXreflectivenessNormalY.length)
+                .put(this.invertedExponentNormalXreflectivenessNormalY)
                 .flip();
         try {
-            int exry = glGenTextures();
-            glBindTexture(GL_TEXTURE_2D, exry);
+            int iexry = glGenTextures();
+            glBindTexture(GL_TEXTURE_2D, iexry);
             glTexImage2D(GL_TEXTURE_2D, 0, internalFormatRGB, this.width, this.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, exryData);
 
             glGenerateMipmap(GL_TEXTURE_2D);
@@ -313,10 +314,10 @@ public class NTextures {
 
             glBindTexture(GL_TEXTURE_2D, 0);
 
-            this.e_nx_r_ny.texture = exry;
+            this.ie_nx_r_ny.texture = iexry;
 
             if (GL.getCapabilities().GL_KHR_debug) {
-                KHRDebug.glObjectLabel(GL_TEXTURE, exry, "e_x_r_y_" + texId + "_" + this.name);
+                KHRDebug.glObjectLabel(GL_TEXTURE, iexry, "e_x_r_y_" + texId + "_" + this.name);
             }
         } finally {
             MemoryUtil.memFree(exryData);
@@ -328,25 +329,25 @@ public class NTextures {
         return this.r_g_b_a_or_h.texture;
     }
 
-    public int e_nx_r_ny() {
+    public int ie_nx_r_ny() {
         validateTextures();
-        return this.e_nx_r_ny.texture;
+        return this.ie_nx_r_ny.texture;
     }
 
     public void manualFree() {
         final WrappedTexture final_r_g_b_a_or_h = this.r_g_b_a_or_h;
-        final WrappedTexture final_e_nx_r_ny = this.e_nx_r_ny;
+        final WrappedTexture final_ie_nx_r_ny = this.ie_nx_r_ny;
 
         int tex_r_g_b_a_or_h = final_r_g_b_a_or_h.texture;
-        int tex_e_nx_r_ny = final_e_nx_r_ny.texture;
+        int tex_ie_nx_r_ny = final_ie_nx_r_ny.texture;
 
         if (tex_r_g_b_a_or_h != 0) {
             glDeleteTextures(tex_r_g_b_a_or_h);
             final_r_g_b_a_or_h.texture = 0;
         }
-        if (tex_e_nx_r_ny != 0) {
-            glDeleteTextures(tex_e_nx_r_ny);
-            final_e_nx_r_ny.texture = 0;
+        if (tex_ie_nx_r_ny != 0) {
+            glDeleteTextures(tex_ie_nx_r_ny);
+            final_ie_nx_r_ny.texture = 0;
         }
     }
 

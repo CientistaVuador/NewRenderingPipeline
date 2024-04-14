@@ -116,8 +116,8 @@ public class NProgram {
     }
 
     public static final NProgramMaterial NULL_MATERIAL = new NProgramMaterial(
-            new Vector4f(0.75f, 0.75f, 0.75f, 1.0f),
-            new Vector3f(0.25f, 0.25f, 0.25f),
+            new Vector4f(0.9f, 0.9f, 0.9f, 1.0f),
+            new Vector3f(0.1f, 0.1f, 0.1f),
             1f, 512f,
             0.065f,
             8f, 32f
@@ -189,7 +189,7 @@ public class NProgram {
     private static final String FRAGMENT_SHADER = 
             """
             uniform sampler2D r_g_b_a_or_h;
-            uniform sampler2D e_nx_r_ny;
+            uniform sampler2D ie_nx_r_ny;
             
             uniform bool parallaxSupported;
             uniform bool parallaxEnabled;
@@ -339,7 +339,7 @@ public class NProgram {
                 }
                 
                 vec4 rgbaorh = texture(r_g_b_a_or_h, textureUv);
-                vec4 enxrny = texture(e_nx_r_ny, textureUv);
+                vec4 ienxrny = texture(ie_nx_r_ny, textureUv);
                 
                 #if defined(VARIANT_LIGHTMAPPED_ALPHA_TESTING) || defined(VARIANT_LIGHTMAPPED_ALPHA_BLENDING)
                 int amountOfLightmaps = textureSize(lightmaps, 0).z;
@@ -361,8 +361,8 @@ public class NProgram {
                 mat3 TBN = inVertex.TBN;
                 
                 vec3 normal = vec3(
-                    (enxrny[1] * 2.0) - 1.0,
-                    (enxrny[3] * 2.0) - 1.0,
+                    (ienxrny[1] * 2.0) - 1.0,
+                    (ienxrny[3] * 2.0) - 1.0,
                     0.0
                 );
                 normal = normalize(vec3(
@@ -373,7 +373,7 @@ public class NProgram {
                 
                 normal = normalize(TBN * normal);
                 
-                float exponent = pow(material.maxExponent - material.minExponent, enxrny[0]) + material.minExponent;
+                float exponent = pow(material.maxExponent - material.minExponent, 1.0 - ienxrny[0]) + material.minExponent;
                 float normalizationFactor = ((exponent + 2.0) * (exponent + 4.0)) / (8.0 * PI * (pow(2.0, -exponent * 0.5) + exponent));
                 vec3 viewDirection = normalize(-inVertex.worldPosition);
                 vec3 worldPosition = inVertex.worldPosition;
@@ -444,7 +444,7 @@ public class NProgram {
     public static final String UNIFORM_MODEL = "model";
     public static final String UNIFORM_NORMAL_MODEL = "normalModel";
     public static final String UNIFORM_R_G_B_A_OR_H = "r_g_b_a_or_h";
-    public static final String UNIFORM_E_NX_R_NY = "e_nx_r_ny";
+    public static final String UNIFORM_IE_NX_R_NY = "ie_nx_r_ny";
     public static final String UNIFORM_LIGHTMAPS_UVS = "lightmapUvs";
     public static final String UNIFORM_LIGHTMAPS = "lightmaps";
     public static final String UNIFORM_PARALLAX_SUPPORTED = "parallaxSupported";

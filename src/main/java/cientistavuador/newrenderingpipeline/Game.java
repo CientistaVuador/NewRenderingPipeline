@@ -259,8 +259,9 @@ public class Game {
         try {
             textures = NTexturesIO.loadFromJar(
                     "cientistavuador/newrenderingpipeline/resources/image/diffuse.jpg",
+                    "cientistavuador/newrenderingpipeline/resources/image/ao.jpg",
                     "cientistavuador/newrenderingpipeline/resources/image/height.jpg",
-                    "cientistavuador/newrenderingpipeline/resources/image/exponent.jpg",
+                    "cientistavuador/newrenderingpipeline/resources/image/invertedexponent.jpg",
                     "cientistavuador/newrenderingpipeline/resources/image/normal.jpg",
                     null
             );
@@ -284,7 +285,7 @@ public class Game {
             0, 1, 2,
             3, 4, 5
         };
-        
+
         MeshUtils.generateTangent(
                 vertices,
                 NMesh.VERTEX_SIZE,
@@ -292,7 +293,7 @@ public class Game {
                 NMesh.OFFSET_TEXTURE_XY,
                 NMesh.OFFSET_TANGENT_XYZ
         );
-        
+
         mesh = new NMesh(
                 "newmesh",
                 vertices,
@@ -703,7 +704,7 @@ public class Game {
                 (float) (position.y() - this.camera.getPosition().y()),
                 (float) (position.z() - this.camera.getPosition().z())
         );
-
+        
         BetterUniformSetter.uniformMatrix4fv(
                 opaqueVariant.locationOf(NProgram.UNIFORM_PROJECTION),
                 projection
@@ -739,13 +740,13 @@ public class Game {
                 ),
                 new Vector3f(1f, -1f, 1f),
                 0f, 0f,
-                new Vector3f(1.0f),
-                new Vector3f(0.25f),
+                new Vector3f(1f),
+                new Vector3f(1f),
                 new Vector3f(0.05f)
         );
         NProgram.sendLight(opaqueVariant, light, 0);
 
-        glUniform1i(opaqueVariant.locationOf(NProgram.UNIFORM_PARALLAX_ENABLED), 1);
+        glUniform1i(opaqueVariant.locationOf(NProgram.UNIFORM_PARALLAX_ENABLED), 0);
         glUniform1i(
                 opaqueVariant.locationOf(NProgram.UNIFORM_PARALLAX_SUPPORTED),
                 NBlendingMode.OPAQUE_WITH_HEIGHT_MAP.equals(this.textures.getBlendingMode()) ? 1 : 0
@@ -755,10 +756,10 @@ public class Game {
         glBindTexture(GL_TEXTURE_2D, this.textures.r_g_b_a_or_h());
 
         glActiveTexture(GL_TEXTURE1);
-        glBindTexture(GL_TEXTURE_2D, this.textures.e_nx_r_ny());
+        glBindTexture(GL_TEXTURE_2D, this.textures.ie_nx_r_ny());
 
         glUniform1i(opaqueVariant.locationOf(NProgram.UNIFORM_R_G_B_A_OR_H), 0);
-        glUniform1i(opaqueVariant.locationOf(NProgram.UNIFORM_E_NX_R_NY), 1);
+        glUniform1i(opaqueVariant.locationOf(NProgram.UNIFORM_IE_NX_R_NY), 1);
 
         glBindVertexArray(this.mesh.getVAO());
         glDrawElements(GL_TRIANGLES, this.mesh.getIndices().length, GL_UNSIGNED_INT, 0);

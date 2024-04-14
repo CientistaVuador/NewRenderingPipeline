@@ -43,6 +43,8 @@ import org.lwjgl.system.MemoryStack;
  */
 public class NTexturesIO {
     
+    public static final float MINIMUM_AMBIENT_OCCLUSION = 0.5f;
+    
     private static byte[] loadFromJarOrNull(String path) throws FileNotFoundException, IOException {
         if (path == null) {
             return null;
@@ -58,13 +60,14 @@ public class NTexturesIO {
     
     public static NTextures loadFromJar(
             String diffusePath,
+            String aoPath,
             String heightPath,
-            String exponentPath,
+            String invertedExponentPath,
             String normalPath,
             String reflectivenessPath
     ) throws IOException {
         String[] paths = new String[] {
-            diffusePath, heightPath, exponentPath, normalPath, reflectivenessPath
+            diffusePath, aoPath, heightPath, invertedExponentPath, normalPath, reflectivenessPath
         };
         StringBuilder b = new StringBuilder();
         for (String path1 : paths) {
@@ -84,12 +87,13 @@ public class NTexturesIO {
         }
         
         byte[] diffuse = loadFromJarOrNull(diffusePath);
+        byte[] ao = loadFromJarOrNull(aoPath);
         byte[] height = loadFromJarOrNull(heightPath);
-        byte[] exponent = loadFromJarOrNull(exponentPath);
+        byte[] invertedExponent = loadFromJarOrNull(invertedExponentPath);
         byte[] normal = loadFromJarOrNull(normalPath);
         byte[] reflectiveness = loadFromJarOrNull(reflectivenessPath);
         
-        return loadFromImages(name, diffuse, height, exponent, normal, reflectiveness);
+        return loadFromImages(name, diffuse, ao, height, invertedExponent, normal, reflectiveness);
     }
     
     private static class LoadedImage {
@@ -138,19 +142,21 @@ public class NTexturesIO {
     public static NTextures loadFromImages(
             String name,
             byte[] diffuseImage,
+            byte[] aoImage,
             byte[] heightImage,
-            byte[] exponentImage,
+            byte[] invertedExponentImage,
             byte[] normalImage,
             byte[] reflectivenessImage
     ) {
         LoadedImage diffuse = load(diffuseImage);
+        LoadedImage ao = load(aoImage);
         LoadedImage height = load(heightImage);
-        LoadedImage exponent = load(exponentImage);
+        LoadedImage exponent = load(invertedExponentImage);
         LoadedImage normal = load(normalImage);
         LoadedImage reflectiveness = load(reflectivenessImage);
         
         LoadedImage[] loadedArray = new LoadedImage[] {
-            diffuse, height, exponent, normal, reflectiveness
+            diffuse, ao, height, exponent, normal, reflectiveness
         };
         
         int foundWidth = -1;
@@ -178,6 +184,7 @@ public class NTexturesIO {
                 foundWidth,
                 foundHeight,
                 (diffuse != null ? diffuse.pixelData : null),
+                (ao != null ? ao.pixelData : null),
                 (height != null ? height.pixelData : null),
                 (exponent != null ? exponent.pixelData : null),
                 (normal != null ? normal.pixelData : null),
@@ -202,8 +209,9 @@ public class NTexturesIO {
             String name,
             int width, int height,
             byte[] diffuseMap,
+            byte[] aoMap,
             byte[] heightMap,
-            byte[] exponentMap,
+            byte[] invertedExponentMap,
             byte[] normalMap,
             byte[] reflectivenessMap
     ) {
@@ -217,8 +225,9 @@ public class NTexturesIO {
         int pixels = width * height;
         
         validate("diffuse map", diffuseMap, pixels);
+        validate("ao map", aoMap, pixels);
         validate("height map", heightMap, pixels);
-        validate("exponent map", exponentMap, pixels);
+        validate("inverted exponent map", invertedExponentMap, pixels);
         validate("normal map", normalMap, pixels);
         validate("reflectiveness map", reflectivenessMap, pixels);
         
@@ -245,8 +254,9 @@ public class NTexturesIO {
             int g = fetch(diffuseMap, (p * 4) + 1, 255);
             int b = fetch(diffuseMap, (p * 4) + 2, 255);
             int a = fetch(diffuseMap, (p * 4) + 3, 255);
+            int ao = fetch(aoMap, (p * 4) + 0, 255);
             int hei = fetch(heightMap, (p * 4) + 0, 255);
-            int exp = fetch(exponentMap, (p * 4) + 0, 0);
+            int invexp = fetch(invertedExponentMap, (p * 4) + 0, 0);
             int nx = fetch(normalMap, (p * 4) + 0, 127);
             int re = fetch(reflectivenessMap, (p * 4) + 0, 0);
             int ny = fetch(normalMap, (p * 4) + 1, 127);
@@ -255,12 +265,14 @@ public class NTexturesIO {
                 mode = NBlendingMode.OPAQUE_WITH_HEIGHT_MAP;
             }
             
-            rgbaorh[(p * 4) + 0] = (byte) r;
-            rgbaorh[(p * 4) + 1] = (byte) g;
-            rgbaorh[(p * 4) + 2] = (byte) b;
+            float ambientOcclusion = ((ao / 255f) * (1f - MINIMUM_AMBIENT_OCCLUSION)) + MINIMUM_AMBIENT_OCCLUSION;
+            
+            rgbaorh[(p * 4) + 0] = (byte) Math.floor(r * ambientOcclusion);
+            rgbaorh[(p * 4) + 1] = (byte) Math.floor(g * ambientOcclusion);
+            rgbaorh[(p * 4) + 2] = (byte) Math.floor(b * ambientOcclusion);
             rgbaorh[(p * 4) + 3] = (byte) (NBlendingMode.OPAQUE.equals(mode) || NBlendingMode.OPAQUE_WITH_HEIGHT_MAP.equals(mode) ? hei : a);
             
-            exry[(p * 4) + 0] = (byte) exp;
+            exry[(p * 4) + 0] = (byte) invexp;
             exry[(p * 4) + 1] = (byte) nx;
             exry[(p * 4) + 2] = (byte) re;
             exry[(p * 4) + 3] = (byte) ny;
