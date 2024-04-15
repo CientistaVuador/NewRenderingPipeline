@@ -50,7 +50,7 @@ public class NMaterial {
     private final Vector3f specularColor = new Vector3f(0.1f, 0.1f, 0.1f);
     
     private float minExponent = 1f;
-    private float maxExponent = 512f;
+    private float maxExponent = 1024f;
     private float parallaxHeightCoefficient = 0.065f;
     private float parallaxMinLayers = 8f;
     private float parallaxMaxLayers = 32;

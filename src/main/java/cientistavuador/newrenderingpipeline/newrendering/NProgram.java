@@ -118,7 +118,7 @@ public class NProgram {
     public static final NProgramMaterial NULL_MATERIAL = new NProgramMaterial(
             new Vector4f(0.9f, 0.9f, 0.9f, 1.0f),
             new Vector3f(0.1f, 0.1f, 0.1f),
-            1f, 512f,
+            1f, 1024f,
             0.065f,
             8f, 32f
     );
