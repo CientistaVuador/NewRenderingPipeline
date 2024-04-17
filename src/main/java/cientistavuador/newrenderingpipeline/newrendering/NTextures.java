@@ -28,6 +28,7 @@ package cientistavuador.newrenderingpipeline.newrendering;
 
 import cientistavuador.newrenderingpipeline.Main;
 import cientistavuador.newrenderingpipeline.util.ObjectCleaner;
+import cientistavuador.newrenderingpipeline.util.StringUtils;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -262,12 +263,12 @@ public class NTextures {
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
             } else {
                 glGenerateMipmap(GL_TEXTURE_2D);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_LINEAR);
             }
             
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-
+            
             if (GL.getCapabilities().GL_EXT_texture_filter_anisotropic) {
                 glTexParameterf(
                         GL_TEXTURE_2D,
@@ -275,13 +276,15 @@ public class NTextures {
                         glGetFloat(EXTTextureFilterAnisotropic.GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT)
                 );
             }
-
+            
             glBindTexture(GL_TEXTURE_2D, 0);
 
             this.r_g_b_a_or_h.texture = rgbah;
 
             if (GL.getCapabilities().GL_KHR_debug) {
-                KHRDebug.glObjectLabel(GL_TEXTURE, rgbah, "r_g_b_a_or_h_" + texId + "_" + this.name);
+                KHRDebug.glObjectLabel(GL_TEXTURE, rgbah, 
+                        StringUtils.truncateStringTo255Bytes("r_g_b_a_or_h_" + texId + "_" + this.name)
+                );
             }
         } finally {
             MemoryUtil.memFree(rgbahData);
@@ -299,8 +302,14 @@ public class NTextures {
             glGenerateMipmap(GL_TEXTURE_2D);
 
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-
+            
+            if (NBlendingMode.ALPHA_TESTING.equals(this.blendingMode)) {
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+            } else {
+                glGenerateMipmap(GL_TEXTURE_2D);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_LINEAR);
+            }
+            
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
@@ -317,7 +326,9 @@ public class NTextures {
             this.ie_nx_r_ny.texture = iexry;
 
             if (GL.getCapabilities().GL_KHR_debug) {
-                KHRDebug.glObjectLabel(GL_TEXTURE, iexry, "e_x_r_y_" + texId + "_" + this.name);
+                KHRDebug.glObjectLabel(GL_TEXTURE, iexry, 
+                        StringUtils.truncateStringTo255Bytes("e_x_r_y_" + texId + "_" + this.name)
+                );
             }
         } finally {
             MemoryUtil.memFree(exryData);

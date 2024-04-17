@@ -116,8 +116,8 @@ public class NProgram {
     }
 
     public static final NProgramMaterial NULL_MATERIAL = new NProgramMaterial(
-            new Vector4f(0.9f, 0.9f, 0.9f, 1.0f),
-            new Vector3f(0.1f, 0.1f, 0.1f),
+            new Vector4f(0.85f, 0.85f, 0.85f, 1.0f),
+            new Vector3f(0.15f, 0.15f, 0.15f),
             1f, 1024f,
             0.065f,
             8f, 32f
@@ -286,6 +286,7 @@ public class NProgram {
                 vec3 specularColor,
                 float exponent,
                 float normalizationFactor,
+                float fresnel,
                 vec3 normal,
                 vec3 viewDirection,
                 vec3 worldPosition
@@ -300,7 +301,7 @@ public class NProgram {
                 vec3 halfwayDirection = normalize(oppositeLightDirection + viewDirection);
                 
                 float diffuseFactor = max(dot(normal, oppositeLightDirection), 0.0);
-                float specularFactor = pow(max(dot(normal, halfwayDirection), 0.0), exponent) * normalizationFactor;
+                float specularFactor = pow(max(dot(normal, halfwayDirection), 0.0), exponent) * normalizationFactor * fresnel;
                 
                 vec3 diffuse = light.diffuse * diffuseFactor * diffuseColor;
                 vec3 specular = light.specular * specularFactor * specularColor;
@@ -325,6 +326,19 @@ public class NProgram {
                 specular *= spotIntensity;
                 
                 return diffuse + specular + ambient;
+            }
+            
+            vec3 ACESFilm(vec3 rgb) {
+                float a = 2.51;
+                float b = 0.03;
+                float c = 2.43;
+                float d = 0.59;
+                float e = 0.14;
+                return clamp((rgb*(a*rgb+b))/(rgb*(c*rgb+d)+e), vec3(0.0), vec3(1.0));
+            }
+            
+            vec3 gammaCorrection(vec3 rgb) {
+                return pow(rgb, vec3(1.0/2.2));
             }
             
             void main() {
@@ -376,6 +390,7 @@ public class NProgram {
                 float exponent = pow(material.maxExponent - material.minExponent, 1.0 - ienxrny[0]) + material.minExponent;
                 float normalizationFactor = ((exponent + 2.0) * (exponent + 4.0)) / (8.0 * PI * (pow(2.0, -exponent * 0.5) + exponent));
                 vec3 viewDirection = normalize(-inVertex.worldPosition);
+                float fresnel = 1.0 - max(dot(normal, viewDirection), 0.0);
                 vec3 worldPosition = inVertex.worldPosition;
                 vec3 diffuseColor = material.diffuseColor.rgb * rgbaorh.rgb;
                 vec3 specularColor = material.specularColor;
@@ -385,10 +400,16 @@ public class NProgram {
                     if (light.type == NULL_LIGHT_TYPE) {
                         break;
                     }
-                    finalColor.rgb += calculateLight(light, diffuseColor, specularColor, exponent, normalizationFactor, normal, viewDirection, worldPosition);
+                    finalColor.rgb += calculateLight(
+                        light,
+                        diffuseColor, specularColor,
+                        exponent, normalizationFactor, fresnel,
+                        normal, viewDirection,
+                        worldPosition
+                    );
                 }
                 
-                finalColor.rgb = pow(finalColor.rgb, vec3(1.0/2.2));
+                finalColor.rgb = gammaCorrection(ACESFilm(finalColor.rgb));
                 
                 #if defined(VARIANT_ALPHA_TESTING) || defined(VARIANT_LIGHTMAPPED_ALPHA_TESTING)
                 if (finalColor.a < 0.5) {

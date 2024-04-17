@@ -96,7 +96,7 @@ public class NTexturesIO {
         return loadFromImages(name, diffuse, ao, height, invertedExponent, normal, reflectiveness);
     }
     
-    private static class LoadedImage {
+    public static class LoadedImage {
         public final int width;
         public final int height;
         public final byte[] pixelData;
@@ -108,7 +108,7 @@ public class NTexturesIO {
         }
     }
     
-    private static LoadedImage load(byte[] image) {
+    public static LoadedImage loadImage(byte[] image) {
         if (image == null) {
             return null;
         }
@@ -148,12 +148,12 @@ public class NTexturesIO {
             byte[] normalImage,
             byte[] reflectivenessImage
     ) {
-        LoadedImage diffuse = load(diffuseImage);
-        LoadedImage ao = load(aoImage);
-        LoadedImage height = load(heightImage);
-        LoadedImage exponent = load(invertedExponentImage);
-        LoadedImage normal = load(normalImage);
-        LoadedImage reflectiveness = load(reflectivenessImage);
+        LoadedImage diffuse = loadImage(diffuseImage);
+        LoadedImage ao = loadImage(aoImage);
+        LoadedImage height = loadImage(heightImage);
+        LoadedImage exponent = loadImage(invertedExponentImage);
+        LoadedImage normal = loadImage(normalImage);
+        LoadedImage reflectiveness = loadImage(reflectivenessImage);
         
         LoadedImage[] loadedArray = new LoadedImage[] {
             diffuse, ao, height, exponent, normal, reflectiveness
@@ -256,7 +256,7 @@ public class NTexturesIO {
             int a = fetch(diffuseMap, (p * 4) + 3, 255);
             int ao = fetch(aoMap, (p * 4) + 0, 255);
             int hei = fetch(heightMap, (p * 4) + 0, 255);
-            int invexp = fetch(invertedExponentMap, (p * 4) + 0, 0);
+            int invexp = fetch(invertedExponentMap, (p * 4) + 0, 255);
             int nx = fetch(normalMap, (p * 4) + 0, 127);
             int re = fetch(reflectivenessMap, (p * 4) + 0, 0);
             int ny = fetch(normalMap, (p * 4) + 1, 127);

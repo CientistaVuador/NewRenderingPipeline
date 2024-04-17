@@ -33,7 +33,12 @@ import cientistavuador.newrenderingpipeline.debug.LineRender;
 import cientistavuador.newrenderingpipeline.geometry.Geometries;
 import cientistavuador.newrenderingpipeline.geometry.GeometriesLoader;
 import cientistavuador.newrenderingpipeline.geometry.Geometry;
+import cientistavuador.newrenderingpipeline.newrendering.N3DModel;
+import cientistavuador.newrenderingpipeline.newrendering.N3DModelImporter;
+import cientistavuador.newrenderingpipeline.newrendering.N3DModelNode;
 import cientistavuador.newrenderingpipeline.newrendering.NBlendingMode;
+import cientistavuador.newrenderingpipeline.newrendering.NGeometry;
+import cientistavuador.newrenderingpipeline.newrendering.NMaterial;
 import cientistavuador.newrenderingpipeline.newrendering.NMesh;
 import cientistavuador.newrenderingpipeline.newrendering.NProgram;
 import cientistavuador.newrenderingpipeline.newrendering.NTextures;
@@ -53,6 +58,7 @@ import cientistavuador.newrenderingpipeline.util.CollisionShapeStore;
 import cientistavuador.newrenderingpipeline.util.LightmapFile;
 import cientistavuador.newrenderingpipeline.util.MeshUtils;
 import cientistavuador.newrenderingpipeline.util.ProgramCompiler;
+import cientistavuador.newrenderingpipeline.util.StringUtils;
 import cientistavuador.newrenderingpipeline.util.bakedlighting.BakedLighting;
 import cientistavuador.newrenderingpipeline.util.raycast.RayResult;
 import cientistavuador.newrenderingpipeline.util.bakedlighting.SamplingMode;
@@ -71,6 +77,7 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -355,7 +362,42 @@ public class Game {
         geometry.setLightmapMesh(mesh);
     }
 
+    private void print(N3DModelNode node, int depth) {
+        System.out.println("node name: " + node.getName() + ", depth: " + depth + " ->");
+
+        NGeometry[] geometries = node.getGeometries();
+        System.out.println("amount of geometries: " + geometries.length);
+
+        if (geometries.length != 0) {
+            System.out.println("list of geometries:");
+            for (NGeometry g : geometries) {
+                System.out.println("geometry name: " + g.getName() + ", vertices: " + (g.getMesh().getVertices().length / NMesh.VERTEX_SIZE) + ", indices: " + g.getMesh().getIndices().length);
+            }
+        }
+
+        N3DModelNode[] children = node.getChildren();
+
+        System.out.println("amount of children: " + children.length);
+        if (children.length != 0) {
+            for (N3DModelNode child : children) {
+                print(child, depth + 1);
+            }
+        }
+
+        System.out.println("<- end node");
+    }
+
+    private N3DModel testModel = null;
+
     public void start() {
+        try {
+            N3DModel model = N3DModelImporter.importFromJarGLBFile("cientistavuador/newrenderingpipeline/backpack.glb");
+            print(model.getRootNode(), 0);
+            testModel = model;
+        } catch (IOException ex) {
+            throw new UncheckedIOException(ex);
+        }
+
         this.physicsSpace.setMaxSubSteps(8);
         this.physicsSpace.setAccuracy(1f / 60f);
         this.physicsSpace.setGravity(new com.jme3.math.Vector3f(
@@ -704,7 +746,7 @@ public class Game {
                 (float) (position.y() - this.camera.getPosition().y()),
                 (float) (position.z() - this.camera.getPosition().z())
         );
-        
+
         BetterUniformSetter.uniformMatrix4fv(
                 opaqueVariant.locationOf(NProgram.UNIFORM_PROJECTION),
                 projection
@@ -746,7 +788,7 @@ public class Game {
         );
         NProgram.sendLight(opaqueVariant, light, 0);
 
-        glUniform1i(opaqueVariant.locationOf(NProgram.UNIFORM_PARALLAX_ENABLED), 0);
+        glUniform1i(opaqueVariant.locationOf(NProgram.UNIFORM_PARALLAX_ENABLED), 1);
         glUniform1i(
                 opaqueVariant.locationOf(NProgram.UNIFORM_PARALLAX_SUPPORTED),
                 NBlendingMode.OPAQUE_WITH_HEIGHT_MAP.equals(this.textures.getBlendingMode()) ? 1 : 0
@@ -764,6 +806,24 @@ public class Game {
         glBindVertexArray(this.mesh.getVAO());
         glDrawElements(GL_TRIANGLES, this.mesh.getIndices().length, GL_UNSIGNED_INT, 0);
         glBindVertexArray(0);
+
+        for (NGeometry g : this.testModel.getRootNode().getChildren()[0].getGeometries()) {
+            glUniform1i(opaqueVariant.locationOf(NProgram.UNIFORM_PARALLAX_ENABLED), 1);
+            glUniform1i(
+                    opaqueVariant.locationOf(NProgram.UNIFORM_PARALLAX_SUPPORTED),
+                    NBlendingMode.OPAQUE_WITH_HEIGHT_MAP.equals(g.getMaterial().getTextures().getBlendingMode()) ? 1 : 0
+            );
+
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, g.getMaterial().getTextures().r_g_b_a_or_h());
+
+            glActiveTexture(GL_TEXTURE1);
+            glBindTexture(GL_TEXTURE_2D, g.getMaterial().getTextures().ie_nx_r_ny());
+
+            glBindVertexArray(g.getMesh().getVAO());
+            glDrawElements(GL_TRIANGLES, g.getMesh().getIndices().length, GL_UNSIGNED_INT, 0);
+            glBindVertexArray(0);
+        }
 
         glUseProgram(0);
         glEnable(GL_BLEND);

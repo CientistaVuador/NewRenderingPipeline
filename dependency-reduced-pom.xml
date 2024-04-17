@@ -19,6 +19,7 @@
           <include>**/*.lightmap</include>
           <include>**/*.mesh</include>
           <include>**/*.collision</include>
+          <include>**/*.glb</include>
         </includes>
       </resource>
     </resources>

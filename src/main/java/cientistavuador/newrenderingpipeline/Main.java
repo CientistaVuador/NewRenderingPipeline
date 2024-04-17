@@ -68,13 +68,13 @@ import static org.lwjgl.system.MemoryUtil.*;
  */
 public class Main {
 
-    public static final String APPLICATION_NAME = "Physics Experiment";
+    public static final String APPLICATION_NAME = "New Rendering Pipeline";
     
     public static final float PHYSICS_ENGINE_UNITS = 10f;
     public static final float TO_PHYSICS_ENGINE_UNITS = PHYSICS_ENGINE_UNITS;
     public static final float FROM_PHYSICS_ENGINE_UNITS = 1f / PHYSICS_ENGINE_UNITS;
     
-    public static final boolean USE_MSAA = true;
+    public static final boolean USE_MSAA = false;
     public static final boolean DEBUG_ENABLED = true;
     public static final boolean SPIKE_LAG_WARNINGS = false;
     public static final int MIN_UNIFORM_BUFFER_BINDINGS = UBOBindingPoints.MIN_NUMBER_OF_UBO_BINDING_POINTS;
@@ -237,7 +237,7 @@ public class Main {
     };
     public static final ConcurrentLinkedQueue<Runnable> MAIN_TASKS = new ConcurrentLinkedQueue<>();
     public static final Vector3f DEFAULT_CLEAR_COLOR = new Vector3f(0.2f, 0.4f, 0.6f);
-    public static final String WINDOW_ICON = "cientistavuador/physicsexperiment/resources/image/window_icon.png";
+    public static final String WINDOW_ICON = "cientistavuador/newrenderingpipeline/resources/image/window_icon.png";
     public static final Thread MAIN_THREAD = Thread.currentThread();
     private static final int[] savedWindowStatus = new int[4];
     private static GLDebugMessageCallback DEBUG_CALLBACK = null;

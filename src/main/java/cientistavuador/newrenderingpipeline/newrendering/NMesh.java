@@ -27,6 +27,7 @@
 package cientistavuador.newrenderingpipeline.newrendering;
 
 import cientistavuador.newrenderingpipeline.Main;
+import cientistavuador.newrenderingpipeline.util.StringUtils;
 import cientistavuador.newrenderingpipeline.util.MeshUtils;
 import cientistavuador.newrenderingpipeline.util.ObjectCleaner;
 import cientistavuador.newrenderingpipeline.util.raycast.BVH;
@@ -282,9 +283,17 @@ public class NMesh {
         this.wrappedEbo.buffer = ebo;
 
         if (GL.getCapabilities().GL_KHR_debug) {
-            KHRDebug.glObjectLabel(GL_VERTEX_ARRAY, vao, "vao_"+meshId+"_"+this.name);
-            KHRDebug.glObjectLabel(KHRDebug.GL_BUFFER, vbo, "vbo_"+meshId+"_"+this.name);
-            KHRDebug.glObjectLabel(KHRDebug.GL_BUFFER, ebo, "ebo_"+meshId+"_"+this.name);
+            KHRDebug.glObjectLabel(GL_VERTEX_ARRAY, vao,
+                    StringUtils.truncateStringTo255Bytes("vao_"+meshId+"_"+this.name)
+            );
+            
+            KHRDebug.glObjectLabel(KHRDebug.GL_BUFFER, vbo,
+                    StringUtils.truncateStringTo255Bytes("vbo_"+meshId+"_"+this.name)
+            );
+            
+            KHRDebug.glObjectLabel(KHRDebug.GL_BUFFER, ebo,
+                    StringUtils.truncateStringTo255Bytes("ebo_"+meshId+"_"+this.name)
+            );
         }
     }
 
@@ -321,5 +330,27 @@ public class NMesh {
             this.wrappedEbo.buffer = 0;
         }
     }
-
+    
+    @Override
+    public int hashCode() {
+        int hash = 5;
+        hash = 29 * hash + Objects.hashCode(this.sha256);
+        return hash;
+    }
+    
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final NMesh other = (NMesh) obj;
+        return Objects.equals(this.sha256, other.sha256);
+    }
+    
 }

@@ -144,6 +144,24 @@ public class ProgramCompiler {
             }
         }
         
+        if (shaderName != null && GL.getCapabilities().GL_KHR_debug) {
+            KHRDebug.glObjectLabel(KHRDebug.GL_SHADER, vertexShader,
+                    StringUtils.truncateStringTo255Bytes("vertex_" + shaderName)
+            );
+        }
+        
+        if (geometryShader != 0 && shaderName != null && GL.getCapabilities().GL_KHR_debug) {
+            KHRDebug.glObjectLabel(KHRDebug.GL_SHADER, geometryShader,
+                    StringUtils.truncateStringTo255Bytes("geometry_" + shaderName)
+            );
+        }
+        
+        if (shaderName != null && GL.getCapabilities().GL_KHR_debug) {
+            KHRDebug.glObjectLabel(KHRDebug.GL_SHADER, fragmentShader,
+                    StringUtils.truncateStringTo255Bytes("fragment_" + shaderName)
+            );
+        }
+        
         glDeleteShader(vertexShader);
         if (geometryShader != 0) {
             glDeleteShader(geometryShader);
@@ -151,7 +169,7 @@ public class ProgramCompiler {
         glDeleteShader(fragmentShader);
         
         if (shaderName != null && GL.getCapabilities().GL_KHR_debug) {
-            KHRDebug.glObjectLabel(KHRDebug.GL_PROGRAM, program, "Program_" + shaderName);
+            KHRDebug.glObjectLabel(KHRDebug.GL_PROGRAM, program, StringUtils.truncateStringTo255Bytes("program_" + shaderName));
         }
         
         return program;

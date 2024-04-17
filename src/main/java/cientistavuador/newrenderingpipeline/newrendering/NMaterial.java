@@ -36,7 +36,7 @@ import org.joml.Vector4f;
  */
 public class NMaterial {
 
-    public static final NMaterial NULL_MATERIAL = new NMaterial();
+    public static final NMaterial NULL_MATERIAL = new NMaterial("NULL_MATERIAL");
     
     static {
         NULL_MATERIAL.getDiffuseColor().set(1f, 1f, 1f, 1f);
@@ -44,10 +44,12 @@ public class NMaterial {
         NULL_MATERIAL.setParallaxHeightCoefficient(0f);
     }
     
+    private final String name;
+    
     private NTextures textures = NTextures.NULL_TEXTURE;
     
-    private final Vector4f diffuseColor = new Vector4f(0.9f, 0.9f, 0.9f, 1.0f);
-    private final Vector3f specularColor = new Vector3f(0.1f, 0.1f, 0.1f);
+    private final Vector4f diffuseColor = new Vector4f(0.85f, 0.85f, 0.85f, 1.0f);
+    private final Vector3f specularColor = new Vector3f(0.15f, 0.15f, 0.15f);
     
     private float minExponent = 1f;
     private float maxExponent = 1024f;
@@ -55,8 +57,12 @@ public class NMaterial {
     private float parallaxMinLayers = 8f;
     private float parallaxMaxLayers = 32;
     
-    public NMaterial() {
-        
+    public NMaterial(String name) {
+        this.name = name;
+    }
+
+    public String getName() {
+        return name;
     }
 
     public NTextures getTextures() {
