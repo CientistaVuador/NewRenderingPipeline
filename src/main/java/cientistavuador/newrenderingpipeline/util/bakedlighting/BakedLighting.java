@@ -57,7 +57,7 @@ import org.joml.Vector3fc;
 public class BakedLighting {
 
     private static final float EPSILON = 0.0001f;
-    
+
     private static class LightGroup {
 
         public String groupName = "";
@@ -820,8 +820,12 @@ public class BakedLighting {
                             i0, i1, i2,
                             state.triangleNormal
                     );
-                    this.geometry.getNormalModel().transform(state.triangleNormal);
-
+                    this.geometry
+                            .getNormalModel()
+                            .transform(state.triangleNormal)
+                            .normalize()
+                            ;
+                    
                     float upX = 0f;
                     float upY = 1f;
                     float upZ = 0f;
@@ -833,10 +837,10 @@ public class BakedLighting {
 
                     state.triangleNormal.cross(upX, upY, upZ, tangent).normalize();
                     state.triangleNormal.cross(tangent, bitangent).normalize();
-                    
+
                     state.triangleTBN.set(tangent, bitangent, state.triangleNormal);
                 }
-                
+
                 this.weightsBuffer.read(weights, x, y, s);
 
                 state.position.set(
@@ -1147,7 +1151,7 @@ public class BakedLighting {
                         }
                     }
                 }
-                
+
                 this.status.rays++;
                 RayResult[] results = Geometry.testRay(indirect.bouncePosition, indirect.bounceDirection, this.scene.getGeometries());
                 if (results.length == 0) {
@@ -1157,7 +1161,7 @@ public class BakedLighting {
                     }
                     break;
                 }
-                
+
                 RayResult closestRay = results[0];
                 closestRay.weights(indirect.bounceWeights);
 

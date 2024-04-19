@@ -70,8 +70,16 @@ public class NProgram {
                 Vector3fc diffuse, Vector3fc specular, Vector3fc ambient
         ) {
             this.type = type;
-            this.position = new Vector3f(position);
-            this.direction = new Vector3f(direction);
+            if (position != null) {
+                this.position = new Vector3f(position);
+            } else {
+                this.position = new Vector3f(0f);
+            }
+            if (direction != null) {
+                this.direction = new Vector3f(direction);
+            } else {
+                this.direction = new Vector3f(0f);
+            }
             this.innerCone = innerCone;
             this.outerCone = outerCone;
             this.diffuse = new Vector3f(diffuse);
@@ -116,8 +124,8 @@ public class NProgram {
     }
 
     public static final NProgramMaterial NULL_MATERIAL = new NProgramMaterial(
-            new Vector4f(0.85f, 0.85f, 0.85f, 1.0f),
-            new Vector3f(0.15f, 0.15f, 0.15f),
+            new Vector4f(0.8f, 0.8f, 0.8f, 1.0f),
+            new Vector3f(0.2f, 0.2f, 0.2f),
             1f, 1024f,
             0.065f,
             8f, 32f

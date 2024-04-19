@@ -35,7 +35,9 @@ import cientistavuador.newrenderingpipeline.texture.Textures;
 import cientistavuador.newrenderingpipeline.ubo.UBOBindingPoints;
 import cientistavuador.newrenderingpipeline.util.ALSourceUtil;
 import cientistavuador.newrenderingpipeline.util.Aab;
+import cientistavuador.newrenderingpipeline.util.ConvexPolygonRenderer;
 import cientistavuador.newrenderingpipeline.util.Cursors;
+import cientistavuador.newrenderingpipeline.util.GPUOcclusion;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
@@ -309,7 +311,7 @@ public class Main {
         });
 
         if (USE_MSAA) {
-            glfwWindowHint(GLFW_SAMPLES, 4);
+            glfwWindowHint(GLFW_SAMPLES, 5);
         }
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, OPENGL_MAJOR_VERSION);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, OPENGL_MINOR_VERSION);
@@ -482,6 +484,8 @@ public class Main {
         Sounds.init(); //static initialize
         Cursors.init(); //static initialize
         NProgram.init(); //static initialize
+        GPUOcclusion.init(); //static initialize
+        ConvexPolygonRenderer.polyStaticInit(); //static initialize
         Game.get(); //static initialize
 
         Main.checkGLError();

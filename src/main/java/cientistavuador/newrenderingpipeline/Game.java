@@ -36,8 +36,11 @@ import cientistavuador.newrenderingpipeline.geometry.Geometry;
 import cientistavuador.newrenderingpipeline.newrendering.N3DModel;
 import cientistavuador.newrenderingpipeline.newrendering.N3DModelImporter;
 import cientistavuador.newrenderingpipeline.newrendering.N3DModelNode;
+import cientistavuador.newrenderingpipeline.newrendering.N3DObject;
+import cientistavuador.newrenderingpipeline.newrendering.N3DObjectRenderer;
 import cientistavuador.newrenderingpipeline.newrendering.NBlendingMode;
 import cientistavuador.newrenderingpipeline.newrendering.NGeometry;
+import cientistavuador.newrenderingpipeline.newrendering.NLight;
 import cientistavuador.newrenderingpipeline.newrendering.NMaterial;
 import cientistavuador.newrenderingpipeline.newrendering.NMesh;
 import cientistavuador.newrenderingpipeline.newrendering.NProgram;
@@ -46,6 +49,7 @@ import cientistavuador.newrenderingpipeline.newrendering.NTexturesIO;
 import cientistavuador.newrenderingpipeline.popups.BakePopup;
 import cientistavuador.newrenderingpipeline.resources.mesh.MeshConfiguration;
 import cientistavuador.newrenderingpipeline.resources.mesh.MeshData;
+import cientistavuador.newrenderingpipeline.resources.mesh.MeshResources;
 import cientistavuador.newrenderingpipeline.shader.GeometryProgram;
 import cientistavuador.newrenderingpipeline.text.GLFontRenderer;
 import cientistavuador.newrenderingpipeline.text.GLFontSpecification;
@@ -391,8 +395,8 @@ public class Game {
 
     public void start() {
         try {
-            N3DModel model = N3DModelImporter.importFromJarGLBFile("cientistavuador/newrenderingpipeline/backpack.glb");
-            print(model.getRootNode(), 0);
+            N3DModel model = N3DModelImporter.importFromJarGLBFile("cientistavuador/newrenderingpipeline/cc0_zacxophone_triceratops.glb");
+            //print(model.getRootNode(), 0);
             testModel = model;
         } catch (IOException ex) {
             throw new UncheckedIOException(ex);
@@ -489,7 +493,7 @@ public class Game {
         sun.setGroupName("sun");
         sun.setDirection(1f, -0.75f, 1f);
         this.scene.getLights().add(sun);
-
+        
         List<float[]> meshVertices = new ArrayList<>();
         List<int[]> meshIndices = new ArrayList<>();
         List<Matrix4fc> meshModels = new ArrayList<>();
@@ -733,100 +737,62 @@ public class Game {
 
         glUseProgram(0);
 
-        BetterUniformSetter opaqueVariant = NProgram.VARIANT_ALPHA_BLENDING;
+        List<NLight> lights = new ArrayList<>();
+        NLight.NDirectionalLight sun = new NLight.NDirectionalLight("sun");
+        lights.add(sun);
+        
+        {
+            N3DObject backpack = new N3DObject("backpack", this.testModel);
 
-        glDisable(GL_BLEND);
-        glUseProgram(opaqueVariant.getProgram());
+            backpack.getHintPosition().set(0f, 5f, -15f);
 
-        Matrix4fc projection = this.camera.getProjection();
-        Matrix4fc view = this.camera.getView();
-        Vector3d position = new Vector3d(0f, 3f, -10f);
-        Matrix4f model = new Matrix4f().translate(
-                (float) (position.x() - this.camera.getPosition().x()),
-                (float) (position.y() - this.camera.getPosition().y()),
-                (float) (position.z() - this.camera.getPosition().z())
-        );
+            float relativeX = (float) (backpack.getHintPosition().x() - this.camera.getPosition().x());
+            float relativeY = (float) (backpack.getHintPosition().y() - this.camera.getPosition().y());
+            float relativeZ = (float) (backpack.getHintPosition().z() - this.camera.getPosition().z());
 
-        BetterUniformSetter.uniformMatrix4fv(
-                opaqueVariant.locationOf(NProgram.UNIFORM_PROJECTION),
-                projection
-        );
-        BetterUniformSetter.uniformMatrix4fv(
-                opaqueVariant.locationOf(NProgram.UNIFORM_VIEW),
-                view
-        );
-        BetterUniformSetter.uniformMatrix4fv(
-                opaqueVariant.locationOf(NProgram.UNIFORM_MODEL),
-                model
-        );
-        BetterUniformSetter.uniformMatrix3fv(
-                opaqueVariant.locationOf(NProgram.UNIFORM_NORMAL_MODEL),
-                new Matrix3f()
-        );
+            backpack.getModel()
+                    .identity()
+                    .translate(relativeX, relativeY, relativeZ)
+                    .scale(5f);
 
-        NProgram.sendMaterial(opaqueVariant, null);
+            N3DObjectRenderer.queueRender(backpack);
+        }
+        
+        {
+            N3DObject backpack = new N3DObject("backpack", this.testModel);
 
-        for (int i = 0; i < NProgram.MAX_AMOUNT_OF_LIGHTS; i++) {
-            NProgram.sendLight(opaqueVariant, null, i);
+            backpack.getHintPosition().set(0f, 5f, -20f);
+
+            float relativeX = (float) (backpack.getHintPosition().x() - this.camera.getPosition().x());
+            float relativeY = (float) (backpack.getHintPosition().y() - this.camera.getPosition().y());
+            float relativeZ = (float) (backpack.getHintPosition().z() - this.camera.getPosition().z());
+
+            backpack.getModel()
+                    .identity()
+                    .translate(relativeX, relativeY, relativeZ)
+                    .scale(5f);
+
+            N3DObjectRenderer.queueRender(backpack);
+        }
+        
+        {
+            N3DObject backpack = new N3DObject("backpack", this.testModel);
+
+            backpack.getHintPosition().set(0f, 5f, -25f);
+
+            float relativeX = (float) (backpack.getHintPosition().x() - this.camera.getPosition().x());
+            float relativeY = (float) (backpack.getHintPosition().y() - this.camera.getPosition().y());
+            float relativeZ = (float) (backpack.getHintPosition().z() - this.camera.getPosition().z());
+
+            backpack.getModel()
+                    .identity()
+                    .translate(relativeX, relativeY, relativeZ)
+                    .scale(5f);
+
+            N3DObjectRenderer.queueRender(backpack);
         }
 
-        Vector3d lightPosition = new Vector3d(
-                5f, 4f, -15f
-        );
-        NProgram.NProgramLight light = new NProgram.NProgramLight(
-                NProgram.DIRECTIONAL_LIGHT_TYPE,
-                new Vector3f(
-                        (float) (lightPosition.x() - this.camera.getPosition().x()),
-                        (float) (lightPosition.y() - this.camera.getPosition().y()),
-                        (float) (lightPosition.z() - this.camera.getPosition().z())
-                ),
-                new Vector3f(1f, -1f, 1f),
-                0f, 0f,
-                new Vector3f(1f),
-                new Vector3f(1f),
-                new Vector3f(0.05f)
-        );
-        NProgram.sendLight(opaqueVariant, light, 0);
-
-        glUniform1i(opaqueVariant.locationOf(NProgram.UNIFORM_PARALLAX_ENABLED), 1);
-        glUniform1i(
-                opaqueVariant.locationOf(NProgram.UNIFORM_PARALLAX_SUPPORTED),
-                NBlendingMode.OPAQUE_WITH_HEIGHT_MAP.equals(this.textures.getBlendingMode()) ? 1 : 0
-        );
-
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, this.textures.r_g_b_a_or_h());
-
-        glActiveTexture(GL_TEXTURE1);
-        glBindTexture(GL_TEXTURE_2D, this.textures.ie_nx_r_ny());
-
-        glUniform1i(opaqueVariant.locationOf(NProgram.UNIFORM_R_G_B_A_OR_H), 0);
-        glUniform1i(opaqueVariant.locationOf(NProgram.UNIFORM_IE_NX_R_NY), 1);
-
-        glBindVertexArray(this.mesh.getVAO());
-        glDrawElements(GL_TRIANGLES, this.mesh.getIndices().length, GL_UNSIGNED_INT, 0);
-        glBindVertexArray(0);
-
-        for (NGeometry g : this.testModel.getRootNode().getChildren()[0].getGeometries()) {
-            glUniform1i(opaqueVariant.locationOf(NProgram.UNIFORM_PARALLAX_ENABLED), 1);
-            glUniform1i(
-                    opaqueVariant.locationOf(NProgram.UNIFORM_PARALLAX_SUPPORTED),
-                    NBlendingMode.OPAQUE_WITH_HEIGHT_MAP.equals(g.getMaterial().getTextures().getBlendingMode()) ? 1 : 0
-            );
-
-            glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, g.getMaterial().getTextures().r_g_b_a_or_h());
-
-            glActiveTexture(GL_TEXTURE1);
-            glBindTexture(GL_TEXTURE_2D, g.getMaterial().getTextures().ie_nx_r_ny());
-
-            glBindVertexArray(g.getMesh().getVAO());
-            glDrawElements(GL_TRIANGLES, g.getMesh().getIndices().length, GL_UNSIGNED_INT, 0);
-            glBindVertexArray(0);
-        }
-
-        glUseProgram(0);
-        glEnable(GL_BLEND);
+        N3DObjectRenderer.render(this.camera, lights);
 
         AabRender.renderQueue(camera);
         LineRender.renderQueue(camera);

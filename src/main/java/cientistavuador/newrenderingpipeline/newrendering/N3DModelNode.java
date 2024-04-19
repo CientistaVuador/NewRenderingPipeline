@@ -26,6 +26,8 @@
  */
 package cientistavuador.newrenderingpipeline.newrendering;
 
+import java.util.ArrayList;
+import java.util.List;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
 
@@ -41,6 +43,8 @@ public class N3DModelNode {
     private final Matrix4f transformation = new Matrix4f();
     private final NGeometry[] geometries;
     private final N3DModelNode[] children;
+    
+    private Matrix4f totalTransformation = null;
 
     public N3DModelNode(String name, Matrix4fc transformation, NGeometry[] geometries, N3DModelNode[] children) {
         this.name = name;
@@ -74,5 +78,27 @@ public class N3DModelNode {
     public N3DModelNode[] getChildren() {
         return children;
     }
+    
+    private void calculateTotalTransformation() {
+        List<Matrix4fc> transformations = new ArrayList<>();
+        
+        N3DModelNode currentNode = this;
+        do {
+            transformations.add(currentNode.getTransformation());
+        } while ((currentNode = currentNode.getParent()) != null);
+        
+        this.totalTransformation = new Matrix4f();
+        for (int i = (transformations.size() - 1); i >= 0; i--) {
+            this.totalTransformation.mul(transformations.get(i));
+        }
+    }
+
+    public Matrix4fc getTotalTransformation() {
+        if (this.totalTransformation == null) {
+            calculateTotalTransformation();
+        }
+        return this.totalTransformation;
+    }
+    
     
 }

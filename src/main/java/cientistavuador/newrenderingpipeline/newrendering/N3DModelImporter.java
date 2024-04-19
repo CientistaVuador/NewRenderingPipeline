@@ -44,8 +44,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import org.joml.Matrix4f;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.assimp.*;
@@ -522,10 +520,10 @@ public class N3DModelImporter {
 
         String name = node.mName().dataString();
         Matrix4f transformation = new Matrix4f(
-                t.a1(), t.a2(), t.a3(), t.a4(),
-                t.b1(), t.b2(), t.b3(), t.b4(),
-                t.c1(), t.c2(), t.c3(), t.d4(),
-                t.d1(), t.d2(), t.d3(), t.d4()
+                t.a1(), t.b1(), t.c1(), t.d1(),
+                t.a2(), t.b2(), t.c2(), t.d2(),
+                t.a3(), t.b3(), t.c3(), t.d3(),
+                t.a4(), t.b4(), t.c4(), t.d4()
         );
 
         List<NGeometry> geometries = new ArrayList<>();
@@ -553,7 +551,7 @@ public class N3DModelImporter {
                 }
             }
         }
-
+        
         return new N3DModelNode(
                 name,
                 transformation,

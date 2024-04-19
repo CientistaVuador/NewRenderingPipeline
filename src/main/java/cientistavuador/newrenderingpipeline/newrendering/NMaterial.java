@@ -48,8 +48,8 @@ public class NMaterial {
     
     private NTextures textures = NTextures.NULL_TEXTURE;
     
-    private final Vector4f diffuseColor = new Vector4f(0.85f, 0.85f, 0.85f, 1.0f);
-    private final Vector3f specularColor = new Vector3f(0.15f, 0.15f, 0.15f);
+    private final Vector4f diffuseColor = new Vector4f(0.8f, 0.8f, 0.8f, 1.0f);
+    private final Vector3f specularColor = new Vector3f(0.2f, 0.2f, 0.2f);
     
     private float minExponent = 1f;
     private float maxExponent = 1024f;
@@ -123,7 +123,35 @@ public class NMaterial {
     public void setParallaxMaxLayers(float parallaxMaxLayers) {
         this.parallaxMaxLayers = parallaxMaxLayers;
     }
-
+    
+    public boolean equalsPropertiesOnly(NMaterial other) {
+        if (this == other) {
+            return true;
+        }
+        if (other == null) {
+            return false;
+        }
+        if (Float.floatToIntBits(this.minExponent) != Float.floatToIntBits(other.minExponent)) {
+            return false;
+        }
+        if (Float.floatToIntBits(this.maxExponent) != Float.floatToIntBits(other.maxExponent)) {
+            return false;
+        }
+        if (Float.floatToIntBits(this.parallaxHeightCoefficient) != Float.floatToIntBits(other.parallaxHeightCoefficient)) {
+            return false;
+        }
+        if (Float.floatToIntBits(this.parallaxMinLayers) != Float.floatToIntBits(other.parallaxMinLayers)) {
+            return false;
+        }
+        if (Float.floatToIntBits(this.parallaxMaxLayers) != Float.floatToIntBits(other.parallaxMaxLayers)) {
+            return false;
+        }
+        if (!Objects.equals(this.diffuseColor, other.diffuseColor)) {
+            return false;
+        }
+        return Objects.equals(this.specularColor, other.specularColor);
+    }
+    
     @Override
     public int hashCode() {
         int hash = 7;

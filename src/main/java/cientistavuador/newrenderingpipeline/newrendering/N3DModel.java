@@ -26,7 +26,12 @@
  */
 package cientistavuador.newrenderingpipeline.newrendering;
 
-import org.joml.Matrix4f;
+import java.util.ArrayDeque;
+import java.util.Arrays;
+import java.util.Queue;
+import org.joml.Matrix4fc;
+import org.joml.Vector3f;
+import org.joml.Vector3fc;
 
 /**
  *
@@ -36,12 +41,77 @@ public class N3DModel {
 
     private final String name;
     private final N3DModelNode rootNode;
-    
-    private final Matrix4f model = new Matrix4f();
-    
+
+    private final Vector3f aabbMin = new Vector3f();
+    private final Vector3f aabbMax = new Vector3f();
+    private final Vector3f aabbCenter = new Vector3f();
+
     public N3DModel(String name, N3DModelNode rootNode) {
         this.name = name;
         this.rootNode = rootNode;
+
+        float minX = Float.POSITIVE_INFINITY;
+        float minY = Float.POSITIVE_INFINITY;
+        float minZ = Float.POSITIVE_INFINITY;
+        float maxX = Float.NEGATIVE_INFINITY;
+        float maxY = Float.NEGATIVE_INFINITY;
+        float maxZ = Float.NEGATIVE_INFINITY;
+
+        Queue<N3DModelNode> current = new ArrayDeque<>();
+        Queue<N3DModelNode> next = new ArrayDeque<>();
+
+        current.add(rootNode);
+
+        do {
+            Vector3f transformed = new Vector3f();
+
+            N3DModelNode currentNode;
+            while ((currentNode = current.poll()) != null) {
+                Matrix4fc totalTransformation = currentNode.getTotalTransformation();
+                
+                NGeometry[] geometries = currentNode.getGeometries();
+                
+                for (NGeometry g : geometries) {
+                    float[] vertices = g.getMesh().getVertices();
+                    int numVertices = vertices.length / NMesh.VERTEX_SIZE;
+
+                    for (int i = 0; i < numVertices; i++) {
+                        transformed.set(
+                                vertices[(i * NMesh.VERTEX_SIZE) + NMesh.OFFSET_POSITION_XYZ + 0],
+                                vertices[(i * NMesh.VERTEX_SIZE) + NMesh.OFFSET_POSITION_XYZ + 1],
+                                vertices[(i * NMesh.VERTEX_SIZE) + NMesh.OFFSET_POSITION_XYZ + 2]
+                        );
+
+                        totalTransformation.transformProject(transformed);
+                        
+                        minX = Math.min(minX, transformed.x());
+                        minY = Math.min(minY, transformed.y());
+                        minZ = Math.min(minZ, transformed.z());
+
+                        maxX = Math.max(maxX, transformed.x());
+                        maxY = Math.max(maxY, transformed.y());
+                        maxZ = Math.max(maxZ, transformed.z());
+                    }
+                }
+                
+                next.addAll(Arrays.asList(currentNode.getChildren()));
+            }
+            
+            Queue<N3DModelNode> a = current;
+            Queue<N3DModelNode> b = next;
+            current = b;
+            next = a;
+        } while (!current.isEmpty());
+        
+        this.aabbMin.set(minX, minY, minZ);
+        this.aabbMax.set(maxX, maxY, maxZ);
+        this.aabbCenter.set(
+                (minX * 0.5f) + (maxX * 0.5f),
+                (minY * 0.5f) + (maxY * 0.5f),
+                (minZ * 0.5f) + (maxZ * 0.5f)
+        );
+        
+        System.out.println((maxX - minX)+", "+(maxY - minY)+", "+(maxZ - minZ));
     }
 
     public String getName() {
@@ -52,8 +122,16 @@ public class N3DModel {
         return rootNode;
     }
 
-    public Matrix4f getModel() {
-        return model;
+    public Vector3fc getAabbMin() {
+        return aabbMin;
     }
+
+    public Vector3fc getAabbMax() {
+        return aabbMax;
+    }
+
+    public Vector3fc getAabbCenter() {
+        return aabbCenter;
+    }    
     
 }
