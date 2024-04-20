@@ -38,6 +38,7 @@ import cientistavuador.newrenderingpipeline.newrendering.N3DModelImporter;
 import cientistavuador.newrenderingpipeline.newrendering.N3DModelNode;
 import cientistavuador.newrenderingpipeline.newrendering.N3DObject;
 import cientistavuador.newrenderingpipeline.newrendering.N3DObjectRenderer;
+import cientistavuador.newrenderingpipeline.newrendering.NAnimation;
 import cientistavuador.newrenderingpipeline.newrendering.NBlendingMode;
 import cientistavuador.newrenderingpipeline.newrendering.NGeometry;
 import cientistavuador.newrenderingpipeline.newrendering.NLight;
@@ -367,28 +368,30 @@ public class Game {
     }
 
     private void print(N3DModelNode node, int depth) {
-        System.out.println("node name: " + node.getName() + ", depth: " + depth + " ->");
+        String spacing = "\t".repeat(depth);
+        
+        System.out.println(spacing+"node name: " + node.getName() + ", depth: " + depth + " ->");
 
         NGeometry[] geometries = node.getGeometries();
-        System.out.println("amount of geometries: " + geometries.length);
+        System.out.println(spacing+"amount of geometries: " + geometries.length);
 
         if (geometries.length != 0) {
-            System.out.println("list of geometries:");
+            System.out.println(spacing+"list of geometries:");
             for (NGeometry g : geometries) {
-                System.out.println("geometry name: " + g.getName() + ", vertices: " + (g.getMesh().getVertices().length / NMesh.VERTEX_SIZE) + ", indices: " + g.getMesh().getIndices().length);
+                System.out.println(spacing+"geometry name: " + g.getName() + ", vertices: " + (g.getMesh().getVertices().length / NMesh.VERTEX_SIZE) + ", indices: " + g.getMesh().getIndices().length);
             }
         }
 
         N3DModelNode[] children = node.getChildren();
 
-        System.out.println("amount of children: " + children.length);
+        System.out.println(spacing+"amount of children: " + children.length);
         if (children.length != 0) {
             for (N3DModelNode child : children) {
                 print(child, depth + 1);
             }
         }
 
-        System.out.println("<- end node");
+        System.out.println(spacing+"<- end node");
     }
 
     private N3DModel testModel = null;
@@ -400,6 +403,11 @@ public class Game {
             testModel = model;
         } catch (IOException ex) {
             throw new UncheckedIOException(ex);
+        }
+        
+        for (int i = 0; i < testModel.getNumberOfAnimations(); i++) {
+            NAnimation anim = testModel.getAnimation(i);
+            System.out.println(anim.getName());
         }
 
         this.physicsSpace.setMaxSubSteps(8);
@@ -758,40 +766,6 @@ public class Game {
             N3DObjectRenderer.queueRender(backpack);
         }
         
-        {
-            N3DObject backpack = new N3DObject("backpack", this.testModel);
-
-            backpack.getHintPosition().set(0f, 5f, -20f);
-
-            float relativeX = (float) (backpack.getHintPosition().x() - this.camera.getPosition().x());
-            float relativeY = (float) (backpack.getHintPosition().y() - this.camera.getPosition().y());
-            float relativeZ = (float) (backpack.getHintPosition().z() - this.camera.getPosition().z());
-
-            backpack.getModel()
-                    .identity()
-                    .translate(relativeX, relativeY, relativeZ)
-                    .scale(5f);
-
-            N3DObjectRenderer.queueRender(backpack);
-        }
-        
-        {
-            N3DObject backpack = new N3DObject("backpack", this.testModel);
-
-            backpack.getHintPosition().set(0f, 5f, -25f);
-
-            float relativeX = (float) (backpack.getHintPosition().x() - this.camera.getPosition().x());
-            float relativeY = (float) (backpack.getHintPosition().y() - this.camera.getPosition().y());
-            float relativeZ = (float) (backpack.getHintPosition().z() - this.camera.getPosition().z());
-
-            backpack.getModel()
-                    .identity()
-                    .translate(relativeX, relativeY, relativeZ)
-                    .scale(5f);
-
-            N3DObjectRenderer.queueRender(backpack);
-        }
-
         N3DObjectRenderer.render(this.camera, lights);
 
         AabRender.renderQueue(camera);

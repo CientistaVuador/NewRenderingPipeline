@@ -27,7 +27,11 @@
 package cientistavuador.newrenderingpipeline.newrendering;
 
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Queue;
 import org.joml.Matrix4fc;
 import org.joml.Vector3f;
@@ -41,14 +45,30 @@ public class N3DModel {
 
     private final String name;
     private final N3DModelNode rootNode;
+    private final NAnimation[] animations;
+    private final Map<String, Integer> animationsMap = new HashMap<>();
 
     private final Vector3f aabbMin = new Vector3f();
     private final Vector3f aabbMax = new Vector3f();
     private final Vector3f aabbCenter = new Vector3f();
-
+    
+    private final N3DModelNode[] nodes;
+    
     public N3DModel(String name, N3DModelNode rootNode) {
+        this(name, rootNode, null);
+    }
+    
+    public N3DModel(String name, N3DModelNode rootNode, NAnimation[] animations) {
         this.name = name;
         this.rootNode = rootNode;
+        
+        if (animations == null) {
+            animations = new NAnimation[0];
+        }
+        this.animations = animations;
+        for (int i = 0; i < animations.length; i++) {
+            this.animationsMap.put(animations[i].getName(), i);
+        }
 
         float minX = Float.POSITIVE_INFINITY;
         float minY = Float.POSITIVE_INFINITY;
@@ -56,19 +76,22 @@ public class N3DModel {
         float maxX = Float.NEGATIVE_INFINITY;
         float maxY = Float.NEGATIVE_INFINITY;
         float maxZ = Float.NEGATIVE_INFINITY;
-
+        
+        List<N3DModelNode> nodesList = new ArrayList<>();
+        
         Queue<N3DModelNode> current = new ArrayDeque<>();
         Queue<N3DModelNode> next = new ArrayDeque<>();
 
         current.add(rootNode);
-
+        
         do {
             Vector3f transformed = new Vector3f();
 
             N3DModelNode currentNode;
             while ((currentNode = current.poll()) != null) {
-                Matrix4fc totalTransformation = currentNode.getTotalTransformation();
+                nodesList.add(currentNode);
                 
+                Matrix4fc totalTransformation = currentNode.getTotalTransformation();
                 NGeometry[] geometries = currentNode.getGeometries();
                 
                 for (NGeometry g : geometries) {
@@ -111,7 +134,7 @@ public class N3DModel {
                 (minZ * 0.5f) + (maxZ * 0.5f)
         );
         
-        System.out.println((maxX - minX)+", "+(maxY - minY)+", "+(maxZ - minZ));
+        this.nodes = nodesList.toArray(N3DModelNode[]::new);
     }
 
     public String getName() {
@@ -120,6 +143,26 @@ public class N3DModel {
 
     public N3DModelNode getRootNode() {
         return rootNode;
+    }
+
+    public NAnimation[] getAnimations() {
+        return animations;
+    }
+    
+    public int getNumberOfAnimations() {
+        return this.animations.length;
+    }
+    
+    public NAnimation getAnimation(int index) {
+        return this.animations[index];
+    }
+    
+    public NAnimation getAnimation(String name) {
+        Integer index = this.animationsMap.get(name);
+        if (index == null) {
+            return null;
+        }
+        return getAnimation(index);
     }
 
     public Vector3fc getAabbMin() {
@@ -133,5 +176,9 @@ public class N3DModel {
     public Vector3fc getAabbCenter() {
         return aabbCenter;
     }    
+
+    public N3DModelNode[] getNodes() {
+        return nodes;
+    }
     
 }
