@@ -494,7 +494,7 @@ public class Game {
         this.scene.setIndirectLightingBlurArea(4f);
         this.scene.setShadowBlurArea(1.2f);
 
-        this.scene.setSamplingMode(SamplingMode.SAMPLE_16);
+        this.scene.setSamplingMode(SamplingMode.SAMPLE_17);
 
         this.scene.setFastModeEnabled(false);
 
