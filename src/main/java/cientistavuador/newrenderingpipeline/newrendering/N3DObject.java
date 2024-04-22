@@ -53,6 +53,8 @@ public class N3DObject {
     
     private final WrappedQueryObject queryObject = new WrappedQueryObject();
     
+    private NAnimator animator = null;
+    
     public N3DObject(String name, N3DModel n3DModel) {
         this.name = name;
         this.n3DModel = n3DModel;
@@ -103,6 +105,14 @@ public class N3DObject {
                 this.model,
                 outMin, outMax
         );
+    }
+
+    public NAnimator getAnimator() {
+        return animator;
+    }
+
+    public void setAnimator(NAnimator animator) {
+        this.animator = animator;
     }
     
 }

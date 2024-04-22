@@ -51,7 +51,7 @@ public class NMaterial {
     private final Vector4f diffuseColor = new Vector4f(0.8f, 0.8f, 0.8f, 1.0f);
     private final Vector3f specularColor = new Vector3f(0.2f, 0.2f, 0.2f);
     
-    private float minExponent = 1f;
+    private float minExponent = 4f;
     private float maxExponent = 1024f;
     private float parallaxHeightCoefficient = 0.065f;
     private float parallaxMinLayers = 8f;

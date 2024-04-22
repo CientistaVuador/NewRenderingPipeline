@@ -33,8 +33,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -56,73 +54,93 @@ import org.lwjgl.system.MemoryUtil;
  * @author Cien
  */
 public class N3DModelImporter {
+    
+    public static double DEFAULT_TICKS_PER_SECOND = 1000.0;
+    
+    public static final int DEFAULT_FLAGS = aiProcess_CalcTangentSpace
+            | aiProcess_Triangulate
+            | aiProcess_TransformUVCoords
+            | aiProcess_FindDegenerates
+            | aiProcess_GenNormals
+            | aiProcess_RemoveRedundantMaterials
+            | aiProcess_ImproveCacheLocality
+            | aiProcess_SplitLargeMeshes
+            | aiProcess_LimitBoneWeights
+            | aiProcess_FindInvalidData
+            | aiProcess_FindInstances
+            | aiProcess_SortByPType
+            | aiProcess_OptimizeGraph
+            | aiProcess_OptimizeMeshes
+            | aiProcess_EmbedTextures;
+    //| aiProcess_SplitByBoneCount;
 
-    public static N3DModel importFromGLBFile(String file) throws IOException {
+    public static final AIPropertyStore DEFAULT_PROPERTIES;
+
+    static {
+        DEFAULT_PROPERTIES = Assimp.aiCreatePropertyStore();
+
+        Assimp.aiSetImportPropertyInteger(DEFAULT_PROPERTIES, AI_CONFIG_PP_LBW_MAX_WEIGHTS, NMesh.MAX_AMOUNT_OF_BONE_WEIGHTS);
+        Assimp.aiSetImportPropertyInteger(DEFAULT_PROPERTIES, AI_CONFIG_PP_SBBC_MAX_BONES, NMesh.MAX_AMOUNT_OF_BONES);
+    }
+
+    public static N3DModel importFromFile(String file) throws IOException {
         Objects.requireNonNull(file, "File is null.");
-        if (!file.endsWith(".glb")) {
-            throw new IllegalArgumentException("3D Model file must be a .glb (GLTF 2.0 Binary File)!");
-        }
-        return importFromGLBMemory(Files.readAllBytes(Paths.get(file)));
+        AIScene modelScene = Assimp.aiImportFileExWithProperties(
+                file,
+                DEFAULT_FLAGS,
+                null,
+                DEFAULT_PROPERTIES
+        );
+        return process(modelScene);
     }
 
-    public static N3DModel importFromJarGLBFile(String jarFile) throws IOException {
+    public static N3DModel importFromJarFile(String jarFile) throws IOException {
         Objects.requireNonNull(jarFile, "File is null.");
-        if (!jarFile.endsWith(".glb")) {
-            throw new IllegalArgumentException("3D Model file must be a .glb (GLTF 2.0 Binary File)!");
-        }
         try (InputStream jarStream = ClassLoader.getSystemResourceAsStream(jarFile)) {
-            return importFromGLBMemory(jarStream.readAllBytes());
+            return importFromMemory(jarStream.readAllBytes());
         }
     }
 
-    public static N3DModel importFromGLBStream(InputStream stream) throws IOException {
+    public static N3DModel importFromStream(InputStream stream) throws IOException {
         Objects.requireNonNull(stream, "Stream is null.");
-        return importFromGLBMemory(stream.readAllBytes());
+        return importFromMemory(stream.readAllBytes());
     }
 
-    public static N3DModel importFromGLBMemory(byte[] memory) {
+    public static N3DModel importFromMemory(byte[] memory) {
         Objects.requireNonNull(memory, "Memory is null.");
         ByteBuffer nativeMemory = MemoryUtil.memAlloc(memory.length).put(memory).flip();
         try {
-            AIScene modelScene = Assimp.aiImportFileFromMemory(
+            AIScene modelScene = Assimp.aiImportFileFromMemoryWithProperties(
                     nativeMemory,
-                    aiProcess_CalcTangentSpace
-                    | aiProcess_Triangulate
-                    | aiProcess_TransformUVCoords
-                    | aiProcess_FindDegenerates
-                    | aiProcess_GenNormals
-                    | aiProcess_RemoveRedundantMaterials
-                    | aiProcess_ImproveCacheLocality
-                    | aiProcess_SplitLargeMeshes
-                    | aiProcess_LimitBoneWeights
-                    | aiProcess_FindInvalidData
-                    | aiProcess_FindInstances
-                    | aiProcess_SortByPType
-                    | aiProcess_OptimizeGraph
-                    | aiProcess_OptimizeMeshes,
-                    "glb"
+                    DEFAULT_FLAGS,
+                    "glb",
+                    DEFAULT_PROPERTIES
             );
 
-            if (modelScene == null) {
+            return process(modelScene);
+        } finally {
+            MemoryUtil.memFree(nativeMemory);
+        }
+    }
+
+    private static N3DModel process(AIScene modelScene) {
+        if (modelScene == null) {
+            throw new RuntimeException("Failed to import.");
+        }
+
+        try {
+            if ((modelScene.mFlags() & AI_SCENE_FLAGS_INCOMPLETE) != 0) {
                 throw new RuntimeException("Failed to import.");
             }
 
-            try {
-                if ((modelScene.mFlags() & AI_SCENE_FLAGS_INCOMPLETE) != 0) {
-                    throw new RuntimeException("Failed to import.");
-                }
-
-                AINode rootNode = modelScene.mRootNode();
-                if (rootNode == null) {
-                    throw new RuntimeException("Failed to import.");
-                }
-
-                return new N3DModelImporter(modelScene).process();
-            } finally {
-                aiFreeScene(modelScene);
+            AINode rootNode = modelScene.mRootNode();
+            if (rootNode == null) {
+                throw new RuntimeException("Failed to import.");
             }
+
+            return new N3DModelImporter(modelScene).process();
         } finally {
-            MemoryUtil.memFree(nativeMemory);
+            aiFreeScene(modelScene);
         }
     }
 
@@ -130,7 +148,7 @@ public class N3DModelImporter {
 
     private final AIScene scene;
 
-    private final Map<Integer, NTexturesIO.LoadedImage> loadedImages = new HashMap<>();
+    private final Map<String, NTexturesIO.LoadedImage> loadedImages = new HashMap<>();
     private final Map<Integer, NMaterial> loadedMaterials = new HashMap<>();
     private final Map<Integer, NGeometry> loadedGeometries = new HashMap<>();
 
@@ -146,7 +164,7 @@ public class N3DModelImporter {
             return;
         }
 
-        List<Future<Pair<Integer, NTexturesIO.LoadedImage>>> futureImages = new ArrayList<>();
+        List<Future<Pair<Pair<String, Integer>, NTexturesIO.LoadedImage>>> futureImages = new ArrayList<>();
 
         int amountOfImages = this.scene.mNumTextures();
         for (int i = 0; i < amountOfImages; i++) {
@@ -157,18 +175,46 @@ public class N3DModelImporter {
                 continue;
             }
 
-            byte[] data = new byte[tex.mWidth()];
-            tex.pcDataCompressed().get(data);
+            final String fileName = tex.mFilename().dataString();
 
-            futureImages.add(this.service.submit(() -> {
-                return new Pair<>(imageIndex, NTexturesIO.loadImage(data));
-            }));
+            if (tex.mHeight() == 0) {
+                byte[] data = new byte[tex.mWidth()];
+                tex.pcDataCompressed().get(data);
+
+                futureImages.add(this.service.submit(() -> {
+                    return new Pair<>(new Pair<>(fileName, imageIndex), NTexturesIO.loadImage(data));
+                }));
+            } else {
+                int width = tex.mWidth();
+                int height = tex.mHeight();
+
+                AITexel.Buffer texels = tex.pcData();
+
+                byte[] data = new byte[width * height * 4];
+
+                for (int y = 0; y < height; y++) {
+                    for (int x = 0; x < width; x++) {
+                        AITexel texel = texels.get(x + (((height - 1) - y) * width));
+
+                        data[0 + (x * 4) + (y * 4 * width)] = texel.r();
+                        data[1 + (x * 4) + (y * 4 * width)] = texel.g();
+                        data[2 + (x * 4) + (y * 4 * width)] = texel.b();
+                        data[3 + (x * 4) + (y * 4 * width)] = texel.a();
+                    }
+                }
+
+                NTexturesIO.LoadedImage loaded = new NTexturesIO.LoadedImage(width, height, data);
+
+                this.loadedImages.put(fileName, loaded);
+                this.loadedImages.put("*" + i, loaded);
+            }
         }
 
-        for (Future<Pair<Integer, NTexturesIO.LoadedImage>> futurePair : futureImages) {
+        for (Future<Pair<Pair<String, Integer>, NTexturesIO.LoadedImage>> futurePair : futureImages) {
             try {
-                Pair<Integer, NTexturesIO.LoadedImage> pair = futurePair.get();
-                this.loadedImages.put(pair.getA(), pair.getB());
+                Pair<Pair<String, Integer>, NTexturesIO.LoadedImage> pair = futurePair.get();
+                this.loadedImages.put(pair.getA().getA(), pair.getB());
+                this.loadedImages.put("*" + pair.getA().getB(), pair.getB());
             } catch (InterruptedException | ExecutionException ex) {
                 throw new RuntimeException(ex);
             }
@@ -195,9 +241,7 @@ public class N3DModelImporter {
                 return null;
             }
 
-            String path = pathString.dataString();
-
-            return this.loadedImages.get(Integer.valueOf(path.substring(1)));
+            return this.loadedImages.get(pathString.dataString());
         }
     }
 
@@ -218,11 +262,17 @@ public class N3DModelImporter {
                 continue;
             }
 
-            NTexturesIO.LoadedImage diffuseImage = getMaterialTexture(material, aiTextureType_BASE_COLOR);
+            NTexturesIO.LoadedImage tempDiffuseImage = getMaterialTexture(material, aiTextureType_BASE_COLOR);
+            if (tempDiffuseImage == null) {
+                tempDiffuseImage = getMaterialTexture(material, aiTextureType_DIFFUSE);
+            }
+            NTexturesIO.LoadedImage diffuseImage = tempDiffuseImage;
+
             NTexturesIO.LoadedImage tempHeightImage = getMaterialTexture(material, aiTextureType_HEIGHT);
             if (tempHeightImage == null) {
                 tempHeightImage = getMaterialTexture(material, aiTextureType_DISPLACEMENT);
             }
+
             NTexturesIO.LoadedImage heightImage = tempHeightImage;
             NTexturesIO.LoadedImage aoInvertedexponentReflectivenessImage = getMaterialTexture(material, aiTextureType_METALNESS);
             NTexturesIO.LoadedImage normalImage = getMaterialTexture(material, aiTextureType_NORMALS);
@@ -375,6 +425,9 @@ public class N3DModelImporter {
             int amountOfFaces = mesh.mNumFaces();
             AIFace.Buffer faces = mesh.mFaces();
 
+            int amountOfBones = mesh.mNumBones();
+            PointerBuffer bones = mesh.mBones();
+
             String meshName = mesh.mName().dataString();
 
             if (faces == null) {
@@ -384,6 +437,43 @@ public class N3DModelImporter {
             futureGeometries.add(this.service.submit(() -> {
                 float[] vertices = new float[amountOfFaces * 3 * NMesh.VERTEX_SIZE];
                 int verticesIndex = 0;
+
+                List<NMeshBone> meshBones = new ArrayList<>();
+                Map<Integer, List<Pair<Integer, Float>>> boneVertexWeightMap = new HashMap<>();
+
+                if (bones != null) {
+                    for (int boneIndex = 0; boneIndex < amountOfBones; boneIndex++) {
+                        AIBone bone = AIBone.create(bones.get(boneIndex));
+                        String boneName = bone.mName().dataString();
+                        AIMatrix4x4 o = bone.mOffsetMatrix();
+                        Matrix4f offsetMatrix = new Matrix4f(
+                                o.a1(), o.b1(), o.c1(), o.d1(),
+                                o.a2(), o.b2(), o.c2(), o.d2(),
+                                o.a3(), o.b3(), o.c3(), o.d3(),
+                                o.a4(), o.b4(), o.c4(), o.d4()
+                        );
+
+                        meshBones.add(new NMeshBone(boneName, offsetMatrix));
+
+                        int numWeights = bone.mNumWeights();
+                        AIVertexWeight.Buffer weights = bone.mWeights();
+                        if (numWeights != 0 && weights != null) {
+                            for (int weightIndex = 0; weightIndex < numWeights; weightIndex++) {
+                                AIVertexWeight weight = weights.get(weightIndex);
+                                
+                                int vertexIndex = weight.mVertexId();
+
+                                List<Pair<Integer, Float>> weightList = boneVertexWeightMap.get(vertexIndex);
+                                if (weightList == null) {
+                                    weightList = new ArrayList<>();
+                                    boneVertexWeightMap.put(vertexIndex, weightList);
+                                }
+
+                                weightList.add(new Pair<>(boneIndex, weight.mWeight()));
+                            }
+                        }
+                    }
+                }
 
                 for (int faceIndex = 0; faceIndex < amountOfFaces; faceIndex++) {
                     AIFace face = faces.get(faceIndex);
@@ -454,6 +544,27 @@ public class N3DModelImporter {
 
                         vertices[verticesIndex + NMesh.OFFSET_AMBIENT_OCCLUSION_X + 0] = ao;
 
+                        vertices[verticesIndex + NMesh.OFFSET_BONE_IDS_XYZW + 0] = Float.intBitsToFloat(-1);
+                        vertices[verticesIndex + NMesh.OFFSET_BONE_IDS_XYZW + 1] = Float.intBitsToFloat(-1);
+                        vertices[verticesIndex + NMesh.OFFSET_BONE_IDS_XYZW + 2] = Float.intBitsToFloat(-1);
+                        vertices[verticesIndex + NMesh.OFFSET_BONE_IDS_XYZW + 3] = Float.intBitsToFloat(-1);
+
+                        List<Pair<Integer, Float>> boneVertexWeightList = boneVertexWeightMap.get(index);
+                        if (boneVertexWeightList != null) {
+                            for (int j = 0; j < NMesh.MAX_AMOUNT_OF_BONE_WEIGHTS; j++) {
+                                if (j >= boneVertexWeightList.size()) {
+                                    break;
+                                }
+                                Pair<Integer, Float> pair = boneVertexWeightList.get(j);
+
+                                int bone = pair.getA();
+                                float weight = pair.getB();
+
+                                vertices[verticesIndex + NMesh.OFFSET_BONE_IDS_XYZW + j] = Float.intBitsToFloat(bone);
+                                vertices[verticesIndex + NMesh.OFFSET_BONE_WEIGHTS_XYZW + j] = weight;
+                            }
+                        }
+
                         verticesIndex += NMesh.VERTEX_SIZE;
                     }
                 }
@@ -469,7 +580,8 @@ public class N3DModelImporter {
                         BVH.create(
                                 finalVertices, finalIndices,
                                 NMesh.VERTEX_SIZE, NMesh.OFFSET_POSITION_XYZ
-                        )
+                        ),
+                        meshBones.toArray(NMeshBone[]::new)
                 );
 
                 NMaterial material = this.loadedMaterials.get(mesh.mMaterialIndex());
@@ -529,12 +641,18 @@ public class N3DModelImporter {
             if (sceneAnimation == null) {
                 continue;
             }
-            
+
             List<NBoneAnimation> boneAnimations = new ArrayList<>();
 
             String name = sceneAnimation.mName().dataString();
-            float duration = (float) sceneAnimation.mDuration();
-            float tps = (float) sceneAnimation.mTicksPerSecond();
+            
+            double tps = sceneAnimation.mTicksPerSecond();
+            if (tps == 0.0) {
+                tps = DEFAULT_TICKS_PER_SECOND;
+            }
+            tps = 1.0 / tps;
+            
+            float duration = (float) (sceneAnimation.mDuration() * tps);
             
             int numberOfChannels = sceneAnimation.mNumChannels();
             PointerBuffer channels = sceneAnimation.mChannels();
@@ -563,46 +681,46 @@ public class N3DModelImporter {
                         if (positionsBuffer != null) {
                             for (int k = 0; k < numPosition; k++) {
                                 AIVectorKey key = positionsBuffer.get(k);
-                                
-                                positionTimes[k] = (float) key.mTime();
-                                
+
+                                positionTimes[k] = (float) (key.mTime() * tps);
+
                                 AIVector3D pos = key.mValue();
-                                
+
                                 positions[(k * 3) + 0] = pos.x();
                                 positions[(k * 3) + 1] = pos.y();
                                 positions[(k * 3) + 2] = pos.z();
                             }
                         }
-                        
+
                         if (rotationsBuffer != null) {
                             for (int k = 0; k < numRotation; k++) {
                                 AIQuatKey key = rotationsBuffer.get(k);
-                                
-                                rotationTimes[k] = (float) key.mTime();
-                                
+
+                                rotationTimes[k] = (float) (key.mTime() * tps);
+
                                 AIQuaternion rotation = key.mValue();
-                                
+
                                 rotations[(k * 4) + 0] = rotation.x();
                                 rotations[(k * 4) + 1] = rotation.y();
                                 rotations[(k * 4) + 2] = rotation.z();
                                 rotations[(k * 4) + 3] = rotation.w();
                             }
                         }
-                        
+
                         if (scalingsBuffer != null) {
                             for (int k = 0; k < numScaling; k++) {
                                 AIVectorKey key = scalingsBuffer.get(k);
-                                
-                                scalingTimes[k] = (float) key.mTime();
-                                
+
+                                scalingTimes[k] = (float) (key.mTime() * tps);
+
                                 AIVector3D pos = key.mValue();
-                                
+
                                 scaling[(k * 3) + 0] = pos.x();
                                 scaling[(k * 3) + 1] = pos.y();
                                 scaling[(k * 3) + 2] = pos.z();
                             }
                         }
-                        
+
                         boneAnimations.add(new NBoneAnimation(
                                 boneName,
                                 positionTimes, positions,
@@ -613,7 +731,7 @@ public class N3DModelImporter {
                 }
             }
 
-            this.loadedAnimations.add(new NAnimation(name, duration, tps, boneAnimations.toArray(NBoneAnimation[]::new)));
+            this.loadedAnimations.add(new NAnimation(name, duration, boneAnimations.toArray(NBoneAnimation[]::new)));
         }
     }
 
@@ -673,7 +791,7 @@ public class N3DModelImporter {
             clearImages();
             loadMeshes();
             clearMaterials();
-            
+
             loadAnimations();
 
             return new N3DModel(

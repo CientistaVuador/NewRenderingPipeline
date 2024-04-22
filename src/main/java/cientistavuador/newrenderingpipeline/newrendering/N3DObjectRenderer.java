@@ -30,15 +30,13 @@ import cientistavuador.newrenderingpipeline.Main;
 import cientistavuador.newrenderingpipeline.camera.Camera;
 import cientistavuador.newrenderingpipeline.util.BetterUniformSetter;
 import cientistavuador.newrenderingpipeline.util.TransformUtils;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
+import org.joml.Matrix4fc;
 import org.joml.Vector3d;
 import org.joml.Vector3f;
 import static org.lwjgl.opengl.GL33C.*;
@@ -60,12 +58,16 @@ public class N3DObjectRenderer {
     private static class ToRender {
 
         public final Matrix4f transformation;
+        public final Matrix4f model;
         public final float distanceSquared;
+        public final NAnimator animator;
         public final NGeometry geometry;
 
-        public ToRender(Matrix4f transformation, float distanceSquared, NGeometry geometry) {
+        public ToRender(Matrix4f transformation, Matrix4f model, float distanceSquared, NAnimator animator, NGeometry geometry) {
             this.transformation = transformation;
+            this.model = model;
             this.distanceSquared = distanceSquared;
+            this.animator = animator;
             this.geometry = geometry;
         }
     }
@@ -138,52 +140,39 @@ public class N3DObjectRenderer {
             for (N3DObject obj : objectsToRender) {
                 Matrix4f modelMatrix = obj.getModel();
                 N3DModel n3dmodel = obj.getN3DModel();
+                NAnimator animator = obj.getAnimator();
 
-                Queue<N3DModelNode> current = new ArrayDeque<>();
-                Queue<N3DModelNode> next = new ArrayDeque<>();
+                for (int nodeIndex = 0; nodeIndex < n3dmodel.getNumberOfNodes(); nodeIndex++) {
+                    N3DModelNode n = n3dmodel.getNode(nodeIndex);
+                    Matrix4f transformation = new Matrix4f(modelMatrix).mul(n.getTotalTransformation());
 
-                current.add(n3dmodel.getRootNode());
-
-                do {
-                    N3DModelNode n;
-                    while ((n = current.poll()) != null) {
-                        Matrix4f transformation = new Matrix4f(modelMatrix).mul(n.getTotalTransformation());
-
-                        next.addAll(Arrays.asList(n.getChildren()));
-
-                        NGeometry[] geometries = n.getGeometries();
-                        for (NGeometry geometry : geometries) {
-                            TransformUtils.transformAabb(
-                                    geometry.getMesh().getAabbMin(), geometry.getMesh().getAabbMax(),
-                                    transformation,
-                                    transformedMin, transformedMax
-                            );
-                            if (!transformedMin.isFinite() || !transformedMax.isFinite()) {
-                                continue;
-                            }
-                            if (!projectionView.testAab(
-                                    transformedMin.x(), transformedMin.y(), transformedMin.z(),
-                                    transformedMax.x(), transformedMax.y(), transformedMax.z()
-                            )) {
-                                continue;
-                            }
-                            float centerX = (transformedMin.x() * 0.5f) + (transformedMax.x() * 0.5f);
-                            float centerY = (transformedMin.y() * 0.5f) + (transformedMax.y() * 0.5f);
-                            float centerZ = (transformedMin.z() * 0.5f) + (transformedMax.z() * 0.5f);
-
-                            float distanceSquared = (centerX * centerX) + (centerY * centerY) + (centerZ * centerZ);
-
-                            toRenderList.add(new ToRender(
-                                    transformation, distanceSquared, geometry
-                            ));
+                    NGeometry[] geometries = n.getGeometries();
+                    for (NGeometry geometry : geometries) {
+                        TransformUtils.transformAabb(
+                                geometry.getMesh().getAabbMin(), geometry.getMesh().getAabbMax(),
+                                transformation,
+                                transformedMin, transformedMax
+                        );
+                        if (!transformedMin.isFinite() || !transformedMax.isFinite()) {
+                            continue;
                         }
-                    }
+                        if (animator == null && !projectionView.testAab(
+                                transformedMin.x(), transformedMin.y(), transformedMin.z(),
+                                transformedMax.x(), transformedMax.y(), transformedMax.z()
+                        )) {
+                            continue;
+                        }
+                        float centerX = (transformedMin.x() * 0.5f) + (transformedMax.x() * 0.5f);
+                        float centerY = (transformedMin.y() * 0.5f) + (transformedMax.y() * 0.5f);
+                        float centerZ = (transformedMin.z() * 0.5f) + (transformedMax.z() * 0.5f);
 
-                    Queue<N3DModelNode> a = current;
-                    Queue<N3DModelNode> b = next;
-                    current = b;
-                    next = a;
-                } while (!current.isEmpty());
+                        float distanceSquared = (centerX * centerX) + (centerY * centerY) + (centerZ * centerZ);
+                        
+                        toRenderList.add(new ToRender(
+                                transformation, modelMatrix, distanceSquared, obj.getAnimator(), geometry
+                        ));
+                    }
+                }
             }
         }
 
@@ -236,6 +225,8 @@ public class N3DObjectRenderer {
                     camera.getView()
             );
 
+            glUniform1i(opaqueVariant.locationOf(NProgram.UNIFORM_ANIMATION_ENABLED), 0);
+
             glUniform1i(
                     opaqueVariant.locationOf(NProgram.UNIFORM_PARALLAX_ENABLED),
                     (PARALLAX_ENABLED ? 1 : 0)
@@ -264,6 +255,8 @@ public class N3DObjectRenderer {
             BetterUniformSetter.uniformMatrix4fv(testedVariant.locationOf(NProgram.UNIFORM_VIEW),
                     camera.getView()
             );
+
+            glUniform1i(testedVariant.locationOf(NProgram.UNIFORM_ANIMATION_ENABLED), 0);
 
             glUniform1i(testedVariant.locationOf(NProgram.UNIFORM_PARALLAX_ENABLED),
                     (PARALLAX_ENABLED ? 1 : 0)
@@ -294,6 +287,8 @@ public class N3DObjectRenderer {
                     camera.getView()
             );
 
+            glUniform1i(blendVariant.locationOf(NProgram.UNIFORM_ANIMATION_ENABLED), 0);
+
             glUniform1i(blendVariant.locationOf(NProgram.UNIFORM_PARALLAX_ENABLED),
                     (PARALLAX_ENABLED ? 1 : 0)
             );
@@ -313,16 +308,20 @@ public class N3DObjectRenderer {
     }
 
     private static void render(BetterUniformSetter variant, List<ToRender> list) {
+        Matrix4f transformedBone = new Matrix4f();
+
         NMaterial lastMaterial = null;
         NTextures lastTextures = null;
         Matrix4f lastTransformation = null;
         NMesh lastMesh = null;
+        NAnimator lastAnimator = null;
 
         for (ToRender render : list) {
             NMaterial material = render.geometry.getMaterial();
             NTextures textures = material.getTextures();
             Matrix4f transformation = render.transformation;
             NMesh mesh = render.geometry.getMesh();
+            NAnimator animator = render.animator;
 
             if (!material.equalsPropertiesOnly(lastMaterial)) {
                 NProgram.sendMaterial(variant, new NProgram.NProgramMaterial(
@@ -359,14 +358,38 @@ public class N3DObjectRenderer {
                 );
                 lastTransformation = transformation;
             }
-            
+
             if (!mesh.equals(lastMesh)) {
                 glBindVertexArray(mesh.getVAO());
                 lastMesh = mesh;
             }
-            
+
+            if (animator != lastAnimator) {
+                if (animator == null) {
+                    glUniform1i(variant.locationOf(NProgram.UNIFORM_ANIMATION_ENABLED), 0);
+                } else {
+                    glUniform1i(variant.locationOf(NProgram.UNIFORM_ANIMATION_ENABLED), 1);
+                    
+                    for (int boneIndex = 0; boneIndex < mesh.getAmountOfBones(); boneIndex++) {
+                        NMeshBone bone = mesh.getBone(boneIndex);
+
+                        Matrix4fc boneMatrix = animator.getBoneMatrix(bone.getName());
+                        Matrix4fc offset = bone.getOffset();
+
+                        transformedBone.identity();
+                        
+                        if (boneMatrix != null) {
+                            transformedBone.set(render.model).mul(boneMatrix).mul(offset);
+                        }
+                        
+                        NProgram.sendBoneMatrix(variant, transformedBone, boneIndex);
+                    }
+                }
+                lastAnimator = animator;
+            }
+
             glDrawElements(GL_TRIANGLES, mesh.getIndices().length, GL_UNSIGNED_INT, 0);
-            
+
             Main.NUMBER_OF_DRAWCALLS++;
             Main.NUMBER_OF_VERTICES += mesh.getIndices().length;
         }

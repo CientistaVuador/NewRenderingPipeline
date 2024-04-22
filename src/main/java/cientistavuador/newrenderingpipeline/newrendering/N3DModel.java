@@ -30,9 +30,11 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
+import java.util.Set;
 import org.joml.Matrix4fc;
 import org.joml.Vector3f;
 import org.joml.Vector3fc;
@@ -53,6 +55,8 @@ public class N3DModel {
     private final Vector3f aabbCenter = new Vector3f();
     
     private final N3DModelNode[] nodes;
+    private final Map<String, Integer> nodesMap = new HashMap<>();
+    private final String[] bones;
     
     public N3DModel(String name, N3DModelNode rootNode) {
         this(name, rootNode, null);
@@ -78,10 +82,11 @@ public class N3DModel {
         float maxZ = Float.NEGATIVE_INFINITY;
         
         List<N3DModelNode> nodesList = new ArrayList<>();
+        Set<String> boneList = new HashSet<>();
         
         Queue<N3DModelNode> current = new ArrayDeque<>();
         Queue<N3DModelNode> next = new ArrayDeque<>();
-
+        
         current.add(rootNode);
         
         do {
@@ -95,7 +100,17 @@ public class N3DModel {
                 NGeometry[] geometries = currentNode.getGeometries();
                 
                 for (NGeometry g : geometries) {
-                    float[] vertices = g.getMesh().getVertices();
+                    NMesh mesh = g.getMesh();
+                    
+                    int bonesLength = mesh.getAmountOfBones();
+                    for (int i = 0; i < bonesLength; i++) {
+                        String boneName = mesh.getBone(i).getName();
+                        if (!boneList.contains(boneName)) {
+                            boneList.add(boneName);
+                        }
+                    }
+                    
+                    float[] vertices = mesh.getVertices();
                     int numVertices = vertices.length / NMesh.VERTEX_SIZE;
 
                     for (int i = 0; i < numVertices; i++) {
@@ -135,6 +150,10 @@ public class N3DModel {
         );
         
         this.nodes = nodesList.toArray(N3DModelNode[]::new);
+        for (int i = 0; i < this.nodes.length; i++) {
+            this.nodesMap.put(this.nodes[i].getName(), i);
+        }
+        this.bones = boneList.toArray(String[]::new);
     }
 
     public String getName() {
@@ -177,8 +196,28 @@ public class N3DModel {
         return aabbCenter;
     }    
 
-    public N3DModelNode[] getNodes() {
-        return nodes;
+    public int getNumberOfNodes() {
+        return this.nodes.length;
+    }
+    
+    public N3DModelNode getNode(int index) {
+        return this.nodes[index];
+    }
+    
+    public N3DModelNode getNode(String name) {
+        Integer index = this.nodesMap.get(name);
+        if (index == null) {
+            return null;
+        }
+        return getNode(index);
+    }
+    
+    public int getNumberOfBones() {
+        return this.bones.length;
+    }
+    
+    public String getBone(int index) {
+        return this.bones[index];
     }
     
 }

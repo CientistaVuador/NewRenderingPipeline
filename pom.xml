@@ -32,6 +32,7 @@
                     <include>**/*.mesh</include>
                     <include>**/*.collision</include>
                     <include>**/*.glb</include>
+                    <include>**/*.mdl</include>
                 </includes>
             </resource>
         </resources>

@@ -26,53 +26,52 @@
  */
 package cientistavuador.newrenderingpipeline.newrendering;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.Objects;
+import org.joml.Matrix4f;
+import org.joml.Matrix4fc;
 
 /**
  *
  * @author Cien
  */
-public class NAnimation {
+public class NMeshBone {
 
     private final String name;
-    private final float duration;
-    private final NBoneAnimation[] boneAnimations;
+    private final Matrix4f offset;
     
-    private final Map<String, Integer> boneMap = new HashMap<>();
-    
-    public NAnimation(String name, float duration, NBoneAnimation[] boneAnimations) {
+    public NMeshBone(String name, Matrix4fc offset) {
         this.name = name;
-        this.duration = duration;
-        this.boneAnimations = boneAnimations.clone();
-        
-        for (int i = 0; i < this.boneAnimations.length; i++) {
-            this.boneMap.put(this.boneAnimations[i].getBoneName(), i);
-        }
+        this.offset = new Matrix4f(offset);
     }
 
     public String getName() {
         return name;
     }
 
-    public float getDuration() {
-        return duration;
+    public Matrix4fc getOffset() {
+        return offset;
     }
-    
-    public int getNumberOfBoneAnimations() {
-        return this.boneAnimations.length;
+
+    @Override
+    public int hashCode() {
+        int hash = 3;
+        hash = 19 * hash + Objects.hashCode(this.name);
+        return hash;
     }
-    
-    public NBoneAnimation getBoneAnimation(int index) {
-        return this.boneAnimations[index];
-    }
-    
-    public NBoneAnimation getBoneAnimation(String name) {
-        Integer index = this.boneMap.get(name);
-        if (index == null) {
-            return null;
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
         }
-        return getBoneAnimation(index);
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final NMeshBone other = (NMeshBone) obj;
+        return Objects.equals(this.name, other.name);
     }
     
 }

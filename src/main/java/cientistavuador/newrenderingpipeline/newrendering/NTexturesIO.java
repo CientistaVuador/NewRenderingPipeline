@@ -96,6 +96,16 @@ public class NTexturesIO {
         return loadFromImages(name, diffuse, ao, height, invertedExponent, normal, reflectiveness);
     }
     
+    public static class ImageFailedToLoadException extends Exception {
+
+        private static final long serialVersionUID = 1L;
+
+        public ImageFailedToLoadException(String message) {
+            super(message);
+        }
+        
+    }
+    
     public static class LoadedImage {
         public final int width;
         public final int height;
@@ -109,6 +119,14 @@ public class NTexturesIO {
     }
     
     public static LoadedImage loadImage(byte[] image) {
+        try {
+            return loadImageChecked(image);
+        } catch (ImageFailedToLoadException ex) {
+            throw new RuntimeException(ex);
+        }
+    }
+    
+    public static LoadedImage loadImageChecked(byte[] image) throws ImageFailedToLoadException {
         if (image == null) {
             return null;
         }
@@ -124,7 +142,7 @@ public class NTexturesIO {
                 
                 ByteBuffer pixelDataBuffer = stbi_load_from_memory(nativeImage, widthBuffer, heightBuffer, channelsBuffer, 4);
                 if (pixelDataBuffer == null) {
-                    throw new RuntimeException("Image failed to load: "+stbi_failure_reason());
+                    throw new ImageFailedToLoadException("Image failed to load: "+stbi_failure_reason());
                 }
                 
                 LoadedImage loaded = new LoadedImage(widthBuffer.get(), heightBuffer.get(), new byte[pixelDataBuffer.capacity()]);

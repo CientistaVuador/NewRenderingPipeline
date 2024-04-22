@@ -39,18 +39,15 @@ import cientistavuador.newrenderingpipeline.newrendering.N3DModelNode;
 import cientistavuador.newrenderingpipeline.newrendering.N3DObject;
 import cientistavuador.newrenderingpipeline.newrendering.N3DObjectRenderer;
 import cientistavuador.newrenderingpipeline.newrendering.NAnimation;
-import cientistavuador.newrenderingpipeline.newrendering.NBlendingMode;
+import cientistavuador.newrenderingpipeline.newrendering.NAnimator;
 import cientistavuador.newrenderingpipeline.newrendering.NGeometry;
 import cientistavuador.newrenderingpipeline.newrendering.NLight;
-import cientistavuador.newrenderingpipeline.newrendering.NMaterial;
 import cientistavuador.newrenderingpipeline.newrendering.NMesh;
-import cientistavuador.newrenderingpipeline.newrendering.NProgram;
 import cientistavuador.newrenderingpipeline.newrendering.NTextures;
 import cientistavuador.newrenderingpipeline.newrendering.NTexturesIO;
 import cientistavuador.newrenderingpipeline.popups.BakePopup;
 import cientistavuador.newrenderingpipeline.resources.mesh.MeshConfiguration;
 import cientistavuador.newrenderingpipeline.resources.mesh.MeshData;
-import cientistavuador.newrenderingpipeline.resources.mesh.MeshResources;
 import cientistavuador.newrenderingpipeline.shader.GeometryProgram;
 import cientistavuador.newrenderingpipeline.text.GLFontRenderer;
 import cientistavuador.newrenderingpipeline.text.GLFontSpecification;
@@ -58,12 +55,9 @@ import cientistavuador.newrenderingpipeline.text.GLFontSpecifications;
 import cientistavuador.newrenderingpipeline.texture.Textures;
 import cientistavuador.newrenderingpipeline.ubo.CameraUBO;
 import cientistavuador.newrenderingpipeline.ubo.UBOBindingPoints;
-import cientistavuador.newrenderingpipeline.util.BetterUniformSetter;
 import cientistavuador.newrenderingpipeline.util.CollisionShapeStore;
 import cientistavuador.newrenderingpipeline.util.LightmapFile;
 import cientistavuador.newrenderingpipeline.util.MeshUtils;
-import cientistavuador.newrenderingpipeline.util.ProgramCompiler;
-import cientistavuador.newrenderingpipeline.util.StringUtils;
 import cientistavuador.newrenderingpipeline.util.bakedlighting.BakedLighting;
 import cientistavuador.newrenderingpipeline.util.raycast.RayResult;
 import cientistavuador.newrenderingpipeline.util.bakedlighting.SamplingMode;
@@ -80,31 +74,20 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
-import java.nio.ByteBuffer;
-import java.nio.IntBuffer;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
-import org.joml.Vector3d;
 import org.joml.Vector3f;
 import org.joml.Vector3fc;
-import org.lwjgl.BufferUtils;
 import static org.lwjgl.glfw.GLFW.*;
-import org.lwjgl.opengl.ARBGetProgramBinary;
-import org.lwjgl.opengl.GL;
 import static org.lwjgl.opengl.GL33C.*;
 import org.lwjgl.opengl.GL42C;
 
@@ -395,21 +378,26 @@ public class Game {
     }
 
     private N3DModel testModel = null;
-
+    private NAnimator animator = null;
+    
     public void start() {
         try {
-            N3DModel model = N3DModelImporter.importFromJarGLBFile("cientistavuador/newrenderingpipeline/cc0_zacxophone_triceratops.glb");
-            //print(model.getRootNode(), 0);
+            N3DModel model = N3DModelImporter.importFromJarFile("cientistavuador/newrenderingpipeline/cc0_zacxophone_triceratops.glb");
+            print(model.getRootNode(), 0);
             testModel = model;
         } catch (IOException ex) {
             throw new UncheckedIOException(ex);
         }
         
+        System.out.println(testModel.getNumberOfBones());
+        
         for (int i = 0; i < testModel.getNumberOfAnimations(); i++) {
             NAnimation anim = testModel.getAnimation(i);
             System.out.println(anim.getName());
         }
-
+        
+        animator = new NAnimator(testModel, "Armature|Armature|Fall");
+        
         this.physicsSpace.setMaxSubSteps(8);
         this.physicsSpace.setAccuracy(1f / 60f);
         this.physicsSpace.setGravity(new com.jme3.math.Vector3f(
@@ -535,7 +523,7 @@ public class Game {
         worldBody.setFriction(1f);
         this.physicsSpace.addCollisionObject(worldBody);
     }
-
+    
     public void loop() {
         if (!this.status.isDone()) {
             try {
@@ -751,9 +739,11 @@ public class Game {
         
         {
             N3DObject backpack = new N3DObject("backpack", this.testModel);
-
+            backpack.setAnimator(this.animator);
+            backpack.getAnimator().update((float) Main.TPF);
+            
             backpack.getHintPosition().set(0f, 5f, -15f);
-
+            
             float relativeX = (float) (backpack.getHintPosition().x() - this.camera.getPosition().x());
             float relativeY = (float) (backpack.getHintPosition().y() - this.camera.getPosition().y());
             float relativeZ = (float) (backpack.getHintPosition().z() - this.camera.getPosition().z());
@@ -761,7 +751,7 @@ public class Game {
             backpack.getModel()
                     .identity()
                     .translate(relativeX, relativeY, relativeZ)
-                    .scale(5f);
+                    ;
 
             N3DObjectRenderer.queueRender(backpack);
         }

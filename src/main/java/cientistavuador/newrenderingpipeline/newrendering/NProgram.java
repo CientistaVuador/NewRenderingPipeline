@@ -29,6 +29,7 @@ package cientistavuador.newrenderingpipeline.newrendering;
 import cientistavuador.newrenderingpipeline.util.BetterUniformSetter;
 import cientistavuador.newrenderingpipeline.util.ProgramCompiler;
 import java.util.Map;
+import org.joml.Matrix4fc;
 import org.joml.Vector3f;
 import org.joml.Vector3fc;
 import org.joml.Vector4f;
@@ -126,7 +127,7 @@ public class NProgram {
     public static final NProgramMaterial NULL_MATERIAL = new NProgramMaterial(
             new Vector4f(0.8f, 0.8f, 0.8f, 1.0f),
             new Vector3f(0.2f, 0.2f, 0.2f),
-            1f, 1024f,
+            4f, 1024f,
             0.065f,
             8f, 32f
     );
@@ -150,6 +151,9 @@ public class NProgram {
             uniform mat4 view;
             uniform mat4 model;
             uniform mat3 normalModel;
+            
+            uniform bool animationEnabled;
+            uniform mat4 boneMatrices[MAX_AMOUNT_OF_BONES];
             
             #if defined(VARIANT_LIGHTMAPPED_ALPHA_TESTING) || defined(VARIANT_LIGHTMAPPED_ALPHA_BLENDING)
             uniform samplerBuffer lightmapUvs;
@@ -189,6 +193,18 @@ public class NProgram {
                 #if defined(VARIANT_LIGHTMAPPED_ALPHA_TESTING) || defined(VARIANT_LIGHTMAPPED_ALPHA_BLENDING)
                 outVertex.worldLightmapUv = texelFetch(lightmapUvs, gl_VertexID).xy;
                 #endif
+                
+                if (animationEnabled) {
+                    vec4 totalPosition = vec4(0.0);
+                    for (int i = 0; i < MAX_AMOUNT_OF_BONE_WEIGHTS; i++) {
+                        int boneId = vertexBoneIds[i];
+                        float weight = vertexBoneWeights[i];
+                        
+                        vec4 bonePosition = boneMatrices[boneId] * vec4(vertexPosition, 1.0);
+                        totalPosition += (boneId >= 0 ? bonePosition * weight : vec4(0.0));
+                    }
+                    worldPosition = (totalPosition != vec4(0.0) ? totalPosition : worldPosition);
+                }
                 
                 gl_Position = projection * view * worldPosition;
             }
@@ -305,7 +321,6 @@ public class NProgram {
                 vec3 infiniteLightDirection = normalize(-light.direction);
                 
                 vec3 oppositeLightDirection = (lightType == DIRECTIONAL_LIGHT_TYPE ? infiniteLightDirection : positionalLightDirection);
-                vec3 reflectedLightDirection = reflect(-oppositeLightDirection, normal);
                 vec3 halfwayDirection = normalize(oppositeLightDirection + viewDirection);
                 
                 float diffuseFactor = max(dot(normal, oppositeLightDirection), 0.0);
@@ -395,7 +410,7 @@ public class NProgram {
                 
                 normal = normalize(TBN * normal);
                 
-                float exponent = pow(material.maxExponent - material.minExponent, 1.0 - ienxrny[0]) + material.minExponent;
+                float exponent = (pow((material.maxExponent - material.minExponent) + 1.0, 1.0 - ienxrny[0]) - 1.0) + material.minExponent;
                 float normalizationFactor = ((exponent + 2.0) * (exponent + 4.0)) / (8.0 * PI * (pow(2.0, -exponent * 0.5) + exponent));
                 vec3 viewDirection = normalize(-inVertex.worldPosition);
                 float fresnel = 1.0 - max(dot(normal, viewDirection), 0.0);
@@ -447,7 +462,9 @@ public class NProgram {
         new ProgramCompiler.ShaderConstant("DIRECTIONAL_LIGHT_TYPE", DIRECTIONAL_LIGHT_TYPE),
         new ProgramCompiler.ShaderConstant("POINT_LIGHT_TYPE", POINT_LIGHT_TYPE),
         new ProgramCompiler.ShaderConstant("SPOT_LIGHT_TYPE", SPOT_LIGHT_TYPE),
-        new ProgramCompiler.ShaderConstant("LIGHT_ATTENUATION", LIGHT_ATTENUATION)
+        new ProgramCompiler.ShaderConstant("LIGHT_ATTENUATION", LIGHT_ATTENUATION),
+        new ProgramCompiler.ShaderConstant("MAX_AMOUNT_OF_BONES", NMesh.MAX_AMOUNT_OF_BONES),
+        new ProgramCompiler.ShaderConstant("MAX_AMOUNT_OF_BONE_WEIGHTS", NMesh.MAX_AMOUNT_OF_BONE_WEIGHTS)
     };
 
     static {
@@ -478,6 +495,7 @@ public class NProgram {
     public static final String UNIFORM_LIGHTMAPS = "lightmaps";
     public static final String UNIFORM_PARALLAX_SUPPORTED = "parallaxSupported";
     public static final String UNIFORM_PARALLAX_ENABLED = "parallaxEnabled";
+    public static final String UNIFORM_ANIMATION_ENABLED = "animationEnabled";
 
     public static void sendMaterial(BetterUniformSetter uniforms, NProgramMaterial material) {
         if (material == null) {
@@ -516,6 +534,10 @@ public class NProgram {
             throw new IllegalArgumentException("Out of bounds index: " + index);
         }
         glUniform1f(uniforms.locationOf("lightmapIntensity[" + index + "]"), intensity);
+    }
+    
+    public static void sendBoneMatrix(BetterUniformSetter uniforms, Matrix4fc matrix, int boneId) {
+        BetterUniformSetter.uniformMatrix4fv(uniforms.locationOf("boneMatrices["+boneId+"]"), matrix);
     }
 
     public static void init() {

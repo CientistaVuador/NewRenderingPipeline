@@ -34,6 +34,8 @@ import cientistavuador.newrenderingpipeline.util.raycast.BVH;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 import org.joml.Vector3f;
@@ -49,7 +51,10 @@ import org.lwjgl.opengl.KHRDebug;
 public class NMesh {
 
     private static final AtomicLong meshIds = new AtomicLong();
-
+    
+    public static final int MAX_AMOUNT_OF_BONES = 110;
+    public static final int MAX_AMOUNT_OF_BONE_WEIGHTS = 4;
+    
     public static final int VAO_INDEX_POSITION_XYZ = 0;
     public static final int VAO_INDEX_TEXTURE_XY = 1;
     public static final int VAO_INDEX_NORMAL_XYZ = 2;
@@ -72,6 +77,8 @@ public class NMesh {
     private final float[] vertices;
     private final int[] indices;
     private final BVH bvh;
+    private final NMeshBone[] bones;
+    private final Map<String, Integer> bonesMap = new HashMap<>();
 
     private final boolean lightmapped;
     private final Vector3f aabbMin = new Vector3f();
@@ -95,6 +102,10 @@ public class NMesh {
     private final String sha256;
 
     public NMesh(String name, float[] vertices, int[] indices, BVH bvh) {
+        this(name, vertices, indices, bvh, null);
+    }
+    
+    public NMesh(String name, float[] vertices, int[] indices, BVH bvh, NMeshBone[] bones) {
         Objects.requireNonNull(vertices, "Vertices is null");
         Objects.requireNonNull(indices, "Indices is null");
 
@@ -109,7 +120,17 @@ public class NMesh {
         this.vertices = vertices;
         this.indices = indices;
         this.bvh = bvh;
-
+        if (bones == null) {
+            bones = new NMeshBone[0];
+        }
+        if (bones.length > MAX_AMOUNT_OF_BONES) {
+            throw new IllegalArgumentException("Max amount of bones per mesh is "+MAX_AMOUNT_OF_BONES);
+        }
+        for (int i = 0; i < bones.length; i++) {
+            this.bonesMap.put(bones[i].getName(), i);
+        }
+        this.bones = bones;
+        
         boolean lightmap = true;
         for (int i = 0; i < this.indices.length; i++) {
             if (this.indices[i] != i) {
@@ -212,6 +233,30 @@ public class NMesh {
 
     public BVH getBVH() {
         return this.bvh;
+    }
+
+    public int getAmountOfBones() {
+        return this.bones.length;
+    }
+    
+    public NMeshBone getBone(int index) {
+        return this.bones[index];
+    }
+    
+    public int indexOfBone(String name) {
+        Integer index = this.bonesMap.get(name);
+        if (index == null) {
+            return -1;
+        }
+        return index;
+    }
+    
+    public NMeshBone getBone(String name) {
+        int index = indexOfBone(name);
+        if (index < 0) {
+            return null;
+        }
+        return getBone(index);
     }
 
     public boolean isLightmapped() {
