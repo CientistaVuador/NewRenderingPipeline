@@ -36,6 +36,12 @@ import org.joml.Vector4f;
  */
 public class NMaterial {
 
+    public static final float DEFAULT_MIN_EXPONENT = 0.25f;
+    public static final float DEFAULT_MAX_EXPONENT = 2048f;
+    public static final float DEFAULT_PARALLAX_HEIGHT_COEFFICIENT = 0.065f;
+    public static final float DEFAULT_PARALLAX_MIN_LAYERS = 8f;
+    public static final float DEFAULT_PARALLAX_MAX_LAYERS = 32f;
+    
     public static final NMaterial NULL_MATERIAL = new NMaterial("NULL_MATERIAL");
     
     static {
@@ -51,14 +57,22 @@ public class NMaterial {
     private final Vector4f diffuseColor = new Vector4f(0.8f, 0.8f, 0.8f, 1.0f);
     private final Vector3f specularColor = new Vector3f(0.2f, 0.2f, 0.2f);
     
-    private float minExponent = 4f;
-    private float maxExponent = 1024f;
-    private float parallaxHeightCoefficient = 0.065f;
-    private float parallaxMinLayers = 8f;
-    private float parallaxMaxLayers = 32;
+    private float minExponent = DEFAULT_MIN_EXPONENT;
+    private float maxExponent = DEFAULT_MAX_EXPONENT;
+    private float parallaxHeightCoefficient = DEFAULT_PARALLAX_HEIGHT_COEFFICIENT;
+    private float parallaxMinLayers = DEFAULT_PARALLAX_MIN_LAYERS;
+    private float parallaxMaxLayers = DEFAULT_PARALLAX_MAX_LAYERS;
     
     public NMaterial(String name) {
+        this(name, null);
+    }
+    
+    public NMaterial(String name, NTextures textures) {
         this.name = name;
+        if (textures == null) {
+            textures = NTextures.NULL_TEXTURE;
+        }
+        this.textures = textures;
     }
 
     public String getName() {

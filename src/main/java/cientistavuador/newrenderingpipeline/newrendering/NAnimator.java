@@ -45,9 +45,6 @@ public class NAnimator {
     private final N3DModel model;
     private final NAnimation animation;
 
-    private float tickCounter = 0f;
-    private float fixedCounter = 0f;
-
     private final NBoneAnimation[] boneAnimations;
     private final Map<String, Integer> boneMap = new HashMap<>();
 
@@ -65,6 +62,11 @@ public class NAnimator {
     private final Vector3f nextPosition = new Vector3f();
     private final Quaternionf nextRotation = new Quaternionf();
     private final Vector3f nextScaling = new Vector3f();
+
+    private float tickCounter = 0f;
+    private float animationCounter = 0f;
+    private float animationSpeed = 1f;
+    private boolean looping = true;
 
     public NAnimator(N3DModel model, String animation) {
         this.model = model;
@@ -86,6 +88,8 @@ public class NAnimator {
         this.currentPositionKeys = new int[this.boneAnimations.length];
         this.currentRotationKeys = new int[this.boneAnimations.length];
         this.currentScalingKeys = new int[this.boneAnimations.length];
+
+        update();
     }
 
     private void resetKeys() {
@@ -110,18 +114,46 @@ public class NAnimator {
         return this.boneMatrices[index];
     }
 
+    public float getAnimationSpeed() {
+        return animationSpeed;
+    }
+
+    public void setAnimationSpeed(float animationSpeed) {
+        this.animationSpeed = animationSpeed;
+    }
+
+    public void setLooping(boolean looping) {
+        this.looping = looping;
+    }
+
+    public boolean isLooping() {
+        return looping;
+    }
+
+    public void reset() {
+        resetKeys();
+        this.tickCounter = 0f;
+        this.animationCounter = 0f;
+    }
+
+    public float getAnimationCounter() {
+        return animationCounter;
+    }
+    
     public void update(float tpf) {
-        if (this.fixedCounter >= this.animation.getDuration()) {
-            resetKeys();
-            this.tickCounter = 0f;
-            this.fixedCounter = 0f;
+        if (this.animationCounter >= this.animation.getDuration()) {
+            if (this.looping) {
+                reset();
+            } else {
+                return;
+            }
         }
 
         this.tickCounter += tpf;
 
         while (this.tickCounter >= UPDATE_RATE) {
             update();
-            this.fixedCounter += UPDATE_RATE;
+            this.animationCounter += (UPDATE_RATE * this.animationSpeed);
             this.tickCounter -= UPDATE_RATE;
         }
     }
@@ -132,7 +164,7 @@ public class NAnimator {
     }
 
     private float timeLerpValue(float start, float end) {
-        float lerp = (this.fixedCounter - start) / (end - start);
+        float lerp = (this.animationCounter - start) / (end - start);
         if (!Float.isFinite(lerp)) {
             return 0f;
         }
@@ -140,7 +172,6 @@ public class NAnimator {
     }
 
     private void updateLocalMatrices() {
-        boolean done = true;
         for (int i = 0; i < this.boneAnimations.length; i++) {
             NBoneAnimation boneAnimation = this.boneAnimations[i];
             Matrix4f localMatrix = this.localBoneMatrices[i].identity();
@@ -148,16 +179,6 @@ public class NAnimator {
             int currentPositionKey = this.currentPositionKeys[i];
             int currentRotationKey = this.currentRotationKeys[i];
             int currentScalingKey = this.currentScalingKeys[i];
-            
-            if (currentPositionKey != this.currentPositionKeys.length - 1) {
-                done = false;
-            }
-            if (currentRotationKey != this.currentRotationKeys.length - 1) {
-                done = false;
-            }
-            if (currentScalingKey != this.currentScalingKeys.length - 1) {
-                done = false;
-            }
 
             float currentPositionTime = boneAnimation.getPositionTime(currentPositionKey);
             float currentRotationTime = boneAnimation.getRotationTime(currentRotationKey);
@@ -174,7 +195,7 @@ public class NAnimator {
             if (hasNextPositionKey) {
                 nextPositionTime = boneAnimation.getPositionTime(currentPositionKey + 1);
 
-                while (this.fixedCounter > nextPositionTime) {
+                while (this.animationCounter > nextPositionTime) {
                     currentPositionKey++;
                     currentPositionTime = boneAnimation.getPositionTime(currentPositionKey);
                     nextPositionTime = currentPositionTime;
@@ -189,7 +210,7 @@ public class NAnimator {
             if (hasNextRotationKey) {
                 nextRotationTime = boneAnimation.getRotationTime(currentRotationKey + 1);
 
-                while (this.fixedCounter > nextRotationTime) {
+                while (this.animationCounter > nextRotationTime) {
                     currentRotationKey++;
                     currentRotationTime = boneAnimation.getRotationTime(currentRotationKey);
                     nextRotationTime = currentRotationTime;
@@ -204,7 +225,7 @@ public class NAnimator {
             if (hasNextScalingKey) {
                 nextScalingTime = boneAnimation.getScalingTime(currentScalingKey + 1);
 
-                while (this.fixedCounter > nextScalingTime) {
+                while (this.animationCounter > nextScalingTime) {
                     currentScalingKey++;
                     currentScalingTime = boneAnimation.getScalingTime(currentScalingKey);
                     nextScalingTime = currentScalingTime;
@@ -276,16 +297,16 @@ public class NAnimator {
         if (node == null) {
             return;
         }
-        
+
         Matrix4fc localMatrix;
-        
+
         Integer boneIndex = this.boneMap.get(node.getName());
         if (boneIndex != null) {
             localMatrix = this.localBoneMatrices[boneIndex];
         } else {
             localMatrix = node.getTransformation();
         }
-        
+
         localMatrix.mul(matrix, matrix);
 
         recursiveTransform(node.getParent(), matrix);

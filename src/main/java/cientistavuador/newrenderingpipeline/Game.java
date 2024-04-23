@@ -42,6 +42,7 @@ import cientistavuador.newrenderingpipeline.newrendering.NAnimation;
 import cientistavuador.newrenderingpipeline.newrendering.NAnimator;
 import cientistavuador.newrenderingpipeline.newrendering.NGeometry;
 import cientistavuador.newrenderingpipeline.newrendering.NLight;
+import cientistavuador.newrenderingpipeline.newrendering.NMaterial;
 import cientistavuador.newrenderingpipeline.newrendering.NMesh;
 import cientistavuador.newrenderingpipeline.newrendering.NTextures;
 import cientistavuador.newrenderingpipeline.newrendering.NTexturesIO;
@@ -297,6 +298,22 @@ public class Game {
         );
     }
 
+    private final N3DObject groundObj  = new N3DObject("ground", new N3DModel(
+            "ground",
+            new N3DModelNode(
+                    "ground",
+                    new Matrix4f(),
+                    new NGeometry[]{
+                        new NGeometry(
+                                "ground",
+                                this.mesh,
+                                new NMaterial("ground_material", textures)
+                        )
+                    },
+                    new N3DModelNode[0]
+            )
+    ));
+
     private final PlayerController player = new PlayerController();
     private boolean playerActive = false;
 
@@ -352,52 +369,55 @@ public class Game {
 
     private void print(N3DModelNode node, int depth) {
         String spacing = "\t".repeat(depth);
-        
-        System.out.println(spacing+"node name: " + node.getName() + ", depth: " + depth + " ->");
+
+        System.out.println(spacing + "node name: " + node.getName() + ", depth: " + depth + " ->");
 
         NGeometry[] geometries = node.getGeometries();
-        System.out.println(spacing+"amount of geometries: " + geometries.length);
+        System.out.println(spacing + "amount of geometries: " + geometries.length);
 
         if (geometries.length != 0) {
-            System.out.println(spacing+"list of geometries:");
+            System.out.println(spacing + "list of geometries:");
             for (NGeometry g : geometries) {
-                System.out.println(spacing+"geometry name: " + g.getName() + ", vertices: " + (g.getMesh().getVertices().length / NMesh.VERTEX_SIZE) + ", indices: " + g.getMesh().getIndices().length);
+                System.out.println(spacing + "geometry name: " + g.getName() + ", vertices: " + (g.getMesh().getVertices().length / NMesh.VERTEX_SIZE) + ", indices: " + g.getMesh().getIndices().length);
             }
         }
 
         N3DModelNode[] children = node.getChildren();
 
-        System.out.println(spacing+"amount of children: " + children.length);
+        System.out.println(spacing + "amount of children: " + children.length);
         if (children.length != 0) {
             for (N3DModelNode child : children) {
                 print(child, depth + 1);
             }
         }
 
-        System.out.println(spacing+"<- end node");
+        System.out.println(spacing + "<- end node");
     }
 
     private N3DModel testModel = null;
+    private N3DModel myBalls = null;
     private NAnimator animator = null;
-    
+
     public void start() {
         try {
             N3DModel model = N3DModelImporter.importFromJarFile("cientistavuador/newrenderingpipeline/cc0_zacxophone_triceratops.glb");
             print(model.getRootNode(), 0);
             testModel = model;
+            
+            myBalls = N3DModelImporter.importFromJarFile("cientistavuador/newrenderingpipeline/my_balls.glb");
         } catch (IOException ex) {
             throw new UncheckedIOException(ex);
         }
-        
+
         System.out.println(testModel.getNumberOfBones());
-        
+
         for (int i = 0; i < testModel.getNumberOfAnimations(); i++) {
             NAnimation anim = testModel.getAnimation(i);
             System.out.println(anim.getName());
         }
-        
+
         animator = new NAnimator(testModel, "Armature|Armature|Fall");
-        
+
         this.physicsSpace.setMaxSubSteps(8);
         this.physicsSpace.setAccuracy(1f / 60f);
         this.physicsSpace.setGravity(new com.jme3.math.Vector3f(
@@ -489,7 +509,7 @@ public class Game {
         sun.setGroupName("sun");
         sun.setDirection(1f, -0.75f, 1f);
         this.scene.getLights().add(sun);
-        
+
         List<float[]> meshVertices = new ArrayList<>();
         List<int[]> meshIndices = new ArrayList<>();
         List<Matrix4fc> meshModels = new ArrayList<>();
@@ -523,7 +543,7 @@ public class Game {
         worldBody.setFriction(1f);
         this.physicsSpace.addCollisionObject(worldBody);
     }
-    
+
     public void loop() {
         if (!this.status.isDone()) {
             try {
@@ -735,15 +755,44 @@ public class Game {
 
         List<NLight> lights = new ArrayList<>();
         NLight.NDirectionalLight sun = new NLight.NDirectionalLight("sun");
+        sun.getDirection().set(1f, -1f, 1f).normalize();
+        sun.getDiffuse().set(1f);
+        sun.getSpecular().set(1f);
+        sun.getAmbient().set(0.05f);
         lights.add(sun);
         
+        NLight.NPointLight point = new NLight.NPointLight("point");
+        point.getPosition().set(5f, 6f, -15f);
+        //lights.add(point);
+        
         {
+            N3DObject myBalls = new N3DObject("my balls", this.myBalls);
+            myBalls.getHintPosition().set(0f, 20f, -15f);
+            
+            float brX = (float) (myBalls.getHintPosition().x() - this.camera.getPosition().x());
+            float brY = (float) (myBalls.getHintPosition().y() - this.camera.getPosition().y());
+            float brZ = (float) (myBalls.getHintPosition().z() - this.camera.getPosition().z());
+            
+            myBalls.getModel().translate(brX, brY, brZ);
+            
+            N3DObjectRenderer.queueRender(myBalls);
+            
+            groundObj.getHintPosition().set(0f, 10f, -15f);
+
+            float rX = (float) (groundObj.getHintPosition().x() - this.camera.getPosition().x());
+            float rY = (float) (groundObj.getHintPosition().y() - this.camera.getPosition().y());
+            float rZ = (float) (groundObj.getHintPosition().z() - this.camera.getPosition().z());
+
+            groundObj.getModel().identity().translate(rX, rY, rZ);
+
+            N3DObjectRenderer.queueRender(groundObj);
+
             N3DObject backpack = new N3DObject("backpack", this.testModel);
             backpack.setAnimator(this.animator);
             backpack.getAnimator().update((float) Main.TPF);
-            
-            backpack.getHintPosition().set(0f, 5f, -15f);
-            
+
+            backpack.getHintPosition().set(8f, 10.75f, -25f);
+
             float relativeX = (float) (backpack.getHintPosition().x() - this.camera.getPosition().x());
             float relativeY = (float) (backpack.getHintPosition().y() - this.camera.getPosition().y());
             float relativeZ = (float) (backpack.getHintPosition().z() - this.camera.getPosition().z());
@@ -751,11 +800,12 @@ public class Game {
             backpack.getModel()
                     .identity()
                     .translate(relativeX, relativeY, relativeZ)
+                    .rotateY((float) Math.toRadians(-90f + -45f))
                     ;
 
             N3DObjectRenderer.queueRender(backpack);
         }
-        
+
         N3DObjectRenderer.render(this.camera, lights);
 
         AabRender.renderQueue(camera);

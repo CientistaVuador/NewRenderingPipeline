@@ -176,7 +176,7 @@ public class N3DModelImporter {
             }
 
             final String fileName = tex.mFilename().dataString();
-
+            
             if (tex.mHeight() == 0) {
                 byte[] data = new byte[tex.mWidth()];
                 tex.pcDataCompressed().get(data);
@@ -224,7 +224,7 @@ public class N3DModelImporter {
     private NTexturesIO.LoadedImage getMaterialTexture(AIMaterial material, int type) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             AIString pathString = AIString.calloc(stack);
-
+            
             int result = aiGetMaterialTexture(material,
                     type,
                     0,
@@ -240,7 +240,7 @@ public class N3DModelImporter {
             if (result != aiReturn_SUCCESS) {
                 return null;
             }
-
+            
             return this.loadedImages.get(pathString.dataString());
         }
     }
@@ -274,9 +274,29 @@ public class N3DModelImporter {
             }
 
             NTexturesIO.LoadedImage heightImage = tempHeightImage;
-            NTexturesIO.LoadedImage aoInvertedexponentReflectivenessImage = getMaterialTexture(material, aiTextureType_METALNESS);
+            
+            NTexturesIO.LoadedImage tempAoInvertedexponentReflectivenessImage = getMaterialTexture(material, aiTextureType_METALNESS);
+            if (tempAoInvertedexponentReflectivenessImage == null) {
+                tempAoInvertedexponentReflectivenessImage = getMaterialTexture(material, aiTextureType_SPECULAR);
+                if (tempAoInvertedexponentReflectivenessImage != null) {
+                    int width = tempAoInvertedexponentReflectivenessImage.width;
+                    int height = tempAoInvertedexponentReflectivenessImage.height;
+                    byte[] data = tempAoInvertedexponentReflectivenessImage.pixelData;
+                    
+                    for (int pixel = 0; pixel < width * height; pixel++) {
+                        byte r = data[(pixel * 4) + 0];
+                        
+                        data[(pixel * 4) + 0] = (byte) 255;
+                        data[(pixel * 4) + 1] = (byte) (255 - (r & 0xFF));
+                        data[(pixel * 4) + 2] = (byte) 0;
+                        data[(pixel * 4) + 3] = (byte) 255;
+                    }
+                }
+            }
+            
+            NTexturesIO.LoadedImage aoInvertedexponentReflectivenessImage = tempAoInvertedexponentReflectivenessImage;
             NTexturesIO.LoadedImage normalImage = getMaterialTexture(material, aiTextureType_NORMALS);
-
+            
             futureMaterials.add(this.service.submit(() -> {
                 byte[] diffuseMap = null;
 
