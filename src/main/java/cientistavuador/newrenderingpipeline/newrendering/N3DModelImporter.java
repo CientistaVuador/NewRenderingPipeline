@@ -261,27 +261,32 @@ public class N3DModelImporter {
             if (material == null) {
                 continue;
             }
-
-            NTexturesIO.LoadedImage tempDiffuseImage = getMaterialTexture(material, aiTextureType_BASE_COLOR);
-            if (tempDiffuseImage == null) {
-                tempDiffuseImage = getMaterialTexture(material, aiTextureType_DIFFUSE);
-            }
-            NTexturesIO.LoadedImage diffuseImage = tempDiffuseImage;
-
-            NTexturesIO.LoadedImage tempHeightImage = getMaterialTexture(material, aiTextureType_HEIGHT);
-            if (tempHeightImage == null) {
-                tempHeightImage = getMaterialTexture(material, aiTextureType_DISPLACEMENT);
-            }
-
-            NTexturesIO.LoadedImage heightImage = tempHeightImage;
             
-            NTexturesIO.LoadedImage tempAoInvertedexponentReflectivenessImage = getMaterialTexture(material, aiTextureType_METALNESS);
-            if (tempAoInvertedexponentReflectivenessImage == null) {
-                tempAoInvertedexponentReflectivenessImage = getMaterialTexture(material, aiTextureType_SPECULAR);
-                if (tempAoInvertedexponentReflectivenessImage != null) {
-                    int width = tempAoInvertedexponentReflectivenessImage.width;
-                    int height = tempAoInvertedexponentReflectivenessImage.height;
-                    byte[] data = tempAoInvertedexponentReflectivenessImage.pixelData;
+            final int diffuseIndex = 0;
+            final int heightIndex = 1;
+            final int aoInvertedexponentReflectivenessIndex = 2;
+            final int normalIndex = 3;
+            final int emissiveIndex = 4;
+            
+            final NTexturesIO.LoadedImage[] images = new NTexturesIO.LoadedImage[6];
+            
+            images[diffuseIndex] = getMaterialTexture(material, aiTextureType_BASE_COLOR);
+            if (images[diffuseIndex] == null) {
+                images[diffuseIndex] = getMaterialTexture(material, aiTextureType_DIFFUSE);
+            }
+            
+            images[heightIndex] = getMaterialTexture(material, aiTextureType_HEIGHT);
+            if (images[heightIndex] == null) {
+                images[heightIndex] = getMaterialTexture(material, aiTextureType_DISPLACEMENT);
+            }
+            
+            images[aoInvertedexponentReflectivenessIndex] = getMaterialTexture(material, aiTextureType_METALNESS);
+            if (images[aoInvertedexponentReflectivenessIndex] == null) {
+                images[aoInvertedexponentReflectivenessIndex] = getMaterialTexture(material, aiTextureType_SPECULAR);
+                if (images[aoInvertedexponentReflectivenessIndex] != null) {
+                    int width = images[aoInvertedexponentReflectivenessIndex].width;
+                    int height = images[aoInvertedexponentReflectivenessIndex].height;
+                    byte[] data = images[aoInvertedexponentReflectivenessIndex].pixelData;
                     
                     for (int pixel = 0; pixel < width * height; pixel++) {
                         byte r = data[(pixel * 4) + 0];
@@ -294,23 +299,47 @@ public class N3DModelImporter {
                 }
             }
             
-            NTexturesIO.LoadedImage aoInvertedexponentReflectivenessImage = tempAoInvertedexponentReflectivenessImage;
-            NTexturesIO.LoadedImage normalImage = getMaterialTexture(material, aiTextureType_NORMALS);
+            images[normalIndex] = getMaterialTexture(material, aiTextureType_NORMALS);
+            
+            images[emissiveIndex] = getMaterialTexture(material, aiTextureType_EMISSION_COLOR);
+            if (images[emissiveIndex] == null) {
+                images[emissiveIndex] = getMaterialTexture(material, aiTextureType_EMISSIVE);
+            }
+            
+            int textureWidth = -1;
+            int textureHeight = -1;
+            
+            for (NTexturesIO.LoadedImage image : images) {
+                if (image != null) {
+                    textureWidth = Math.max(textureWidth, image.width);
+                    textureHeight = Math.max(textureHeight, image.height);
+                }
+            }
+            
+            for (int j = 0; j < images.length; j++) {
+                NTexturesIO.LoadedImage image = images[j];
+                if (image != null && image.width != textureWidth && image.height != textureHeight) {
+                    images[j] = NTexturesIO.nearestResize(image, textureWidth, textureHeight);
+                }
+            }
+            
+            final int finalTextureWidth = textureWidth;
+            final int finalTextureHeight = textureHeight;
             
             futureMaterials.add(this.service.submit(() -> {
                 byte[] diffuseMap = null;
 
-                if (diffuseImage != null) {
-                    diffuseMap = diffuseImage.pixelData;
+                if (images[diffuseIndex] != null) {
+                    diffuseMap = images[diffuseIndex].pixelData;
                 }
 
                 byte[] aoMap = null;
                 byte[] invertedExponentMap = null;
                 byte[] reflectivenessMap = null;
 
-                if (aoInvertedexponentReflectivenessImage != null) {
-                    int width = aoInvertedexponentReflectivenessImage.width;
-                    int height = aoInvertedexponentReflectivenessImage.height;
+                if (images[aoInvertedexponentReflectivenessIndex] != null) {
+                    int width = images[aoInvertedexponentReflectivenessIndex].width;
+                    int height = images[aoInvertedexponentReflectivenessIndex].height;
 
                     int pixels = width * height;
 
@@ -319,10 +348,10 @@ public class N3DModelImporter {
                     reflectivenessMap = new byte[pixels * 4];
 
                     for (int j = 0; j < pixels; j++) {
-                        int ao = aoInvertedexponentReflectivenessImage.pixelData[(j * 4) + 0] & 0xFF;
-                        int invertedExponent = aoInvertedexponentReflectivenessImage.pixelData[(j * 4) + 1] & 0xFF;
-                        int reflectiveness = aoInvertedexponentReflectivenessImage.pixelData[(j * 4) + 2] & 0xFF;
-
+                        int ao = images[aoInvertedexponentReflectivenessIndex].pixelData[(j * 4) + 0] & 0xFF;
+                        int invertedExponent = images[aoInvertedexponentReflectivenessIndex].pixelData[(j * 4) + 1] & 0xFF;
+                        int reflectiveness = images[aoInvertedexponentReflectivenessIndex].pixelData[(j * 4) + 2] & 0xFF;
+                        
                         aoMap[(j * 4) + 0] = (byte) ao;
                         invertedExponentMap[(j * 4) + 0] = (byte) invertedExponent;
                         reflectivenessMap[(j * 4) + 0] = (byte) reflectiveness;
@@ -331,51 +360,35 @@ public class N3DModelImporter {
 
                 byte[] heightMap = null;
 
-                if (heightImage != null) {
-                    heightMap = heightImage.pixelData;
+                if (images[heightIndex] != null) {
+                    heightMap = images[heightIndex].pixelData;
                 }
 
                 byte[] normalMap = null;
 
-                if (normalImage != null) {
-                    normalMap = normalImage.pixelData;
+                if (images[normalIndex] != null) {
+                    normalMap = images[normalIndex].pixelData;
                 }
-
-                int textureWidth = -1;
-                int textureHeight = -1;
-
-                if (diffuseImage != null) {
-                    textureWidth = diffuseImage.width;
-                    textureHeight = diffuseImage.height;
+                
+                byte[] emissiveMap = null;
+                
+                if (images[emissiveIndex] != null) {
+                    emissiveMap = images[emissiveIndex].pixelData;
                 }
-
-                if (heightImage != null) {
-                    textureWidth = heightImage.width;
-                    textureHeight = heightImage.height;
-                }
-
-                if (aoInvertedexponentReflectivenessImage != null) {
-                    textureWidth = aoInvertedexponentReflectivenessImage.width;
-                    textureHeight = aoInvertedexponentReflectivenessImage.height;
-                }
-
-                if (normalImage != null) {
-                    textureWidth = normalImage.width;
-                    textureHeight = normalImage.height;
-                }
-
+                
                 NTextures textures;
 
-                if (textureWidth != -1 && textureHeight != -1) {
+                if (finalTextureWidth != -1 && finalTextureHeight != -1) {
                     textures = NTexturesIO.load(
                             "textures_" + materialIndex,
-                            textureWidth, textureHeight,
+                            finalTextureWidth, finalTextureHeight,
                             diffuseMap,
                             aoMap,
                             heightMap,
                             invertedExponentMap,
                             normalMap,
-                            reflectivenessMap
+                            reflectivenessMap,
+                            emissiveMap
                     );
                 } else {
                     textures = NTextures.NULL_TEXTURE;

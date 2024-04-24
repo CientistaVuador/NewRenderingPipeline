@@ -30,10 +30,6 @@ import cientistavuador.newrenderingpipeline.util.BetterUniformSetter;
 import cientistavuador.newrenderingpipeline.util.ProgramCompiler;
 import java.util.Map;
 import org.joml.Matrix4fc;
-import org.joml.Vector3f;
-import org.joml.Vector3fc;
-import org.joml.Vector4f;
-import org.joml.Vector4fc;
 import static org.lwjgl.opengl.GL33C.*;
 
 /**
@@ -52,56 +48,80 @@ public class NProgram {
     public static final int POINT_LIGHT_TYPE = 2;
     public static final int SPOT_LIGHT_TYPE = 3;
 
-    public static class NProgramLight {
-
+    public static final class NProgramLight {
+        
         public final int type;
-        public final Vector3fc position;
-        public final Vector3fc direction;
+        public final float x;
+        public final float y;
+        public final float z;
+        public final float dirX;
+        public final float dirY;
+        public final float dirZ;
         public final float innerCone;
         public final float outerCone;
-        public final Vector3fc diffuse;
-        public final Vector3fc specular;
-        public final Vector3fc ambient;
-
+        public final float diffuseR;
+        public final float diffuseG;
+        public final float diffuseB;
+        public final float specularR;
+        public final float specularG;
+        public final float specularB;
+        public final float ambientR;
+        public final float ambientG;
+        public final float ambientB;
+        
         public NProgramLight(
                 int type,
-                Vector3fc position,
-                Vector3fc direction,
+                float x, float y, float z,
+                float dirX, float dirY, float dirZ,
                 float innerCone, float outerCone,
-                Vector3fc diffuse, Vector3fc specular, Vector3fc ambient
+                float diffuseR, float diffuseG, float diffuseB,
+                float specularR, float specularG, float specularB,
+                float ambientR, float ambientG, float ambientB
         ) {
             this.type = type;
-            if (position != null) {
-                this.position = new Vector3f(position);
-            } else {
-                this.position = new Vector3f(0f);
-            }
-            if (direction != null) {
-                this.direction = new Vector3f(direction);
-            } else {
-                this.direction = new Vector3f(0f);
-            }
+            this.x = x;
+            this.y = y;
+            this.z = z;
+            this.dirX = dirX;
+            this.dirY = dirY;
+            this.dirZ = dirZ;
             this.innerCone = innerCone;
             this.outerCone = outerCone;
-            this.diffuse = new Vector3f(diffuse);
-            this.specular = new Vector3f(specular);
-            this.ambient = new Vector3f(ambient);
+            this.diffuseR = diffuseR;
+            this.diffuseG = diffuseG;
+            this.diffuseB = diffuseB;
+            this.specularR = specularR;
+            this.specularG = specularG;
+            this.specularB = specularB;
+            this.ambientR = ambientR;
+            this.ambientG = ambientG;
+            this.ambientB = ambientB;
         }
+        
     }
 
     public static final NProgramLight NULL_LIGHT = new NProgramLight(
             NULL_LIGHT_TYPE,
-            new Vector3f(),
-            new Vector3f(),
-            0f,
-            0f,
-            new Vector3f(), new Vector3f(), new Vector3f()
+            0f, 0f, 0f,
+            0f, 0f, 0f,
+            0f, 0f,
+            0f, 0f, 0f,
+            0f, 0f, 0f,
+            0f, 0f, 0f
     );
 
-    public static class NProgramMaterial {
-
-        public final Vector4fc diffuseColor;
-        public final Vector3fc specularColor;
+    public static final class NProgramMaterial {
+        
+        public final float diffuseColorR;
+        public final float diffuseColorG;
+        public final float diffuseColorB;
+        public final float diffuseColorA;
+        public final float specularColorR;
+        public final float specularColorG;
+        public final float specularColorB;
+        public final float emissiveColorR;
+        public final float emissiveColorG;
+        public final float emissiveColorB;
         public final float minExponent;
         public final float maxExponent;
         public final float parallaxHeightCoefficient;
@@ -109,29 +129,41 @@ public class NProgram {
         public final float parallaxMaxLayers;
 
         public NProgramMaterial(
-                Vector4fc diffuseColor,
-                Vector3fc specularColor,
-                float exponentMin, float exponentMax,
+                float diffuseColorR, float diffuseColorG, float diffuseColorB, float diffuseColorA,
+                float specularColorR, float specularColorG, float specularColorB,
+                float emissiveColorR, float emissiveColorG, float emissiveColorB,
+                float minExponent, float maxExponent,
                 float parallaxHeightCoefficient, float parallaxMinLayers, float parallaxMaxLayers
         ) {
-            this.diffuseColor = new Vector4f(diffuseColor);
-            this.specularColor = new Vector3f(specularColor);
-            this.minExponent = exponentMin;
-            this.maxExponent = exponentMax;
+            this.diffuseColorR = diffuseColorR;
+            this.diffuseColorG = diffuseColorG;
+            this.diffuseColorB = diffuseColorB;
+            this.diffuseColorA = diffuseColorA;
+            this.specularColorR = specularColorR;
+            this.specularColorG = specularColorG;
+            this.specularColorB = specularColorB;
+            this.emissiveColorR = emissiveColorR;
+            this.emissiveColorG = emissiveColorG;
+            this.emissiveColorB = emissiveColorB;
+            this.minExponent = minExponent;
+            this.maxExponent = maxExponent;
             this.parallaxHeightCoefficient = parallaxHeightCoefficient;
             this.parallaxMinLayers = parallaxMinLayers;
             this.parallaxMaxLayers = parallaxMaxLayers;
         }
+
+        
     }
 
     public static final NProgramMaterial NULL_MATERIAL = new NProgramMaterial(
-            new Vector4f(0.8f, 0.8f, 0.8f, 1.0f),
-            new Vector3f(0.2f, 0.2f, 0.2f),
+            NMaterial.DEFAULT_DIFFUSE_COLOR.x(), NMaterial.DEFAULT_DIFFUSE_COLOR.y(), NMaterial.DEFAULT_DIFFUSE_COLOR.z(), NMaterial.DEFAULT_DIFFUSE_COLOR.w(),
+            NMaterial.DEFAULT_SPECULAR_COLOR.x(), NMaterial.DEFAULT_SPECULAR_COLOR.y(), NMaterial.DEFAULT_SPECULAR_COLOR.z(),
+            NMaterial.DEFAULT_EMISSIVE_COLOR.x(), NMaterial.DEFAULT_EMISSIVE_COLOR.y(), NMaterial.DEFAULT_EMISSIVE_COLOR.z(),
             NMaterial.DEFAULT_MIN_EXPONENT, NMaterial.DEFAULT_MAX_EXPONENT,
             NMaterial.DEFAULT_PARALLAX_HEIGHT_COEFFICIENT,
             NMaterial.DEFAULT_PARALLAX_MIN_LAYERS, NMaterial.DEFAULT_PARALLAX_MAX_LAYERS
     );
-
+    
     public static final BetterUniformSetter VARIANT_ALPHA_TESTING;
     public static final BetterUniformSetter VARIANT_ALPHA_BLENDING;
     public static final BetterUniformSetter VARIANT_LIGHTMAPPED_ALPHA_TESTING;
@@ -232,8 +264,9 @@ public class NProgram {
 
     private static final String FRAGMENT_SHADER = 
             """
-            uniform sampler2D r_g_b_a_or_h;
-            uniform sampler2D ie_nx_r_ny;
+            uniform sampler2D r_g_b_a;
+            uniform sampler2D ht_ie_rf_nx;
+            uniform sampler2D er_eg_eb_ny;
             
             uniform bool parallaxSupported;
             uniform bool parallaxEnabled;
@@ -246,6 +279,7 @@ public class NProgram {
             struct Material {
                 vec4 diffuseColor;
                 vec3 specularColor;
+                vec3 emissiveColor;
                 float minExponent;
                 float maxExponent;
                 float parallaxHeightCoefficient;
@@ -305,18 +339,18 @@ public class NProgram {
                 vec2 deltaUv = scaledViewDirection / numLayers;
                 
                 vec2 currentUv = uv;
-                float currentDepth = 1.0 - texture(r_g_b_a_or_h, currentUv)[3];
+                float currentDepth = 1.0 - texture(ht_ie_rf_nx, currentUv)[0];
                 
                 while (currentLayerDepth < currentDepth) {
                     currentUv -= deltaUv;
-                    currentDepth = 1.0 - texture(r_g_b_a_or_h, currentUv)[3];
+                    currentDepth = 1.0 - texture(ht_ie_rf_nx, currentUv)[0];
                     currentLayerDepth += layerDepth;
                 }
                  
                 vec2 previousUv = currentUv + deltaUv;
                 
                 float afterDepth = currentDepth - currentLayerDepth;
-                float beforeDepth = (1.0 - texture(r_g_b_a_or_h, previousUv)[3]) - currentLayerDepth + layerDepth;
+                float beforeDepth = (1.0 - texture(ht_ie_rf_nx, previousUv)[0]) - currentLayerDepth + layerDepth;
                 
                 float weight = afterDepth / (afterDepth - beforeDepth);
                 vec2 finalUv = (previousUv * weight) + (currentUv * (1.0 - weight));
@@ -395,8 +429,9 @@ public class NProgram {
                     textureUv = parallaxMapping(inVertex.worldTexture, inVertex.tangentPosition, inVertex.tangentViewPosition, material.parallaxMinLayers, material.parallaxMaxLayers, material.parallaxHeightCoefficient);
                 }
                 
-                vec4 rgbaorh = texture(r_g_b_a_or_h, textureUv);
-                vec4 ienxrny = texture(ie_nx_r_ny, textureUv);
+                vec4 rgba = texture(r_g_b_a, textureUv);
+                vec4 hirnx = texture(ht_ie_rf_nx, textureUv);
+                vec4 eregebny = texture(er_eg_eb_ny, textureUv);
                 
                 #if defined(VARIANT_LIGHTMAPPED_ALPHA_TESTING) || defined(VARIANT_LIGHTMAPPED_ALPHA_BLENDING)
                 int amountOfLightmaps = textureSize(lightmaps, 0).z;
@@ -405,21 +440,17 @@ public class NProgram {
                     if (i < MAX_AMOUNT_OF_LIGHTMAPS) {
                         intensity = lightmapIntensity[i];
                     }
-                    finalColor.rgb += texture(lightmaps, vec3(inVertex.worldLightmapUv, float(i))).rgb * intensity * rgbaorh.rgb;
+                    finalColor.rgb += texture(lightmaps, vec3(inVertex.worldLightmapUv, float(i))).rgb * intensity * rgba.rgb;
                 }
                 #endif
                 
-                float alpha = 1.0;
-                if (!parallaxSupported) {
-                    alpha = rgbaorh.a;
-                }
-                finalColor.a = alpha * material.diffuseColor.a;
+                finalColor.a = rgba.a * material.diffuseColor.a;
                 
                 mat3 TBN = inVertex.TBN;
                 
                 vec3 normal = vec3(
-                    (ienxrny[1] * 2.0) - 1.0,
-                    (ienxrny[3] * 2.0) - 1.0,
+                    (hirnx[3] * 2.0) - 1.0,
+                    (eregebny[3] * 2.0) - 1.0,
                     0.0
                 );
                 normal = normalize(vec3(
@@ -430,13 +461,13 @@ public class NProgram {
                 
                 normal = normalize(TBN * normal);
                 
-                float exponent = (pow((material.maxExponent - material.minExponent) + 1.0, 1.0 - ienxrny[0]) - 1.0) + material.minExponent;
+                float exponent = (pow((material.maxExponent - material.minExponent) + 1.0, 1.0 - hirnx[1]) - 1.0) + material.minExponent;
                 float normalizationFactor = ((exponent + 2.0) * (exponent + 4.0)) / (8.0 * PI * (pow(2.0, -exponent * 0.5) + exponent));
                 vec3 viewDirection = normalize(-inVertex.worldPosition);
                 float fresnel = 1.0 - max(dot(normal, viewDirection), 0.0);
                 fresnel = (fresnel * 0.80) + 0.20;
                 vec3 worldPosition = inVertex.worldPosition;
-                vec3 diffuseColor = material.diffuseColor.rgb * rgbaorh.rgb;
+                vec3 diffuseColor = material.diffuseColor.rgb * rgba.rgb;
                 vec3 specularColor = material.specularColor;
                 
                 for (int i = 0; i < MAX_AMOUNT_OF_LIGHTS; i++) {
@@ -452,6 +483,8 @@ public class NProgram {
                         worldPosition
                     );
                 }
+                
+                finalColor.rgb += eregebny.rgb * material.emissiveColor * diffuseColor;
                 
                 finalColor.rgb = gammaCorrection(ACESFilm(finalColor.rgb));
                 
@@ -510,8 +543,9 @@ public class NProgram {
     public static final String UNIFORM_VIEW = "view";
     public static final String UNIFORM_MODEL = "model";
     public static final String UNIFORM_NORMAL_MODEL = "normalModel";
-    public static final String UNIFORM_R_G_B_A_OR_H = "r_g_b_a_or_h";
-    public static final String UNIFORM_IE_NX_R_NY = "ie_nx_r_ny";
+    public static final String UNIFORM_R_G_B_A = "r_g_b_a";
+    public static final String UNIFORM_HT_IE_RF_NX = "ht_ie_rf_nx";
+    public static final String UNIFORM_ER_EG_EB_NY = "er_eg_eb_ny";
     public static final String UNIFORM_LIGHTMAPS_UVS = "lightmapUvs";
     public static final String UNIFORM_LIGHTMAPS = "lightmaps";
     public static final String UNIFORM_PARALLAX_SUPPORTED = "parallaxSupported";
@@ -522,8 +556,9 @@ public class NProgram {
         if (material == null) {
             material = NULL_MATERIAL;
         }
-        glUniform4f(uniforms.locationOf("material.diffuseColor"), material.diffuseColor.x(), material.diffuseColor.y(), material.diffuseColor.z(), material.diffuseColor.w());
-        glUniform3f(uniforms.locationOf("material.specularColor"), material.specularColor.x(), material.specularColor.y(), material.specularColor.z());
+        glUniform4f(uniforms.locationOf("material.diffuseColor"), material.diffuseColorR, material.diffuseColorG, material.diffuseColorB, material.diffuseColorA);
+        glUniform3f(uniforms.locationOf("material.specularColor"), material.specularColorR, material.specularColorG, material.specularColorB);
+        glUniform3f(uniforms.locationOf("material.emissiveColor"), material.emissiveColorR, material.emissiveColorG, material.emissiveColorB);
         glUniform1f(uniforms.locationOf("material.minExponent"), material.minExponent);
         glUniform1f(uniforms.locationOf("material.maxExponent"), material.maxExponent);
         glUniform1f(uniforms.locationOf("material.parallaxHeightCoefficient"), material.parallaxHeightCoefficient);
@@ -540,13 +575,13 @@ public class NProgram {
         }
         glUniform1i(uniforms.locationOf("lights[" + index + "].type"), light.type);
         if (light != NULL_LIGHT) {
-            glUniform3f(uniforms.locationOf("lights[" + index + "].position"), light.position.x(), light.position.y(), light.position.z());
-            glUniform3f(uniforms.locationOf("lights[" + index + "].direction"), light.direction.x(), light.direction.y(), light.direction.z());
+            glUniform3f(uniforms.locationOf("lights[" + index + "].position"), light.x, light.y, light.z);
+            glUniform3f(uniforms.locationOf("lights[" + index + "].direction"), light.dirX, light.dirY, light.dirZ);
             glUniform1f(uniforms.locationOf("lights[" + index + "].innerCone"), light.innerCone);
             glUniform1f(uniforms.locationOf("lights[" + index + "].outerCone"), light.outerCone);
-            glUniform3f(uniforms.locationOf("lights[" + index + "].diffuse"), light.diffuse.x(), light.diffuse.y(), light.diffuse.z());
-            glUniform3f(uniforms.locationOf("lights[" + index + "].specular"), light.specular.x(), light.specular.y(), light.specular.z());
-            glUniform3f(uniforms.locationOf("lights[" + index + "].ambient"), light.ambient.x(), light.ambient.y(), light.ambient.z());
+            glUniform3f(uniforms.locationOf("lights[" + index + "].diffuse"), light.diffuseR, light.diffuseG, light.diffuseB);
+            glUniform3f(uniforms.locationOf("lights[" + index + "].specular"), light.specularR, light.specularG, light.specularB);
+            glUniform3f(uniforms.locationOf("lights[" + index + "].ambient"), light.ambientR, light.ambientG, light.ambientB);
         }
     }
 

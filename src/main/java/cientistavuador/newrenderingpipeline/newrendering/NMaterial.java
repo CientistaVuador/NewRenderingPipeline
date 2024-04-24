@@ -28,7 +28,9 @@ package cientistavuador.newrenderingpipeline.newrendering;
 
 import java.util.Objects;
 import org.joml.Vector3f;
+import org.joml.Vector3fc;
 import org.joml.Vector4f;
+import org.joml.Vector4fc;
 
 /**
  *
@@ -36,6 +38,9 @@ import org.joml.Vector4f;
  */
 public class NMaterial {
 
+    public static final Vector4fc DEFAULT_DIFFUSE_COLOR = new Vector4f(0.8f, 0.8f, 0.8f, 1.0f);
+    public static final Vector3fc DEFAULT_SPECULAR_COLOR = new Vector3f(0.2f, 0.2f, 0.2f);
+    public static final Vector3fc DEFAULT_EMISSIVE_COLOR = new Vector3f(1.2f, 1.2f, 1.2f);
     public static final float DEFAULT_MIN_EXPONENT = 0.25f;
     public static final float DEFAULT_MAX_EXPONENT = 2048f;
     public static final float DEFAULT_PARALLAX_HEIGHT_COEFFICIENT = 0.065f;
@@ -54,8 +59,9 @@ public class NMaterial {
     
     private NTextures textures = NTextures.NULL_TEXTURE;
     
-    private final Vector4f diffuseColor = new Vector4f(0.8f, 0.8f, 0.8f, 1.0f);
-    private final Vector3f specularColor = new Vector3f(0.2f, 0.2f, 0.2f);
+    private final Vector4f diffuseColor = new Vector4f(DEFAULT_DIFFUSE_COLOR);
+    private final Vector3f specularColor = new Vector3f(DEFAULT_SPECULAR_COLOR);
+    private final Vector3f emissiveColor = new Vector3f(DEFAULT_EMISSIVE_COLOR);
     
     private float minExponent = DEFAULT_MIN_EXPONENT;
     private float maxExponent = DEFAULT_MAX_EXPONENT;
@@ -98,6 +104,10 @@ public class NMaterial {
         return specularColor;
     }
 
+    public Vector3f getEmissiveColor() {
+        return emissiveColor;
+    }
+    
     public float getMinExponent() {
         return minExponent;
     }
@@ -163,7 +173,10 @@ public class NMaterial {
         if (!Objects.equals(this.diffuseColor, other.diffuseColor)) {
             return false;
         }
-        return Objects.equals(this.specularColor, other.specularColor);
+        if (!Objects.equals(this.specularColor, other.specularColor)) {
+            return false;
+        }
+        return Objects.equals(this.emissiveColor, other.emissiveColor);
     }
     
     @Override
@@ -172,6 +185,7 @@ public class NMaterial {
         hash = 37 * hash + Objects.hashCode(this.textures);
         hash = 37 * hash + Objects.hashCode(this.diffuseColor);
         hash = 37 * hash + Objects.hashCode(this.specularColor);
+        hash = 37 * hash + Objects.hashCode(this.emissiveColor);
         hash = 37 * hash + Float.floatToIntBits(this.minExponent);
         hash = 37 * hash + Float.floatToIntBits(this.maxExponent);
         hash = 37 * hash + Float.floatToIntBits(this.parallaxHeightCoefficient);
@@ -192,28 +206,10 @@ public class NMaterial {
             return false;
         }
         final NMaterial other = (NMaterial) obj;
-        if (Float.floatToIntBits(this.minExponent) != Float.floatToIntBits(other.minExponent)) {
-            return false;
-        }
-        if (Float.floatToIntBits(this.maxExponent) != Float.floatToIntBits(other.maxExponent)) {
-            return false;
-        }
-        if (Float.floatToIntBits(this.parallaxHeightCoefficient) != Float.floatToIntBits(other.parallaxHeightCoefficient)) {
-            return false;
-        }
-        if (Float.floatToIntBits(this.parallaxMinLayers) != Float.floatToIntBits(other.parallaxMinLayers)) {
-            return false;
-        }
-        if (Float.floatToIntBits(this.parallaxMaxLayers) != Float.floatToIntBits(other.parallaxMaxLayers)) {
-            return false;
-        }
         if (!Objects.equals(this.textures, other.textures)) {
             return false;
         }
-        if (!Objects.equals(this.diffuseColor, other.diffuseColor)) {
-            return false;
-        }
-        return Objects.equals(this.specularColor, other.specularColor);
+        return equalsPropertiesOnly(other);
     }
     
 }

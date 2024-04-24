@@ -24,12 +24,42 @@
  *
  * For more information, please refer to <https://unlicense.org>
  */
-package cientistavuador.newrenderingpipeline.newrendering;
+package cientistavuador.newrenderingpipeline.util;
+
+import java.nio.ByteBuffer;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 
 /**
  *
  * @author Cien
  */
-public enum NBlendingMode {
-    OPAQUE, ALPHA_TESTING, ALPHA_BLENDING;
+public class CryptoUtils {
+
+    public static String sha256(ByteBuffer buffer) {
+        byte[] copiedData = new byte[buffer.remaining()];
+        buffer.get(copiedData, buffer.position(), buffer.remaining());
+        
+        byte[] sha256Bytes;
+        try {
+            sha256Bytes = MessageDigest.getInstance("SHA256").digest(copiedData);
+        } catch (NoSuchAlgorithmException ex) {
+            throw new RuntimeException(ex);
+        }
+        
+        StringBuilder b = new StringBuilder();
+        for (int i = 0; i < sha256Bytes.length; i++) {
+            String hex = Integer.toHexString(sha256Bytes[i] & 0xFF);
+            if (hex.length() <= 1) {
+                b.append('0');
+            }
+            b.append(hex);
+        }
+        
+        return b.toString();
+    }
+
+    private CryptoUtils() {
+
+    }
 }

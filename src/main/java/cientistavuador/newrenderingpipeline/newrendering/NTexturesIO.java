@@ -26,6 +26,7 @@
  */
 package cientistavuador.newrenderingpipeline.newrendering;
 
+import cientistavuador.newrenderingpipeline.util.CryptoUtils;
 import cientistavuador.newrenderingpipeline.util.postprocess.MarginAutomata;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -64,10 +65,11 @@ public class NTexturesIO {
             String heightPath,
             String invertedExponentPath,
             String normalPath,
-            String reflectivenessPath
+            String reflectivenessPath,
+            String emissivePath
     ) throws IOException {
         String[] paths = new String[] {
-            diffusePath, aoPath, heightPath, invertedExponentPath, normalPath, reflectivenessPath
+            diffusePath, aoPath, heightPath, invertedExponentPath, normalPath, reflectivenessPath, emissivePath
         };
         StringBuilder b = new StringBuilder();
         for (String path1 : paths) {
@@ -92,8 +94,9 @@ public class NTexturesIO {
         byte[] invertedExponent = loadFromJarOrNull(invertedExponentPath);
         byte[] normal = loadFromJarOrNull(normalPath);
         byte[] reflectiveness = loadFromJarOrNull(reflectivenessPath);
+        byte[] emissive = loadFromJarOrNull(emissivePath);
         
-        return loadFromImages(name, diffuse, ao, height, invertedExponent, normal, reflectiveness);
+        return loadFromImages(name, diffuse, ao, height, invertedExponent, normal, reflectiveness, emissive);
     }
     
     public static class ImageFailedToLoadException extends Exception {
@@ -116,6 +119,29 @@ public class NTexturesIO {
             this.height = height;
             this.pixelData = pixelData;
         }
+    }
+    
+    public static LoadedImage nearestResize(LoadedImage image, int newWidth, int newHeight) {
+        if (newWidth < 0 || newHeight < 0) {
+            throw new IllegalArgumentException("Negative dimensions.");
+        }
+        byte[] newData = new byte[newWidth * newHeight * 4];
+        for (int y = 0; y < newHeight; y++) {
+            for (int x = 0; x < newWidth; x++) {
+                int ox = (int) Math.floor((x / ((float)newWidth)) * image.width);
+                int oy = (int) Math.floor((y / ((float)newHeight)) * image.height);
+                
+                byte r = image.pixelData[0 + (ox * 4) + (oy * image.width * 4)];
+                byte g = image.pixelData[1 + (ox * 4) + (oy * image.width * 4)];
+                byte b = image.pixelData[2 + (ox * 4) + (oy * image.width * 4)];
+                byte a = image.pixelData[3 + (ox * 4) + (oy * image.width * 4)];
+                newData[0 + (x * 4) + (y * newWidth * 4)] = r;
+                newData[1 + (x * 4) + (y * newWidth * 4)] = g;
+                newData[2 + (x * 4) + (y * newWidth * 4)] = b;
+                newData[3 + (x * 4) + (y * newWidth * 4)] = a;
+            }
+        }
+        return new LoadedImage(newWidth, newHeight, newData);
     }
     
     public static LoadedImage loadImage(byte[] image) {
@@ -164,7 +190,8 @@ public class NTexturesIO {
             byte[] heightImage,
             byte[] invertedExponentImage,
             byte[] normalImage,
-            byte[] reflectivenessImage
+            byte[] reflectivenessImage,
+            byte[] emissiveImage
     ) {
         LoadedImage diffuse = loadImage(diffuseImage);
         LoadedImage ao = loadImage(aoImage);
@@ -172,9 +199,10 @@ public class NTexturesIO {
         LoadedImage exponent = loadImage(invertedExponentImage);
         LoadedImage normal = loadImage(normalImage);
         LoadedImage reflectiveness = loadImage(reflectivenessImage);
+        LoadedImage emissive = loadImage(emissiveImage);
         
         LoadedImage[] loadedArray = new LoadedImage[] {
-            diffuse, ao, height, exponent, normal, reflectiveness
+            diffuse, ao, height, exponent, normal, reflectiveness, emissive
         };
         
         int foundWidth = -1;
@@ -206,7 +234,8 @@ public class NTexturesIO {
                 (height != null ? height.pixelData : null),
                 (exponent != null ? exponent.pixelData : null),
                 (normal != null ? normal.pixelData : null),
-                (reflectiveness != null ? reflectiveness.pixelData : null)
+                (reflectiveness != null ? reflectiveness.pixelData : null),
+                (emissive != null ? emissive.pixelData : null)
         );
     }
     
@@ -231,7 +260,8 @@ public class NTexturesIO {
             byte[] heightMap,
             byte[] invertedExponentMap,
             byte[] normalMap,
-            byte[] reflectivenessMap
+            byte[] reflectivenessMap,
+            byte[] emissiveMap
     ) {
         if (width < 0) {
             throw new IllegalArgumentException("width is negative.");
@@ -248,6 +278,7 @@ public class NTexturesIO {
         validate("inverted exponent map", invertedExponentMap, pixels);
         validate("normal map", normalMap, pixels);
         validate("reflectiveness map", reflectivenessMap, pixels);
+        validate("emissive map", emissiveMap, pixels);
         
         NBlendingMode mode = NBlendingMode.OPAQUE;
         
@@ -264,39 +295,54 @@ public class NTexturesIO {
             }
         }
         
-        byte[] rgbaorh = new byte[pixels * 4];
-        byte[] exry = new byte[pixels * 4];
+        byte[] rgba = new byte[pixels * 4];
+        byte[] hirnx = new byte[pixels * 4];
+        byte[] eregebny = new byte[pixels * 4];
+        
+        boolean heightMapSupported = false;
         
         for (int p = 0; p < pixels; p++) {
             int r = fetch(diffuseMap, (p * 4) + 0, 255);
             int g = fetch(diffuseMap, (p * 4) + 1, 255);
             int b = fetch(diffuseMap, (p * 4) + 2, 255);
             int a = fetch(diffuseMap, (p * 4) + 3, 255);
+            
             int ao = fetch(aoMap, (p * 4) + 0, 255);
             int hei = fetch(heightMap, (p * 4) + 0, 255);
             int invexp = fetch(invertedExponentMap, (p * 4) + 0, 255);
+            
             int nx = fetch(normalMap, (p * 4) + 0, 127);
-            int re = fetch(reflectivenessMap, (p * 4) + 0, 0);
             int ny = fetch(normalMap, (p * 4) + 1, 127);
             
-            if (NBlendingMode.OPAQUE.equals(mode) && hei != 255) {
-                mode = NBlendingMode.OPAQUE_WITH_HEIGHT_MAP;
+            int re = fetch(reflectivenessMap, (p * 4) + 0, 0);
+            
+            int er = fetch(emissiveMap, (p * 4) + 0, 0);
+            int eg = fetch(emissiveMap, (p * 4) + 1, 0);
+            int eb = fetch(emissiveMap, (p * 4) + 2, 0);
+            
+            if (hei != 255) {
+                heightMapSupported = true;
             }
             
             float ambientOcclusion = ((ao / 255f) * (1f - MINIMUM_AMBIENT_OCCLUSION)) + MINIMUM_AMBIENT_OCCLUSION;
             
-            rgbaorh[(p * 4) + 0] = (byte) Math.floor(r * ambientOcclusion);
-            rgbaorh[(p * 4) + 1] = (byte) Math.floor(g * ambientOcclusion);
-            rgbaorh[(p * 4) + 2] = (byte) Math.floor(b * ambientOcclusion);
-            rgbaorh[(p * 4) + 3] = (byte) (NBlendingMode.OPAQUE.equals(mode) || NBlendingMode.OPAQUE_WITH_HEIGHT_MAP.equals(mode) ? hei : a);
+            rgba[(p * 4) + 0] = (byte) Math.floor(r * ambientOcclusion);
+            rgba[(p * 4) + 1] = (byte) Math.floor(g * ambientOcclusion);
+            rgba[(p * 4) + 2] = (byte) Math.floor(b * ambientOcclusion);
+            rgba[(p * 4) + 3] = (byte) a;
             
-            exry[(p * 4) + 0] = (byte) invexp;
-            exry[(p * 4) + 1] = (byte) nx;
-            exry[(p * 4) + 2] = (byte) re;
-            exry[(p * 4) + 3] = (byte) ny;
+            hirnx[(p * 4) + 0] = (byte) hei;
+            hirnx[(p * 4) + 1] = (byte) invexp;
+            hirnx[(p * 4) + 2] = (byte) re;
+            hirnx[(p * 4) + 3] = (byte) nx;
+            
+            eregebny[(p * 4) + 0] = (byte) er;
+            eregebny[(p * 4) + 1] = (byte) eg;
+            eregebny[(p * 4) + 2] = (byte) eb;
+            eregebny[(p * 4) + 3] = (byte) ny;
         }
         
-        if (!NBlendingMode.OPAQUE.equals(mode) && !NBlendingMode.OPAQUE_WITH_HEIGHT_MAP.equals(mode)) {
+        if (!NBlendingMode.OPAQUE.equals(mode)) {
             MarginAutomata.MarginAutomataIO io = new MarginAutomata.MarginAutomataIO() {
                 @Override
                 public int width() {
@@ -311,16 +357,16 @@ public class NTexturesIO {
                 @Override
                 public boolean empty(int x, int y) {
                     int pixel = ((y * width) + x) * 4;
-                    int alpha = fetch(rgbaorh, pixel + 3, 255);
+                    int alpha = fetch(rgba, pixel + 3, 255);
                     return alpha == 0;
                 }
                 
                 @Override
                 public void read(int x, int y, MarginAutomata.MarginAutomataColor color) {
                     int pixel = ((y * width) + x) * 4;
-                    float red = fetch(rgbaorh, pixel + 0, 255) / 255f;
-                    float green = fetch(rgbaorh, pixel + 1, 255) / 255f;
-                    float blue = fetch(rgbaorh, pixel + 2, 255) / 255f;
+                    float red = fetch(rgba, pixel + 0, 255) / 255f;
+                    float green = fetch(rgba, pixel + 1, 255) / 255f;
+                    float blue = fetch(rgba, pixel + 2, 255) / 255f;
                     color.r = red;
                     color.g = green;
                     color.b = blue;
@@ -332,15 +378,36 @@ public class NTexturesIO {
                     int green = (int) (Math.min(Math.max(color.g, 0f), 1f) * 255f);
                     int blue = (int) (Math.min(Math.max(color.b, 0f), 1f) * 255f);
                     int pixel = ((y * width) + x) * 4;
-                    rgbaorh[pixel + 0] = (byte) red;
-                    rgbaorh[pixel + 1] = (byte) green;
-                    rgbaorh[pixel + 2] = (byte) blue;
+                    rgba[pixel + 0] = (byte) red;
+                    rgba[pixel + 1] = (byte) green;
+                    rgba[pixel + 2] = (byte) blue;
                 }
             };
             MarginAutomata.generateMargin(io, -1);
         }
         
-        return new NTextures(name, width, height, rgbaorh, exry, mode);
+        ByteBuffer totalData = ByteBuffer.allocate(
+                Integer.BYTES + Integer.BYTES + rgba.length + hirnx.length + eregebny.length
+        )
+                .putInt(width)
+                .putInt(height)
+                .put(rgba)
+                .put(hirnx)
+                .put(eregebny)
+                .flip();
+        
+        String sha256 = CryptoUtils.sha256(totalData);
+        
+        return new NTextures(
+                name,
+                width, height,
+                rgba,
+                hirnx,
+                eregebny,
+                mode,
+                heightMapSupported,
+                sha256
+        );
     }
     
     private NTexturesIO() {

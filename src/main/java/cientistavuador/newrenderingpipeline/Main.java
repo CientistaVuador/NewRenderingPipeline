@@ -311,7 +311,7 @@ public class Main {
         });
 
         if (USE_MSAA) {
-            glfwWindowHint(GLFW_SAMPLES, 5);
+            glfwWindowHint(GLFW_SAMPLES, 8);
         }
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, OPENGL_MAJOR_VERSION);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, OPENGL_MINOR_VERSION);

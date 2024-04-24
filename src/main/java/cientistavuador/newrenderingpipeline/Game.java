@@ -259,6 +259,7 @@ public class Game {
                     "cientistavuador/newrenderingpipeline/resources/image/height.jpg",
                     "cientistavuador/newrenderingpipeline/resources/image/invertedexponent.jpg",
                     "cientistavuador/newrenderingpipeline/resources/image/normal.jpg",
+                    null,
                     null
             );
         } catch (IOException ex) {
@@ -408,7 +409,7 @@ public class Game {
         } catch (IOException ex) {
             throw new UncheckedIOException(ex);
         }
-
+        
         System.out.println(testModel.getNumberOfBones());
 
         for (int i = 0; i < testModel.getNumberOfAnimations(); i++) {
@@ -762,7 +763,7 @@ public class Game {
         lights.add(sun);
         
         NLight.NPointLight point = new NLight.NPointLight("point");
-        point.getPosition().set(5f, 6f, -15f);
+        point.getPosition().set(8f, 10.75f, -25f);
         //lights.add(point);
         
         {

@@ -30,26 +30,25 @@ import cientistavuador.newrenderingpipeline.Main;
 import cientistavuador.newrenderingpipeline.util.ObjectCleaner;
 import cientistavuador.newrenderingpipeline.util.StringUtils;
 import java.nio.ByteBuffer;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 import org.lwjgl.opengl.EXTTextureCompressionS3TC;
 import org.lwjgl.opengl.EXTTextureFilterAnisotropic;
 import org.lwjgl.opengl.EXTTextureSRGB;
 import org.lwjgl.opengl.GL;
-import static org.lwjgl.opengl.GL33C.*;
 import org.lwjgl.opengl.KHRDebug;
 import org.lwjgl.system.MemoryUtil;
+import static org.lwjgl.opengl.GL33C.*;
+import org.lwjgl.opengl.GL42C;
 
 /**
  *
  * @author Cien
  */
 public class NTextures {
-    
+
     public static final NTextures NULL_TEXTURE;
-    
+
     static {
         int blackPixel = 0x00_00_00_FF;
         int pinkPixel = 0xFF_00_FF_FF;
@@ -70,22 +69,22 @@ public class NTextures {
                 }
             }
         }
-        
+
         byte[] nullTextureData = new byte[nullTexturePixels.length * 4];
         for (int i = 0; i < nullTexturePixels.length; i++) {
             int pixel = nullTexturePixels[i];
-            
+
             int r = (pixel >>> 24) & 0xFF;
             int g = (pixel >>> 16) & 0xFF;
             int b = (pixel >>> 8) & 0xFF;
             int a = (pixel >>> 0) & 0xFF;
-            
+
             nullTextureData[(i * 4) + 0] = (byte) r;
             nullTextureData[(i * 4) + 1] = (byte) g;
             nullTextureData[(i * 4) + 2] = (byte) b;
             nullTextureData[(i * 4) + 3] = (byte) a;
         }
-        
+
         NULL_TEXTURE = NTexturesIO.load(
                 "Error/Null/Empty Texture",
                 nullTextureSize, nullTextureSize,
@@ -94,12 +93,13 @@ public class NTextures {
                 null,
                 null,
                 null,
+                null,
                 null
         );
     }
-    
+
     private static final AtomicLong textureIds = new AtomicLong();
-    
+
     private static class WrappedTexture {
 
         public int texture = 0;
@@ -108,15 +108,27 @@ public class NTextures {
     private final String name;
     private final int width;
     private final int height;
-    private final byte[] redGreenBlueAlphaOrHeight;
-    private final byte[] invertedExponentNormalXreflectivenessNormalY;
+    private final byte[] redGreenBlueAlpha;
+    private final byte[] heightInvertedExponentReflectivenessNormalX;
+    private final byte[] emissiveRedGreenBlueNormalY;
     private final NBlendingMode blendingMode;
+    private final boolean heightMapSupported;
     private final String sha256;
 
-    private final WrappedTexture r_g_b_a_or_h = new WrappedTexture();
-    private final WrappedTexture ie_nx_r_ny = new WrappedTexture();
+    private final WrappedTexture r_g_b_a = new WrappedTexture();
+    private final WrappedTexture ht_ie_rf_nx = new WrappedTexture();
+    private final WrappedTexture er_eg_eb_ny = new WrappedTexture();
 
-    public NTextures(String name, int width, int height, byte[] redGreenBlueAlphaOrHeight, byte[] invertedExponentNormalXreflectivenessNormalY, NBlendingMode blendingMode) {
+    public NTextures(
+            String name,
+            int width, int height,
+            byte[] redGreenBlueAlpha,
+            byte[] heightInvertedExponentReflectivenessNormalX,
+            byte[] emissiveRedGreenBlueNormalY,
+            NBlendingMode blendingMode,
+            boolean heightMapSupported,
+            String sha256
+    ) {
         if (width < 0) {
             throw new IllegalArgumentException("width is negative");
         }
@@ -124,54 +136,35 @@ public class NTextures {
             throw new IllegalArgumentException("height is negative");
         }
 
-        Objects.requireNonNull(redGreenBlueAlphaOrHeight, "redGreenBlueAlphaOrHeight is null");
-        Objects.requireNonNull(invertedExponentNormalXreflectivenessNormalY, "invertedExponentNormalXreflectivenessNormalY is null");
+        Objects.requireNonNull(redGreenBlueAlpha, "redGreenBlueAlpha is null");
+        Objects.requireNonNull(heightInvertedExponentReflectivenessNormalX, "heightInvertedExponentReflectivenessNormalX is null");
+        Objects.requireNonNull(emissiveRedGreenBlueNormalY, "emissiveRedGreenBlueNormalY is null");
         Objects.requireNonNull(blendingMode, "blendingMode is null");
 
         int pixels = width * height * 4;
 
-        if (redGreenBlueAlphaOrHeight.length != pixels) {
-            throw new IllegalArgumentException("redGreenBlueAlphaOrHeight has a invalid amount of bytes, found: " + redGreenBlueAlphaOrHeight.length + ", required: " + pixels);
+        if (redGreenBlueAlpha.length != pixels) {
+            throw new IllegalArgumentException("redGreenBlueAlpha has a invalid amount of bytes, found: " + redGreenBlueAlpha.length + ", required: " + pixels);
         }
 
-        if (invertedExponentNormalXreflectivenessNormalY.length != pixels) {
-            throw new IllegalArgumentException("invertedExponentNormalXreflectivenessNormalY has a invalid amount of bytes, found: " + invertedExponentNormalXreflectivenessNormalY.length + ", required: " + pixels);
+        if (heightInvertedExponentReflectivenessNormalX.length != pixels) {
+            throw new IllegalArgumentException("heightInvertedExponentReflectivenessNormalX has a invalid amount of bytes, found: " + heightInvertedExponentReflectivenessNormalX.length + ", required: " + pixels);
+        }
+
+        if (emissiveRedGreenBlueNormalY.length != pixels) {
+            throw new IllegalArgumentException("emissiveRedGreenBlueNormalY has a invalid amount of bytes, found: " + emissiveRedGreenBlueNormalY.length + ", required: " + pixels);
         }
 
         this.width = width;
         this.height = height;
-        this.redGreenBlueAlphaOrHeight = redGreenBlueAlphaOrHeight;
-        this.invertedExponentNormalXreflectivenessNormalY = invertedExponentNormalXreflectivenessNormalY;
+        this.redGreenBlueAlpha = redGreenBlueAlpha;
+        this.heightInvertedExponentReflectivenessNormalX = heightInvertedExponentReflectivenessNormalX;
+        this.emissiveRedGreenBlueNormalY = emissiveRedGreenBlueNormalY;
         this.blendingMode = blendingMode;
+        this.heightMapSupported = heightMapSupported;
+        this.sha256 = sha256;
 
         registerForCleaning();
-
-        String hash;
-        {
-            byte[] data = new byte[redGreenBlueAlphaOrHeight.length + invertedExponentNormalXreflectivenessNormalY.length];
-
-            System.arraycopy(redGreenBlueAlphaOrHeight, 0, data, 0, redGreenBlueAlphaOrHeight.length);
-            System.arraycopy(invertedExponentNormalXreflectivenessNormalY, 0, data, redGreenBlueAlphaOrHeight.length, invertedExponentNormalXreflectivenessNormalY.length);
-
-            byte[] sha256Bytes;
-            try {
-                sha256Bytes = MessageDigest.getInstance("SHA256").digest(data);
-            } catch (NoSuchAlgorithmException ex) {
-                throw new RuntimeException(ex);
-            }
-
-            StringBuilder b = new StringBuilder();
-            for (int i = 0; i < sha256Bytes.length; i++) {
-                String hex = Integer.toHexString(sha256Bytes[i] & 0xFF);
-                if (hex.length() <= 1) {
-                    b.append('0');
-                }
-                b.append(hex);
-            }
-
-            hash = b.toString();
-        }
-        this.sha256 = hash;
 
         if (name == null) {
             this.name = this.sha256;
@@ -181,21 +174,27 @@ public class NTextures {
     }
 
     private void registerForCleaning() {
-        final WrappedTexture final_r_g_b_a_or_h = this.r_g_b_a_or_h;
-        final WrappedTexture final_ie_nx_r_ny = this.ie_nx_r_ny;
+        final WrappedTexture final_r_g_b_a = this.r_g_b_a;
+        final WrappedTexture final_ht_ie_rf_nx = this.ht_ie_rf_nx;
+        final WrappedTexture final_er_eg_eb_ny = this.er_eg_eb_ny;
 
         ObjectCleaner.get().register(this, () -> {
             Main.MAIN_TASKS.add(() -> {
-                int tex_r_g_b_a_or_h = final_r_g_b_a_or_h.texture;
-                int tex_ie_nx_r_ny = final_ie_nx_r_ny.texture;
+                int tex_r_g_b_a = final_r_g_b_a.texture;
+                int tex_ht_ie_rf_nx = final_ht_ie_rf_nx.texture;
+                int tex_er_eg_eb_ny = final_er_eg_eb_ny.texture;
 
-                if (tex_r_g_b_a_or_h != 0) {
-                    glDeleteTextures(tex_r_g_b_a_or_h);
-                    final_r_g_b_a_or_h.texture = 0;
+                if (tex_r_g_b_a != 0) {
+                    glDeleteTextures(tex_r_g_b_a);
+                    final_r_g_b_a.texture = 0;
                 }
-                if (tex_ie_nx_r_ny != 0) {
-                    glDeleteTextures(tex_ie_nx_r_ny);
-                    final_ie_nx_r_ny.texture = 0;
+                if (tex_ht_ie_rf_nx != 0) {
+                    glDeleteTextures(tex_ht_ie_rf_nx);
+                    final_ht_ie_rf_nx.texture = 0;
+                }
+                if (tex_er_eg_eb_ny != 0) {
+                    glDeleteTextures(tex_er_eg_eb_ny);
+                    final_er_eg_eb_ny.texture = 0;
                 }
             });
         });
@@ -213,24 +212,113 @@ public class NTextures {
         return height;
     }
 
-    public byte[] getRedGreenBlueAlphaOrHeight() {
-        return redGreenBlueAlphaOrHeight;
+    public byte[] getRedGreenBlueAlpha() {
+        return redGreenBlueAlpha;
     }
 
-    public byte[] getInvertedExponentNormalXreflectivenessNormalY() {
-        return invertedExponentNormalXreflectivenessNormalY;
+    public byte[] getHeightInvertedExponentReflectivenessNormalX() {
+        return heightInvertedExponentReflectivenessNormalX;
+    }
+
+    public byte[] getEmissiveRedGreenBlueNormalY() {
+        return emissiveRedGreenBlueNormalY;
     }
 
     public NBlendingMode getBlendingMode() {
         return blendingMode;
     }
 
+    public boolean isHeightMapSupported() {
+        return heightMapSupported;
+    }
+
     public String getSha256() {
         return sha256;
     }
 
+    private int loadTexture(int internalFormat, byte[] textureData, String name, long textureId) {
+        ByteBuffer textureBuffer = MemoryUtil
+                .memAlloc(textureData.length)
+                .put(textureData)
+                .flip();
+        try {
+            int mipLevels = (int) Math.abs(
+                    Math.log(Math.max(this.width, this.height)) / Math.log(2.0)
+            ) + 1;
+            if (NBlendingMode.ALPHA_TESTING.equals(this.blendingMode)) {
+                mipLevels = 1;
+            }
+
+            int texture = glGenTextures();
+            glBindTexture(GL_TEXTURE_2D, texture);
+            
+            if (Main.isSupported(4, 2)) {
+                GL42C.glTexStorage2D(
+                        GL_TEXTURE_2D,
+                        mipLevels,
+                        internalFormat,
+                        this.width,
+                        this.height
+                );
+                glTexSubImage2D(
+                        GL_TEXTURE_2D,
+                        0,
+                        0, 0,
+                        this.width, this.height,
+                        GL_RGBA,
+                        GL_UNSIGNED_BYTE,
+                        textureBuffer
+                );
+            } else {
+                glTexImage2D(
+                        GL_TEXTURE_2D,
+                        0,
+                        internalFormat,
+                        this.width,
+                        this.height,
+                        0,
+                        GL_RGBA,
+                        GL_UNSIGNED_BYTE,
+                        textureBuffer
+                );
+            }
+            
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+            if (NBlendingMode.ALPHA_TESTING.equals(this.blendingMode)) {
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+            } else {
+                glGenerateMipmap(GL_TEXTURE_2D);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+            }
+
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+            if (GL.getCapabilities().GL_EXT_texture_filter_anisotropic) {
+                glTexParameterf(
+                        GL_TEXTURE_2D,
+                        EXTTextureFilterAnisotropic.GL_TEXTURE_MAX_ANISOTROPY_EXT,
+                        glGetFloat(EXTTextureFilterAnisotropic.GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT)
+                );
+            }
+
+            glBindTexture(GL_TEXTURE_2D, 0);
+
+            if (GL.getCapabilities().GL_KHR_debug) {
+                KHRDebug.glObjectLabel(GL_TEXTURE, texture,
+                        StringUtils.truncateStringTo255Bytes(name + textureId + "_" + this.name)
+                );
+            }
+
+            return texture;
+        } finally {
+            MemoryUtil.memFree(textureBuffer);
+        }
+    }
+
     private void validateTextures() {
-        if (this.r_g_b_a_or_h.texture != 0) {
+        if (this.r_g_b_a.texture != 0) {
             return;
         }
 
@@ -244,121 +332,61 @@ public class NTextures {
             }
         }
 
-        long texId = NTextures.textureIds.getAndIncrement();
-
+        long textureId = NTextures.textureIds.getAndIncrement();
         glActiveTexture(GL_TEXTURE0);
 
-        ByteBuffer rgbahData = MemoryUtil
-                .memAlloc(this.redGreenBlueAlphaOrHeight.length)
-                .put(this.redGreenBlueAlphaOrHeight)
-                .flip();
-        try {
-            int rgbah = glGenTextures();
-            glBindTexture(GL_TEXTURE_2D, rgbah);
-            glTexImage2D(GL_TEXTURE_2D, 0, internalFormatSRGB, this.width, this.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgbahData);
-            
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-            
-            if (NBlendingMode.ALPHA_TESTING.equals(this.blendingMode)) {
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-            } else {
-                glGenerateMipmap(GL_TEXTURE_2D);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-            }
-            
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-            
-            if (GL.getCapabilities().GL_EXT_texture_filter_anisotropic) {
-                glTexParameterf(
-                        GL_TEXTURE_2D,
-                        EXTTextureFilterAnisotropic.GL_TEXTURE_MAX_ANISOTROPY_EXT,
-                        glGetFloat(EXTTextureFilterAnisotropic.GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT)
-                );
-            }
-            
-            glBindTexture(GL_TEXTURE_2D, 0);
-
-            this.r_g_b_a_or_h.texture = rgbah;
-
-            if (GL.getCapabilities().GL_KHR_debug) {
-                KHRDebug.glObjectLabel(GL_TEXTURE, rgbah, 
-                        StringUtils.truncateStringTo255Bytes("r_g_b_a_or_h_" + texId + "_" + this.name)
-                );
-            }
-        } finally {
-            MemoryUtil.memFree(rgbahData);
-        }
-
-        ByteBuffer exryData = MemoryUtil
-                .memAlloc(this.invertedExponentNormalXreflectivenessNormalY.length)
-                .put(this.invertedExponentNormalXreflectivenessNormalY)
-                .flip();
-        try {
-            int iexry = glGenTextures();
-            glBindTexture(GL_TEXTURE_2D, iexry);
-            glTexImage2D(GL_TEXTURE_2D, 0, internalFormatRGB, this.width, this.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, exryData);
-
-            glGenerateMipmap(GL_TEXTURE_2D);
-
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-            
-            if (NBlendingMode.ALPHA_TESTING.equals(this.blendingMode)) {
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-            } else {
-                glGenerateMipmap(GL_TEXTURE_2D);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-            }
-            
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-
-            if (GL.getCapabilities().GL_EXT_texture_filter_anisotropic) {
-                glTexParameterf(
-                        GL_TEXTURE_2D,
-                        EXTTextureFilterAnisotropic.GL_TEXTURE_MAX_ANISOTROPY_EXT,
-                        glGetFloat(EXTTextureFilterAnisotropic.GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT)
-                );
-            }
-
-            glBindTexture(GL_TEXTURE_2D, 0);
-
-            this.ie_nx_r_ny.texture = iexry;
-
-            if (GL.getCapabilities().GL_KHR_debug) {
-                KHRDebug.glObjectLabel(GL_TEXTURE, iexry, 
-                        StringUtils.truncateStringTo255Bytes("e_x_r_y_" + texId + "_" + this.name)
-                );
-            }
-        } finally {
-            MemoryUtil.memFree(exryData);
-        }
+        this.r_g_b_a.texture = loadTexture(internalFormatSRGB,
+                this.redGreenBlueAlpha,
+                "r_g_b_a",
+                textureId
+        );
+        this.ht_ie_rf_nx.texture = loadTexture(internalFormatRGB,
+                this.heightInvertedExponentReflectivenessNormalX,
+                "ht_ie_rf_nx",
+                textureId
+        );
+        this.er_eg_eb_ny.texture = loadTexture(internalFormatSRGB,
+                this.emissiveRedGreenBlueNormalY,
+                "er_eg_eb_ny",
+                textureId
+        );
     }
 
-    public int r_g_b_a_or_h() {
+    public int r_g_b_a() {
         validateTextures();
-        return this.r_g_b_a_or_h.texture;
+        return this.r_g_b_a.texture;
     }
 
-    public int ie_nx_r_ny() {
+    public int ht_ie_rf_nx() {
         validateTextures();
-        return this.ie_nx_r_ny.texture;
+        return this.ht_ie_rf_nx.texture;
+    }
+
+    public int er_eg_eb_ny() {
+        validateTextures();
+        return this.er_eg_eb_ny.texture;
     }
 
     public void manualFree() {
-        final WrappedTexture final_r_g_b_a_or_h = this.r_g_b_a_or_h;
-        final WrappedTexture final_ie_nx_r_ny = this.ie_nx_r_ny;
+        final WrappedTexture final_r_g_b_a = this.r_g_b_a;
+        final WrappedTexture final_ht_ie_rf_nx = this.ht_ie_rf_nx;
+        final WrappedTexture final_er_eg_eb_ny = this.er_eg_eb_ny;
 
-        int tex_r_g_b_a_or_h = final_r_g_b_a_or_h.texture;
-        int tex_ie_nx_r_ny = final_ie_nx_r_ny.texture;
+        int tex_r_g_b_a = final_r_g_b_a.texture;
+        int tex_ht_ie_rf_nx = final_ht_ie_rf_nx.texture;
+        int tex_er_eg_eb_ny = final_er_eg_eb_ny.texture;
 
-        if (tex_r_g_b_a_or_h != 0) {
-            glDeleteTextures(tex_r_g_b_a_or_h);
-            final_r_g_b_a_or_h.texture = 0;
+        if (tex_r_g_b_a != 0) {
+            glDeleteTextures(tex_r_g_b_a);
+            final_r_g_b_a.texture = 0;
         }
-        if (tex_ie_nx_r_ny != 0) {
-            glDeleteTextures(tex_ie_nx_r_ny);
-            final_ie_nx_r_ny.texture = 0;
+        if (tex_ht_ie_rf_nx != 0) {
+            glDeleteTextures(tex_ht_ie_rf_nx);
+            final_ht_ie_rf_nx.texture = 0;
+        }
+        if (tex_er_eg_eb_ny != 0) {
+            glDeleteTextures(tex_er_eg_eb_ny);
+            final_er_eg_eb_ny.texture = 0;
         }
     }
 
@@ -383,5 +411,5 @@ public class NTextures {
         final NTextures other = (NTextures) obj;
         return Objects.equals(this.sha256, other.sha256);
     }
-    
+
 }

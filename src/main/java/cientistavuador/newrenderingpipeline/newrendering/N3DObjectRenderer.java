@@ -37,8 +37,9 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
-import org.joml.Vector3d;
 import org.joml.Vector3f;
+import org.joml.Vector3fc;
+import org.joml.Vector4fc;
 import static org.lwjgl.opengl.GL33C.*;
 
 /**
@@ -47,7 +48,7 @@ import static org.lwjgl.opengl.GL33C.*;
  */
 public class N3DObjectRenderer {
 
-    public static boolean PARALLAX_ENABLED = true;
+    public static boolean PARALLAX_ENABLED = false;
 
     private static final ConcurrentLinkedQueue<N3DObject> renderQueue = new ConcurrentLinkedQueue<>();
 
@@ -79,30 +80,43 @@ public class N3DObjectRenderer {
             if (i < lights.size()) {
                 NLight indexLight = lights.get(i);
                 if (indexLight != null) {
-                    if (indexLight instanceof NLight.NDirectionalLight directional) {
+                    if (indexLight instanceof NLight.NDirectionalLight d) {
                         light = new NProgram.NProgramLight(
                                 NProgram.DIRECTIONAL_LIGHT_TYPE,
-                                null, directional.getDirection(),
+                                0f, 0f, 0f,
+                                d.getDirection().x(), d.getDirection().y(), d.getDirection().z(),
                                 0f, 0f,
-                                directional.getDiffuse(), directional.getSpecular(), directional.getAmbient()
+                                d.getDiffuse().x(), d.getDiffuse().y(), d.getDiffuse().z(),
+                                d.getSpecular().x(), d.getSpecular().y(), d.getSpecular().z(),
+                                d.getAmbient().x(), d.getAmbient().y(), d.getAmbient().z()
                         );
                     }
-                    if (indexLight instanceof NLight.NPointLight point) {
-                        Vector3d relativePos = new Vector3d(point.getPosition()).sub(camera.getPosition());
+                    if (indexLight instanceof NLight.NPointLight p) {
+                        float relativeX = (float) (p.getPosition().x() - camera.getPosition().x());
+                        float relativeY = (float) (p.getPosition().y() - camera.getPosition().y());
+                        float relativeZ = (float) (p.getPosition().z() - camera.getPosition().z());
                         light = new NProgram.NProgramLight(
                                 NProgram.POINT_LIGHT_TYPE,
-                                new Vector3f().set(relativePos), null,
+                                relativeX, relativeY, relativeZ,
+                                0f, 0f, 0f,
                                 0f, 0f,
-                                point.getDiffuse(), point.getSpecular(), point.getAmbient()
+                                p.getDiffuse().x(), p.getDiffuse().y(), p.getDiffuse().z(),
+                                p.getSpecular().x(), p.getSpecular().y(), p.getSpecular().z(),
+                                p.getAmbient().x(), p.getAmbient().y(), p.getAmbient().z()
                         );
                     }
-                    if (indexLight instanceof NLight.NSpotLight spot) {
-                        Vector3d relativePos = new Vector3d(spot.getPosition()).sub(camera.getPosition());
+                    if (indexLight instanceof NLight.NSpotLight s) {
+                        float relativeX = (float) (s.getPosition().x() - camera.getPosition().x());
+                        float relativeY = (float) (s.getPosition().y() - camera.getPosition().y());
+                        float relativeZ = (float) (s.getPosition().z() - camera.getPosition().z());
                         light = new NProgram.NProgramLight(
                                 NProgram.SPOT_LIGHT_TYPE,
-                                new Vector3f().set(relativePos), spot.getDirection(),
-                                spot.getInnerCone(), spot.getOuterCone(),
-                                spot.getDiffuse(), spot.getSpecular(), spot.getAmbient()
+                                relativeX, relativeY, relativeZ,
+                                s.getDirection().x(), s.getDirection().y(), s.getDirection().z(),
+                                s.getInnerCone(), s.getOuterCone(),
+                                s.getDiffuse().x(), s.getDiffuse().y(), s.getDiffuse().z(),
+                                s.getSpecular().x(), s.getSpecular().y(), s.getSpecular().z(),
+                                s.getAmbient().x(), s.getAmbient().y(), s.getAmbient().z()
                         );
                     }
                 }
@@ -167,7 +181,7 @@ public class N3DObjectRenderer {
                         float centerZ = (transformedMin.z() * 0.5f) + (transformedMax.z() * 0.5f);
 
                         float distanceSquared = (centerX * centerX) + (centerY * centerY) + (centerZ * centerZ);
-                        
+
                         toRenderList.add(new ToRender(
                                 transformation, modelMatrix, distanceSquared, obj.getAnimator(), geometry
                         ));
@@ -188,12 +202,12 @@ public class N3DObjectRenderer {
                 continue;
             }
 
-            if (materialAlpha != 1f && (NBlendingMode.OPAQUE.equals(mode) || NBlendingMode.OPAQUE_WITH_HEIGHT_MAP.equals(mode))) {
+            if (materialAlpha != 1f && NBlendingMode.OPAQUE.equals(mode)) {
                 mode = NBlendingMode.ALPHA_BLENDING;
             }
 
             switch (mode) {
-                case OPAQUE, OPAQUE_WITH_HEIGHT_MAP ->
+                case OPAQUE ->
                     opaqueList.add(toRender);
                 case ALPHA_TESTING ->
                     testedList.add(toRender);
@@ -210,101 +224,55 @@ public class N3DObjectRenderer {
         testedList.sort(distanceComparator);
         blendList.sort(distanceComparator.reversed());
 
-        glDisable(GL_BLEND);
-        if (!opaqueList.isEmpty()) {
-            BetterUniformSetter opaqueVariant = NProgram.VARIANT_ALPHA_BLENDING;
-
-            glUseProgram(opaqueVariant.getProgram());
-
-            BetterUniformSetter.uniformMatrix4fv(
-                    opaqueVariant.locationOf(NProgram.UNIFORM_PROJECTION),
-                    camera.getProjection()
-            );
-            BetterUniformSetter.uniformMatrix4fv(
-                    opaqueVariant.locationOf(NProgram.UNIFORM_VIEW),
-                    camera.getView()
-            );
-
-            glUniform1i(opaqueVariant.locationOf(NProgram.UNIFORM_ANIMATION_ENABLED), 0);
-
-            glUniform1i(
-                    opaqueVariant.locationOf(NProgram.UNIFORM_PARALLAX_ENABLED),
-                    (PARALLAX_ENABLED ? 1 : 0)
-            );
-
-            for (int i = 0; i < renderableLights.length; i++) {
-                NProgram.sendLight(opaqueVariant, renderableLights[i], i);
+        if (!opaqueList.isEmpty() || !testedList.isEmpty()) {
+            glDisable(GL_BLEND);
+            if (!opaqueList.isEmpty()) {
+                renderVariant(NProgram.VARIANT_ALPHA_BLENDING, camera, renderableLights, opaqueList);
             }
-
-            glUniform1i(opaqueVariant.locationOf(NProgram.UNIFORM_R_G_B_A_OR_H), 0);
-            glUniform1i(opaqueVariant.locationOf(NProgram.UNIFORM_IE_NX_R_NY), 1);
-
-            render(opaqueVariant, opaqueList);
-
-            glUseProgram(0);
-        }
-
-        if (!testedList.isEmpty()) {
-            BetterUniformSetter testedVariant = NProgram.VARIANT_ALPHA_TESTING;
-
-            glUseProgram(testedVariant.getProgram());
-
-            BetterUniformSetter.uniformMatrix4fv(testedVariant.locationOf(NProgram.UNIFORM_PROJECTION),
-                    camera.getProjection()
-            );
-            BetterUniformSetter.uniformMatrix4fv(testedVariant.locationOf(NProgram.UNIFORM_VIEW),
-                    camera.getView()
-            );
-
-            glUniform1i(testedVariant.locationOf(NProgram.UNIFORM_ANIMATION_ENABLED), 0);
-
-            glUniform1i(testedVariant.locationOf(NProgram.UNIFORM_PARALLAX_ENABLED),
-                    (PARALLAX_ENABLED ? 1 : 0)
-            );
-
-            for (int i = 0; i < renderableLights.length; i++) {
-                NProgram.sendLight(testedVariant, renderableLights[i], i);
+            if (!testedList.isEmpty()) {
+                renderVariant(NProgram.VARIANT_ALPHA_TESTING, camera, renderableLights, testedList);
             }
-
-            glUniform1i(testedVariant.locationOf(NProgram.UNIFORM_R_G_B_A_OR_H), 0);
-            glUniform1i(testedVariant.locationOf(NProgram.UNIFORM_IE_NX_R_NY), 1);
-
-            render(testedVariant, testedList);
-
-            glUseProgram(0);
+            glEnable(GL_BLEND);
         }
-        glEnable(GL_BLEND);
-
+        
         if (!blendList.isEmpty()) {
-            BetterUniformSetter blendVariant = NProgram.VARIANT_ALPHA_BLENDING;
+            renderVariant(NProgram.VARIANT_ALPHA_BLENDING, camera, renderableLights, blendList);
+        }
+        
+    }
 
-            glUseProgram(blendVariant.getProgram());
+    private static void renderVariant(
+            BetterUniformSetter variant,
+            Camera camera,
+            NProgram.NProgramLight[] lights,
+            List<ToRender> toRender
+    ) {
+        glUseProgram(variant.getProgram());
 
-            BetterUniformSetter.uniformMatrix4fv(blendVariant.locationOf(NProgram.UNIFORM_PROJECTION),
-                    camera.getProjection()
-            );
-            BetterUniformSetter.uniformMatrix4fv(blendVariant.locationOf(NProgram.UNIFORM_VIEW),
-                    camera.getView()
-            );
+        BetterUniformSetter.uniformMatrix4fv(variant.locationOf(NProgram.UNIFORM_PROJECTION),
+                camera.getProjection()
+        );
+        BetterUniformSetter.uniformMatrix4fv(variant.locationOf(NProgram.UNIFORM_VIEW),
+                camera.getView()
+        );
 
-            glUniform1i(blendVariant.locationOf(NProgram.UNIFORM_ANIMATION_ENABLED), 0);
+        glUniform1i(variant.locationOf(NProgram.UNIFORM_ANIMATION_ENABLED), 0);
 
-            glUniform1i(blendVariant.locationOf(NProgram.UNIFORM_PARALLAX_ENABLED),
-                    (PARALLAX_ENABLED ? 1 : 0)
-            );
+        glUniform1i(variant.locationOf(NProgram.UNIFORM_PARALLAX_ENABLED),
+                (PARALLAX_ENABLED ? 1 : 0)
+        );
 
-            for (int i = 0; i < renderableLights.length; i++) {
-                NProgram.sendLight(blendVariant, renderableLights[i], i);
-            }
-
-            glUniform1i(blendVariant.locationOf(NProgram.UNIFORM_R_G_B_A_OR_H), 0);
-            glUniform1i(blendVariant.locationOf(NProgram.UNIFORM_IE_NX_R_NY), 1);
-
-            render(blendVariant, blendList);
-
-            glUseProgram(0);
+        for (int i = 0; i < lights.length; i++) {
+            NProgram.sendLight(variant, lights[i], i);
         }
 
+        glUniform1i(variant.locationOf(NProgram.UNIFORM_R_G_B_A), 0);
+        glUniform1i(variant.locationOf(NProgram.UNIFORM_HT_IE_RF_NX), 1);
+        glUniform1i(variant.locationOf(NProgram.UNIFORM_ER_EG_EB_NY), 2);
+
+        render(variant, toRender);
+
+        glUseProgram(0);
     }
 
     private static void render(BetterUniformSetter variant, List<ToRender> list) {
@@ -324,25 +292,33 @@ public class N3DObjectRenderer {
             NAnimator animator = render.animator;
 
             if (!material.equalsPropertiesOnly(lastMaterial)) {
+                Vector4fc d = material.getDiffuseColor();
+                Vector3fc s = material.getSpecularColor();
+                Vector3fc e = material.getEmissiveColor();
+                
                 NProgram.sendMaterial(variant, new NProgram.NProgramMaterial(
-                        material.getDiffuseColor(), material.getSpecularColor(),
+                        d.x(), d.y(), d.z(), d.w(),
+                        s.x(), s.y(), s.z(),
+                        e.x(), e.y(), e.z(),
                         material.getMinExponent(), material.getMaxExponent(),
-                        material.getParallaxHeightCoefficient(),
-                        material.getParallaxMinLayers(), material.getParallaxMaxLayers()
+                        material.getParallaxHeightCoefficient(), material.getParallaxMinLayers(), material.getParallaxMaxLayers()
                 ));
                 lastMaterial = material;
             }
 
             if (!textures.equals(lastTextures)) {
                 glActiveTexture(GL_TEXTURE0);
-                glBindTexture(GL_TEXTURE_2D, textures.r_g_b_a_or_h());
+                glBindTexture(GL_TEXTURE_2D, textures.r_g_b_a());
 
                 glActiveTexture(GL_TEXTURE1);
-                glBindTexture(GL_TEXTURE_2D, textures.ie_nx_r_ny());
-
+                glBindTexture(GL_TEXTURE_2D, textures.ht_ie_rf_nx());
+                
+                glActiveTexture(GL_TEXTURE2);
+                glBindTexture(GL_TEXTURE_2D, textures.er_eg_eb_ny());
+                
                 glUniform1i(
                         variant.locationOf(NProgram.UNIFORM_PARALLAX_SUPPORTED),
-                        NBlendingMode.OPAQUE_WITH_HEIGHT_MAP.equals(textures.getBlendingMode()) ? 1 : 0
+                        textures.isHeightMapSupported() ? 1 : 0
                 );
                 lastTextures = textures;
             }
@@ -369,7 +345,7 @@ public class N3DObjectRenderer {
                     glUniform1i(variant.locationOf(NProgram.UNIFORM_ANIMATION_ENABLED), 0);
                 } else {
                     glUniform1i(variant.locationOf(NProgram.UNIFORM_ANIMATION_ENABLED), 1);
-                    
+
                     for (int boneIndex = 0; boneIndex < mesh.getAmountOfBones(); boneIndex++) {
                         NMeshBone bone = mesh.getBone(boneIndex);
 
@@ -377,11 +353,11 @@ public class N3DObjectRenderer {
                         Matrix4fc offset = bone.getOffset();
 
                         transformedBone.identity();
-                        
+
                         if (boneMatrix != null) {
                             transformedBone.set(render.model).mul(boneMatrix).mul(offset);
                         }
-                        
+
                         NProgram.sendBoneMatrix(variant, transformedBone, boneIndex);
                     }
                 }
