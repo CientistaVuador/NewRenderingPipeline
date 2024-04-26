@@ -100,12 +100,8 @@ public class NMesh {
     private final WrappedBuffer wrappedEbo = new WrappedBuffer();
 
     private final String sha256;
-
-    public NMesh(String name, float[] vertices, int[] indices, BVH bvh) {
-        this(name, vertices, indices, bvh, null);
-    }
     
-    public NMesh(String name, float[] vertices, int[] indices, BVH bvh, NMeshBone[] bones) {
+    public NMesh(String name, float[] vertices, int[] indices, NMeshBone[] bones) {
         Objects.requireNonNull(vertices, "Vertices is null");
         Objects.requireNonNull(indices, "Indices is null");
 
@@ -119,7 +115,7 @@ public class NMesh {
 
         this.vertices = vertices;
         this.indices = indices;
-        this.bvh = bvh;
+        this.bvh = BVH.create(this, vertices, indices, NMesh.VERTEX_SIZE, NMesh.OFFSET_POSITION_XYZ);
         if (bones == null) {
             bones = new NMeshBone[0];
         }

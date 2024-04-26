@@ -35,20 +35,28 @@ import org.joml.Vector3fc;
  */
 public class LocalRayResult {
     
+    private final BVH originBVH;
     private final Vector3f localOrigin = new Vector3f();
     private final Vector3f localDirection = new Vector3f();
     private final Vector3f localHitPosition = new Vector3f();
     private final Vector3f localTriangleNormal = new Vector3f();
+    private final float localDistance;
     private final int triangle;
     private final boolean frontFace;
-
-    public LocalRayResult(Vector3fc localOrigin, Vector3fc localDirection, Vector3fc localHitPosition, Vector3fc localNormal, int triangle, boolean frontFace) {
+    
+    public LocalRayResult(BVH originBVH, Vector3fc localOrigin, Vector3fc localDirection, Vector3fc localHitPosition, Vector3fc localNormal, int triangle, boolean frontFace) {
+        this.originBVH = originBVH;
         this.localOrigin.set(localOrigin);
         this.localDirection.set(localDirection);
         this.localHitPosition.set(localHitPosition);
         this.localTriangleNormal.set(localNormal);
         this.triangle = triangle;
         this.frontFace = frontFace;
+        this.localDistance = this.localOrigin.distance(this.localHitPosition);
+    }
+    
+    public BVH getOriginBVH() {
+        return originBVH;
     }
 
     public Vector3fc getLocalOrigin() {
@@ -65,6 +73,10 @@ public class LocalRayResult {
 
     public Vector3f getLocalTriangleNormal() {
         return localTriangleNormal;
+    }
+    
+    public float getLocalDistance() {
+        return localDistance;
     }
     
     public int triangle() {

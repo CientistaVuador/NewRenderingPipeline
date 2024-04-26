@@ -47,6 +47,7 @@ public class RayResult extends LocalRayResult implements Comparable<RayResult> {
     
     public RayResult(LocalRayResult local, Geometry geometry) {
         super(
+                local.getOriginBVH(),
                 local.getLocalOrigin(),
                 local.getLocalDirection(),
                 local.getLocalHitPosition(),

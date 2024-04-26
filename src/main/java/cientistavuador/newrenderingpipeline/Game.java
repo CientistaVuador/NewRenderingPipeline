@@ -398,11 +398,14 @@ public class Game {
     private N3DModel testModel = null;
     private N3DModel myBalls = null;
     private NAnimator animator = null;
-
+    
+    private N3DObject waterBottle = null;
+    private N3DObject fox = null;
+    
     public void start() {
         try {
             N3DModel model = N3DModelImporter.importFromJarFile("cientistavuador/newrenderingpipeline/cc0_zacxophone_triceratops.glb");
-            print(model.getRootNode(), 0);
+            //print(model.getRootNode(), 0);
             testModel = model;
             
             myBalls = N3DModelImporter.importFromJarFile("cientistavuador/newrenderingpipeline/my_balls.glb");
@@ -410,11 +413,23 @@ public class Game {
             throw new UncheckedIOException(ex);
         }
         
-        System.out.println(testModel.getNumberOfBones());
-
-        for (int i = 0; i < testModel.getNumberOfAnimations(); i++) {
-            NAnimation anim = testModel.getAnimation(i);
-            System.out.println(anim.getName());
+        try {
+            N3DModel waterBottle3DModel = N3DModelImporter.importFromJarFile("cientistavuador/newrenderingpipeline/cc0_WaterBottle.glb");
+            waterBottle = new N3DObject("water bottle", waterBottle3DModel);
+            waterBottle.getHintPosition().set(0f, 10f, -15f);
+        } catch (IOException ex) {
+            throw new UncheckedIOException(ex);
+        }
+        
+        try {
+            N3DModel fox3DModel = N3DModelImporter.importFromJarFile("cientistavuador/newrenderingpipeline/cc0_Fox.glb");
+            fox = new N3DObject("fox", fox3DModel);
+            fox.getHintPosition().set(0f, 10f, -20f);
+            
+            NAnimator foxAnimator = new NAnimator(fox3DModel, "Run");
+            fox.setAnimator(foxAnimator);
+        } catch (IOException ex) {
+            throw new UncheckedIOException(ex);
         }
 
         animator = new NAnimator(testModel, "Armature|Armature|Fall");
@@ -765,6 +780,31 @@ public class Game {
         NLight.NPointLight point = new NLight.NPointLight("point");
         point.getPosition().set(8f, 10.75f, -25f);
         //lights.add(point);
+        
+        {
+            float brX = (float) (fox.getHintPosition().x() - this.camera.getPosition().x());
+            float brY = (float) (fox.getHintPosition().y() - this.camera.getPosition().y());
+            float brZ = (float) (fox.getHintPosition().z() - this.camera.getPosition().z());
+            
+            fox.getModel().identity()
+                    .translate(brX, brY, brZ)
+                    .scale(0.02f)
+                    ;
+            
+            fox.getAnimator().update(Main.TPF);
+            
+            N3DObjectRenderer.queueRender(fox);
+        }
+        
+        {
+            float brX = (float) (waterBottle.getHintPosition().x() - this.camera.getPosition().x());
+            float brY = (float) (waterBottle.getHintPosition().y() - this.camera.getPosition().y());
+            float brZ = (float) (waterBottle.getHintPosition().z() - this.camera.getPosition().z());
+            
+            waterBottle.getModel().identity().translate(brX, brY, brZ).scale(5f);
+            
+            N3DObjectRenderer.queueRender(waterBottle);
+        }
         
         {
             N3DObject myBalls = new N3DObject("my balls", this.myBalls);

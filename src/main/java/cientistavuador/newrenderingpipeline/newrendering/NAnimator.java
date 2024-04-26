@@ -26,8 +26,10 @@
  */
 package cientistavuador.newrenderingpipeline.newrendering;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
@@ -39,7 +41,9 @@ import org.joml.Vector3f;
  * @author Cien
  */
 public class NAnimator {
-
+    
+    public static final Matrix4fc IDENTITY_MATRIX = new Matrix4f();
+    
     public static final float UPDATE_RATE = 1f / 60f;
 
     private final N3DModel model;
@@ -48,6 +52,10 @@ public class NAnimator {
     private final NBoneAnimation[] boneAnimations;
     private final Map<String, Integer> boneMap = new HashMap<>();
 
+    private final String[] unusedBones;
+    private final Matrix4f[] unusedBonesMatrices;
+    private final Map<String, Integer> unusedBoneMap = new HashMap<>();
+    
     private final Matrix4f[] localBoneMatrices;
     private final Matrix4f[] boneMatrices;
 
@@ -63,7 +71,7 @@ public class NAnimator {
     private final Quaternionf nextRotation = new Quaternionf();
     private final Vector3f nextScaling = new Vector3f();
 
-    private float tickCounter = 0f;
+    private double tickCounter = 0f;
     private float animationCounter = 0f;
     private float animationSpeed = 1f;
     private boolean looping = true;
@@ -77,14 +85,29 @@ public class NAnimator {
             this.boneAnimations[i] = this.animation.getBoneAnimation(i);
             this.boneMap.put(this.boneAnimations[i].getBoneName(), i);
         }
-
+        
+        List<String> unusedList = new ArrayList<>();
+        for (int totalBonesIndex = 0; totalBonesIndex < model.getNumberOfBones(); totalBonesIndex++) {
+            String boneName = model.getBone(totalBonesIndex);
+            if (!this.boneMap.containsKey(boneName)) {
+                unusedList.add(boneName);
+            }
+        }
+        
+        this.unusedBones = unusedList.toArray(String[]::new);
+        this.unusedBonesMatrices = new Matrix4f[this.unusedBones.length];
+        for (int i = 0; i < this.unusedBones.length; i++) {
+            this.unusedBoneMap.put(this.unusedBones[i], i);
+            this.unusedBonesMatrices[i] = new Matrix4f();
+        }
+        
         this.localBoneMatrices = new Matrix4f[this.boneAnimations.length];
         this.boneMatrices = new Matrix4f[this.boneAnimations.length];
         for (int i = 0; i < this.boneAnimations.length; i++) {
             this.localBoneMatrices[i] = new Matrix4f();
             this.boneMatrices[i] = new Matrix4f();
         }
-
+        
         this.currentPositionKeys = new int[this.boneAnimations.length];
         this.currentRotationKeys = new int[this.boneAnimations.length];
         this.currentScalingKeys = new int[this.boneAnimations.length];
@@ -109,7 +132,11 @@ public class NAnimator {
     public Matrix4fc getBoneMatrix(String name) {
         Integer index = this.boneMap.get(name);
         if (index == null) {
-            return null;
+            Integer unusedIndex = this.unusedBoneMap.get(name);
+            if (unusedIndex == null) {
+                return null;
+            }
+            return this.unusedBonesMatrices[unusedIndex];
         }
         return this.boneMatrices[index];
     }
@@ -140,7 +167,7 @@ public class NAnimator {
         return animationCounter;
     }
     
-    public void update(float tpf) {
+    public void update(double tpf) {
         if (this.animationCounter >= this.animation.getDuration()) {
             if (this.looping) {
                 reset();
@@ -306,9 +333,9 @@ public class NAnimator {
         } else {
             localMatrix = node.getTransformation();
         }
-
+        
         localMatrix.mul(matrix, matrix);
-
+        
         recursiveTransform(node.getParent(), matrix);
     }
 
@@ -317,6 +344,12 @@ public class NAnimator {
             String boneName = this.boneAnimations[i].getBoneName();
             Matrix4f matrix = this.boneMatrices[i].identity();
 
+            recursiveTransform(this.model.getNode(boneName), matrix);
+        }
+        for (int i = 0; i < this.unusedBonesMatrices.length; i++) {
+            String boneName = this.unusedBones[i];
+            Matrix4f matrix = this.unusedBonesMatrices[i].identity();
+            
             recursiveTransform(this.model.getNode(boneName), matrix);
         }
     }

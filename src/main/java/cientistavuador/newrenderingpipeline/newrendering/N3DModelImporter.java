@@ -28,12 +28,12 @@ package cientistavuador.newrenderingpipeline.newrendering;
 
 import cientistavuador.newrenderingpipeline.util.MeshUtils;
 import cientistavuador.newrenderingpipeline.util.Pair;
-import cientistavuador.newrenderingpipeline.util.raycast.BVH;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -54,9 +54,9 @@ import org.lwjgl.system.MemoryUtil;
  * @author Cien
  */
 public class N3DModelImporter {
-    
+
     public static double DEFAULT_TICKS_PER_SECOND = 1000.0;
-    
+
     public static final int DEFAULT_FLAGS = aiProcess_CalcTangentSpace
             | aiProcess_Triangulate
             | aiProcess_TransformUVCoords
@@ -176,7 +176,7 @@ public class N3DModelImporter {
             }
 
             final String fileName = tex.mFilename().dataString();
-            
+
             if (tex.mHeight() == 0) {
                 byte[] data = new byte[tex.mWidth()];
                 tex.pcDataCompressed().get(data);
@@ -224,7 +224,7 @@ public class N3DModelImporter {
     private NTexturesIO.LoadedImage getMaterialTexture(AIMaterial material, int type) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             AIString pathString = AIString.calloc(stack);
-            
+
             int result = aiGetMaterialTexture(material,
                     type,
                     0,
@@ -240,7 +240,7 @@ public class N3DModelImporter {
             if (result != aiReturn_SUCCESS) {
                 return null;
             }
-            
+
             return this.loadedImages.get(pathString.dataString());
         }
     }
@@ -261,139 +261,183 @@ public class N3DModelImporter {
             if (material == null) {
                 continue;
             }
-            
+
             final int diffuseIndex = 0;
-            final int heightIndex = 1;
-            final int aoInvertedexponentReflectivenessIndex = 2;
-            final int normalIndex = 3;
-            final int emissiveIndex = 4;
-            
-            final NTexturesIO.LoadedImage[] images = new NTexturesIO.LoadedImage[6];
-            
+
+            final int aoIndex = 1;
+            final int invertedExponentIndex = 2;
+            final int reflectivenessIndex = 3;
+
+            final int heightIndex = 4;
+            final int normalIndex = 5;
+            final int emissiveIndex = 6;
+
+            final int fallbackDispIndex = 7;
+            final int fallbackDiffuseIndex = 8;
+            final int fallbackSpecularIndex = 9;
+            final int fallbackEmissiveIndex = 10;
+            final int fallbackOpacityIndex = 11;
+
+            final NTexturesIO.LoadedImage[] images = new NTexturesIO.LoadedImage[12];
+
             images[diffuseIndex] = getMaterialTexture(material, aiTextureType_BASE_COLOR);
-            if (images[diffuseIndex] == null) {
-                images[diffuseIndex] = getMaterialTexture(material, aiTextureType_DIFFUSE);
-            }
-            
+
+            images[aoIndex] = getMaterialTexture(material, aiTextureType_AMBIENT_OCCLUSION);
+            images[invertedExponentIndex] = getMaterialTexture(material, aiTextureType_DIFFUSE_ROUGHNESS);
+            images[reflectivenessIndex] = getMaterialTexture(material, aiTextureType_METALNESS);
+
             images[heightIndex] = getMaterialTexture(material, aiTextureType_HEIGHT);
-            if (images[heightIndex] == null) {
-                images[heightIndex] = getMaterialTexture(material, aiTextureType_DISPLACEMENT);
-            }
-            
-            images[aoInvertedexponentReflectivenessIndex] = getMaterialTexture(material, aiTextureType_METALNESS);
-            if (images[aoInvertedexponentReflectivenessIndex] == null) {
-                images[aoInvertedexponentReflectivenessIndex] = getMaterialTexture(material, aiTextureType_SPECULAR);
-                if (images[aoInvertedexponentReflectivenessIndex] != null) {
-                    int width = images[aoInvertedexponentReflectivenessIndex].width;
-                    int height = images[aoInvertedexponentReflectivenessIndex].height;
-                    byte[] data = images[aoInvertedexponentReflectivenessIndex].pixelData;
-                    
-                    for (int pixel = 0; pixel < width * height; pixel++) {
-                        byte r = data[(pixel * 4) + 0];
-                        
-                        data[(pixel * 4) + 0] = (byte) 255;
-                        data[(pixel * 4) + 1] = (byte) (255 - (r & 0xFF));
-                        data[(pixel * 4) + 2] = (byte) 0;
-                        data[(pixel * 4) + 3] = (byte) 255;
-                    }
-                }
-            }
-            
             images[normalIndex] = getMaterialTexture(material, aiTextureType_NORMALS);
-            
             images[emissiveIndex] = getMaterialTexture(material, aiTextureType_EMISSION_COLOR);
-            if (images[emissiveIndex] == null) {
-                images[emissiveIndex] = getMaterialTexture(material, aiTextureType_EMISSIVE);
-            }
-            
+
+            images[fallbackDispIndex] = getMaterialTexture(material, aiTextureType_DISPLACEMENT);
+            images[fallbackDiffuseIndex] = getMaterialTexture(material, aiTextureType_DIFFUSE);
+            images[fallbackSpecularIndex] = getMaterialTexture(material, aiTextureType_SPECULAR);
+            images[fallbackEmissiveIndex] = getMaterialTexture(material, aiTextureType_EMISSIVE);
+            images[fallbackOpacityIndex] = getMaterialTexture(material, aiTextureType_OPACITY);
+
             int textureWidth = -1;
             int textureHeight = -1;
-            
+
             for (NTexturesIO.LoadedImage image : images) {
                 if (image != null) {
                     textureWidth = Math.max(textureWidth, image.width);
                     textureHeight = Math.max(textureHeight, image.height);
                 }
             }
-            
+
             for (int j = 0; j < images.length; j++) {
                 NTexturesIO.LoadedImage image = images[j];
                 if (image != null && image.width != textureWidth && image.height != textureHeight) {
                     images[j] = NTexturesIO.nearestResize(image, textureWidth, textureHeight);
                 }
             }
-            
+
             final int finalTextureWidth = textureWidth;
             final int finalTextureHeight = textureHeight;
-            
-            futureMaterials.add(this.service.submit(() -> {
-                byte[] diffuseMap = null;
 
+            futureMaterials.add(this.service.submit(() -> {
+                if (finalTextureWidth == -1 || finalTextureHeight == -1) {
+                    return new Pair<>(materialIndex, new NMaterial("notextures_material_" + materialIndex));
+                }
+
+                boolean usingSpecularMap = false;
+                boolean usingMetallicRoughness = false;
+                boolean usingAoMetallicRoughness = false;
+
+                byte[] diffuseMap = null;
                 if (images[diffuseIndex] != null) {
                     diffuseMap = images[diffuseIndex].pixelData;
+                } else if (images[fallbackDiffuseIndex] != null) {
+                    diffuseMap = images[fallbackDiffuseIndex].pixelData;
+                }
+                
+                if (images[fallbackOpacityIndex] != null) {
+                    byte[] opacityMap = images[fallbackOpacityIndex].pixelData;
+                    byte[] newDiffuseMap;
+                    if (diffuseMap != null) {
+                        newDiffuseMap = diffuseMap.clone();
+                    } else {
+                        newDiffuseMap = new byte[finalTextureWidth * finalTextureHeight * 4];
+                        Arrays.fill(newDiffuseMap, (byte) 255);
+                    }
+                    for (int y = 0; y < finalTextureHeight; y++) {
+                        for (int x = 0; x < finalTextureWidth; x++) {
+                            byte opacity = opacityMap[0 + (x * 4) + (y * finalTextureWidth * 4)];
+                            newDiffuseMap[0 + (x * 4) + (y * finalTextureWidth * 4)] = opacity;
+                        }
+                    }
+                    diffuseMap = newDiffuseMap;
                 }
 
                 byte[] aoMap = null;
+                if (images[aoIndex] != null) {
+                    aoMap = images[aoIndex].pixelData;
+                }
+
                 byte[] invertedExponentMap = null;
+                if (images[invertedExponentIndex] != null) {
+                    invertedExponentMap = images[invertedExponentIndex].pixelData;
+                } else if (images[fallbackSpecularIndex] != null) {
+                    invertedExponentMap = images[fallbackSpecularIndex].pixelData;
+                    usingSpecularMap = true;
+                }
+
                 byte[] reflectivenessMap = null;
-
-                if (images[aoInvertedexponentReflectivenessIndex] != null) {
-                    int width = images[aoInvertedexponentReflectivenessIndex].width;
-                    int height = images[aoInvertedexponentReflectivenessIndex].height;
-
-                    int pixels = width * height;
-
-                    aoMap = new byte[pixels * 4];
-                    invertedExponentMap = new byte[pixels * 4];
-                    reflectivenessMap = new byte[pixels * 4];
-
-                    for (int j = 0; j < pixels; j++) {
-                        int ao = images[aoInvertedexponentReflectivenessIndex].pixelData[(j * 4) + 0] & 0xFF;
-                        int invertedExponent = images[aoInvertedexponentReflectivenessIndex].pixelData[(j * 4) + 1] & 0xFF;
-                        int reflectiveness = images[aoInvertedexponentReflectivenessIndex].pixelData[(j * 4) + 2] & 0xFF;
-                        
-                        aoMap[(j * 4) + 0] = (byte) ao;
-                        invertedExponentMap[(j * 4) + 0] = (byte) invertedExponent;
-                        reflectivenessMap[(j * 4) + 0] = (byte) reflectiveness;
+                if (images[reflectivenessIndex] != null) {
+                    reflectivenessMap = images[reflectivenessIndex].pixelData;
+                    if (reflectivenessMap == invertedExponentMap) {
+                        usingMetallicRoughness = true;
+                        if (reflectivenessMap == aoMap) {
+                            usingAoMetallicRoughness = true;
+                        }
                     }
                 }
 
                 byte[] heightMap = null;
-
                 if (images[heightIndex] != null) {
                     heightMap = images[heightIndex].pixelData;
+                } else if (images[fallbackDispIndex] != null) {
+                    heightMap = images[fallbackDispIndex].pixelData;
                 }
-
+                
                 byte[] normalMap = null;
-
                 if (images[normalIndex] != null) {
                     normalMap = images[normalIndex].pixelData;
                 }
-                
+
                 byte[] emissiveMap = null;
-                
                 if (images[emissiveIndex] != null) {
                     emissiveMap = images[emissiveIndex].pixelData;
+                } else if (images[fallbackEmissiveIndex] != null) {
+                    emissiveMap = images[fallbackEmissiveIndex].pixelData;
+                }
+
+                int width = finalTextureWidth;
+                int height = finalTextureHeight;
+
+                if (usingSpecularMap) {
+                    byte[] newMap = new byte[width * height * 4];
+                    for (int y = 0; y < height; y++) {
+                        for (int x = 0; x < width; x++) {
+                            int value = invertedExponentMap[0 + (x * 4) + (y * width * 4)] & 0xFF;
+                            newMap[0 + (x * 4) + (y * width * 4)] = (byte) (255 - value);
+                        }
+                    }
+                    invertedExponentMap = newMap;
+                } else if (usingMetallicRoughness) {
+                    byte[] newAoMap = new byte[width * height * 4];
+                    byte[] newInvertedExponentMap = new byte[width * height * 4];
+                    byte[] newReflectivenessMap = new byte[width * height * 4];
+                    for (int y = 0; y < height; y++) {
+                        for (int x = 0; x < width; x++) {
+                            byte ao = invertedExponentMap[0 + (x * 4) + (y * width * 4)];
+                            byte ie = invertedExponentMap[1 + (x * 4) + (y * width * 4)];
+                            byte rf = invertedExponentMap[2 + (x * 4) + (y * width * 4)];
+                            newAoMap[0 + (x * 4) + (y * width * 4)] = ao;
+                            newInvertedExponentMap[0 + (x * 4) + (y * width * 4)] = ie;
+                            newReflectivenessMap[0 + (x * 4) + (y * width * 4)] = rf;
+                        }
+                    }
+                    if (usingAoMetallicRoughness) {
+                        aoMap = newAoMap;
+                    }
+                    invertedExponentMap = newInvertedExponentMap;
+                    reflectivenessMap = newReflectivenessMap;
                 }
                 
-                NTextures textures;
-
-                if (finalTextureWidth != -1 && finalTextureHeight != -1) {
-                    textures = NTexturesIO.load(
-                            "textures_" + materialIndex,
-                            finalTextureWidth, finalTextureHeight,
-                            diffuseMap,
-                            aoMap,
-                            heightMap,
-                            invertedExponentMap,
-                            normalMap,
-                            reflectivenessMap,
-                            emissiveMap
-                    );
-                } else {
-                    textures = NTextures.NULL_TEXTURE;
-                }
-
+                NTextures textures = NTexturesIO.load(
+                        "textures_" + materialIndex,
+                        finalTextureWidth, finalTextureHeight,
+                        diffuseMap,
+                        aoMap,
+                        heightMap,
+                        invertedExponentMap,
+                        normalMap,
+                        reflectivenessMap,
+                        emissiveMap
+                );
+                
                 NMaterial mat = new NMaterial("material_" + materialIndex);
                 mat.setTextures(textures);
 
@@ -493,7 +537,7 @@ public class N3DModelImporter {
                         if (numWeights != 0 && weights != null) {
                             for (int weightIndex = 0; weightIndex < numWeights; weightIndex++) {
                                 AIVertexWeight weight = weights.get(weightIndex);
-                                
+
                                 int vertexIndex = weight.mVertexId();
 
                                 List<Pair<Integer, Float>> weightList = boneVertexWeightMap.get(vertexIndex);
@@ -610,10 +654,6 @@ public class N3DModelImporter {
                 NMesh loadedMesh = new NMesh(
                         meshName,
                         finalVertices, finalIndices,
-                        BVH.create(
-                                finalVertices, finalIndices,
-                                NMesh.VERTEX_SIZE, NMesh.OFFSET_POSITION_XYZ
-                        ),
                         meshBones.toArray(NMeshBone[]::new)
                 );
 
@@ -678,15 +718,15 @@ public class N3DModelImporter {
             List<NBoneAnimation> boneAnimations = new ArrayList<>();
 
             String name = sceneAnimation.mName().dataString();
-            
+
             double tps = sceneAnimation.mTicksPerSecond();
             if (tps == 0.0) {
                 tps = DEFAULT_TICKS_PER_SECOND;
             }
             tps = 1.0 / tps;
-            
+
             float duration = (float) (sceneAnimation.mDuration() * tps);
-            
+
             int numberOfChannels = sceneAnimation.mNumChannels();
             PointerBuffer channels = sceneAnimation.mChannels();
             if (channels != null) {

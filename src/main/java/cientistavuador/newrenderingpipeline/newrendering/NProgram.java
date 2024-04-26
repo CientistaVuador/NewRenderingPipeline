@@ -484,7 +484,7 @@ public class NProgram {
                     );
                 }
                 
-                finalColor.rgb += eregebny.rgb * material.emissiveColor * diffuseColor;
+                finalColor.rgb += eregebny.rgb * material.emissiveColor;
                 
                 finalColor.rgb = gammaCorrection(ACESFilm(finalColor.rgb));
                 

@@ -40,17 +40,21 @@ import org.joml.Vector3fc;
  * @author Cien
  */
 public class BVH implements Aab {
-
+    
     public static BVH create(float[] vertices, int[] indices, int vertexSize, int xyzOffset) {
+        return create(null, vertices, indices, vertexSize, xyzOffset);
+    }
+    
+    public static BVH create(Object userObject, float[] vertices, int[] indices, int vertexSize, int xyzOffset) {
         if (vertices.length == 0) {
-            return new BVH(vertices, indices, vertexSize, xyzOffset, new Vector3f(), new Vector3f());
+            return new BVH(userObject, vertices, indices, vertexSize, xyzOffset, new Vector3f(), new Vector3f());
         }
-
-        final float aabOffset = 0.0001f;
+        
+        final float aabOffset = 0.001f;
         final int numberOfTriangles = indices.length / 3;
-
+        
         BVH[] currentArray = new BVH[numberOfTriangles];
-
+        
         for (int i = 0; i < numberOfTriangles; i++) {
             int v0 = (indices[(i * 3) + 0] * vertexSize) + xyzOffset;
             int v1 = (indices[(i * 3) + 1] * vertexSize) + xyzOffset;
@@ -92,6 +96,7 @@ public class BVH implements Aab {
             }
 
             BVH e = new BVH(
+                    userObject,
                     vertices,
                     indices,
                     vertexSize,
@@ -197,6 +202,7 @@ public class BVH implements Aab {
                 float newMaxZ = Math.max(Math.max(minZ, closestMinZ), Math.max(maxZ, closestMaxZ));
 
                 BVH merge = new BVH(
+                        userObject,
                         vertices,
                         indices,
                         vertexSize,
@@ -223,7 +229,9 @@ public class BVH implements Aab {
 
         return currentArray[0];
     }
-
+    
+    private final Object userObject;
+    
     private final float[] vertices;
     private final int[] indices;
     private final int vertexSize;
@@ -238,7 +246,8 @@ public class BVH implements Aab {
     private int amountOfTriangles = 0;
     private int[] triangles = null;
 
-    private BVH(float[] vertices, int[] indices, int vertexSize, int xyzOffset, float minX, float minY, float minZ, float maxX, float maxY, float maxZ) {
+    private BVH(Object userObject, float[] vertices, int[] indices, int vertexSize, int xyzOffset, float minX, float minY, float minZ, float maxX, float maxY, float maxZ) {
+        this.userObject = userObject;
         this.vertices = vertices;
         this.indices = indices;
         this.vertexSize = vertexSize;
@@ -247,8 +256,12 @@ public class BVH implements Aab {
         this.max.set(maxX, maxY, maxZ);
     }
 
-    private BVH(float[] vertices, int[] indices, int vertexSize, int xyzOffset, Vector3fc min, Vector3fc max) {
-        this(vertices, indices, vertexSize, xyzOffset, min.x(), min.y(), min.z(), max.x(), max.y(), max.z());
+    private BVH(Object userObject, float[] vertices, int[] indices, int vertexSize, int xyzOffset, Vector3fc min, Vector3fc max) {
+        this(userObject, vertices, indices, vertexSize, xyzOffset, min.x(), min.y(), min.z(), max.x(), max.y(), max.z());
+    }
+    
+    public Object getUserObject() {
+        return userObject;
     }
 
     public float[] getVertices() {
@@ -419,7 +432,7 @@ public class BVH implements Aab {
 
                         hitposition.set(localDirection).mul(hit).add(localOrigin);
 
-                        resultsOutput.add(new LocalRayResult(localOrigin, localDirection, hitposition, normal, triangle, frontFace));
+                        resultsOutput.add(new LocalRayResult(this, localOrigin, localDirection, hitposition, normal, triangle, frontFace));
                     }
                 }
             }
@@ -444,10 +457,16 @@ public class BVH implements Aab {
         Vector3f a = new Vector3f();
         Vector3f b = new Vector3f();
         Vector3f c = new Vector3f();
-
+        
         testRay(localOrigin, localDirection, resultsOutput, this, tested, normal, hitposition, a, b, c);
-
+        
         return resultsOutput;
+    }
+    
+    public List<LocalRayResult> testRaySorted(Vector3fc localOrigin, Vector3fc localDirection) {
+        List<LocalRayResult> results = testRay(localOrigin, localDirection);
+        results.sort((o1, o2) -> Float.compare(o1.getLocalDistance(), o2.getLocalDistance()));
+        return results;
     }
 
 }
