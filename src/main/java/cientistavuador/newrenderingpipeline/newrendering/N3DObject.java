@@ -28,7 +28,7 @@ package cientistavuador.newrenderingpipeline.newrendering;
 
 import cientistavuador.newrenderingpipeline.Main;
 import cientistavuador.newrenderingpipeline.util.ObjectCleaner;
-import cientistavuador.newrenderingpipeline.util.TransformUtils;
+import com.jme3.math.Quaternion;
 import org.joml.Matrix4f;
 import org.joml.Vector3d;
 import org.joml.Vector3f;
@@ -47,6 +47,12 @@ public class N3DObject {
     
     private final String name;
     private final N3DModel n3DModel;
+    
+    private final Vector3d position = new Vector3d(0.0, 0.0, 0.0);
+    private final Quaternion rotation = new Quaternion();
+    private final Vector3f scale = new Vector3f();
+    private final Matrix4f transformation = new Matrix4f();
+    private boolean billboardEnabled = false;
     
     private final Matrix4f model = new Matrix4f();
     private final Vector3d hintPosition = new Vector3d(0.0, 0.0, 0.0);
@@ -83,6 +89,30 @@ public class N3DObject {
     public N3DModel getN3DModel() {
         return n3DModel;
     }
+
+    public Vector3d getPosition() {
+        return position;
+    }
+
+    public Quaternion getRotation() {
+        return rotation;
+    }
+
+    public Vector3f getScale() {
+        return scale;
+    }
+
+    public Matrix4f getTransformation() {
+        return transformation;
+    }
+
+    public boolean isBillboardEnabled() {
+        return billboardEnabled;
+    }
+
+    public void setBillboardEnabled(boolean billboardEnabled) {
+        this.billboardEnabled = billboardEnabled;
+    }
     
     public Matrix4f getModel() {
         return model;
@@ -100,13 +130,19 @@ public class N3DObject {
     }
     
     public void transformAabb(Vector3f outMin, Vector3f outMax) {
-        TransformUtils.transformAabb(
+        this.model.transformAab(
                 this.n3DModel.getAabbMin(), this.n3DModel.getAabbMax(),
-                this.model,
                 outMin, outMax
         );
     }
-
+    
+    public void transformAnimatedAabb(Vector3f outMin, Vector3f outMax) {
+        this.model.transformAab(
+                this.n3DModel.getAnimatedAabbMin(), this.n3DModel.getAnimatedAabbMax(),
+                outMin, outMax
+        );
+    }
+    
     public NAnimator getAnimator() {
         return animator;
     }

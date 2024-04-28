@@ -38,6 +38,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
+import org.joml.Matrix4fc;
 import org.joml.Vector3f;
 import org.joml.Vector3fc;
 import org.lwjgl.opengl.GL;
@@ -76,7 +77,6 @@ public class NMesh {
     private final String name;
     private final float[] vertices;
     private final int[] indices;
-    private final BVH bvh;
     private final NMeshBone[] bones;
     private final Map<String, Integer> bonesMap = new HashMap<>();
 
@@ -101,6 +101,13 @@ public class NMesh {
 
     private final String sha256;
     
+    private BVH bvh = null;
+    
+    private final Vector3f animatedAabbMin = new Vector3f();
+    private final Vector3f animatedAabbMax = new Vector3f();
+    private final Vector3f animatedAabbCenter = new Vector3f();
+    private boolean animatedAabbGenerated = false;
+    
     public NMesh(String name, float[] vertices, int[] indices, NMeshBone[] bones) {
         Objects.requireNonNull(vertices, "Vertices is null");
         Objects.requireNonNull(indices, "Indices is null");
@@ -115,7 +122,6 @@ public class NMesh {
 
         this.vertices = vertices;
         this.indices = indices;
-        this.bvh = BVH.create(this, vertices, indices, NMesh.VERTEX_SIZE, NMesh.OFFSET_POSITION_XYZ);
         if (bones == null) {
             bones = new NMeshBone[0];
         }
@@ -141,6 +147,10 @@ public class NMesh {
                 NMesh.OFFSET_POSITION_XYZ,
                 this.aabbMin, this.aabbMax, this.aabbCenter
         );
+        
+        this.animatedAabbMin.set(this.aabbMin);
+        this.animatedAabbMax.set(this.aabbMax);
+        this.animatedAabbCenter.set(this.aabbCenter);
 
         registerForCleaning();
 
@@ -226,11 +236,7 @@ public class NMesh {
     public int[] getIndices() {
         return this.indices;
     }
-
-    public BVH getBVH() {
-        return this.bvh;
-    }
-
+    
     public int getAmountOfBones() {
         return this.bones.length;
     }
@@ -273,6 +279,112 @@ public class NMesh {
 
     public String getSha256() {
         return sha256;
+    }
+    
+    public void generateBVH() {
+        this.bvh = BVH.create(this, this.vertices, this.indices, NMesh.VERTEX_SIZE, NMesh.OFFSET_POSITION_XYZ);
+    }
+    
+    public BVH getBVH() {
+        return this.bvh;
+    }
+
+    public void setBVH(BVH bvh) {
+        this.bvh = bvh;
+    }
+    
+    public void generateAnimatedAabb(N3DModel originalModel) {
+        if (originalModel.getAnimations().length == 0) {
+            return;
+        }
+        
+        float minX = Float.POSITIVE_INFINITY;
+        float minY = Float.POSITIVE_INFINITY;
+        float minZ = Float.POSITIVE_INFINITY;
+        
+        float maxX = Float.NEGATIVE_INFINITY;
+        float maxY = Float.NEGATIVE_INFINITY;
+        float maxZ = Float.NEGATIVE_INFINITY;
+        
+        Vector3f transformed = new Vector3f();
+        Vector3f totalTransformation = new Vector3f();
+        
+        int[] bonesIds = new int[MAX_AMOUNT_OF_BONE_WEIGHTS];
+        float[] bonesWeights = new float[MAX_AMOUNT_OF_BONE_WEIGHTS];
+        
+        for (NAnimation animation:originalModel.getAnimations()) {
+            NAnimator animator = new NAnimator(originalModel, animation.getName());
+            animator.setLooping(false);
+            while (!animator.isFinished()) {
+                animator.update(NAnimator.UPDATE_RATE);
+                
+                for (int i = 0; i < this.vertices.length; i += NMesh.VERTEX_SIZE) {
+                    float x = this.vertices[i + NMesh.OFFSET_POSITION_XYZ + 0];
+                    float y = this.vertices[i + NMesh.OFFSET_POSITION_XYZ + 1];
+                    float z = this.vertices[i + NMesh.OFFSET_POSITION_XYZ + 2];
+                    
+                    bonesIds[0] = Float.floatToRawIntBits(this.vertices[i + NMesh.OFFSET_BONE_IDS_XYZW + 0]);
+                    bonesIds[1] = Float.floatToRawIntBits(this.vertices[i + NMesh.OFFSET_BONE_IDS_XYZW + 1]);
+                    bonesIds[2] = Float.floatToRawIntBits(this.vertices[i + NMesh.OFFSET_BONE_IDS_XYZW + 2]);
+                    bonesIds[3] = Float.floatToRawIntBits(this.vertices[i + NMesh.OFFSET_BONE_IDS_XYZW + 3]);
+                    
+                    bonesWeights[0] = this.vertices[i + NMesh.OFFSET_BONE_WEIGHTS_XYZW + 0];
+                    bonesWeights[1] = this.vertices[i + NMesh.OFFSET_BONE_WEIGHTS_XYZW + 1];
+                    bonesWeights[2] = this.vertices[i + NMesh.OFFSET_BONE_WEIGHTS_XYZW + 2];
+                    bonesWeights[3] = this.vertices[i + NMesh.OFFSET_BONE_WEIGHTS_XYZW + 3];
+                    
+                    totalTransformation.zero();
+                    for (int j = 0; j < bonesIds.length; j++) {
+                        int boneId = bonesIds[j];
+                        float boneWeight = bonesWeights[j];
+                        
+                        if (boneId >= 0) {
+                            Matrix4fc boneMatrix = animator.getBoneMatrix(getBone(boneId).getName());
+                            
+                            transformed.set(x, y, z);
+                            boneMatrix.transformProject(transformed);
+                            transformed.mul(boneWeight);
+                            
+                            totalTransformation.add(transformed);
+                        }
+                    }
+                    
+                    minX = Math.min(minX, totalTransformation.x());
+                    minY = Math.min(minY, totalTransformation.y());
+                    minZ = Math.min(minZ, totalTransformation.z());
+                    
+                    maxX = Math.max(maxX, totalTransformation.x());
+                    maxY = Math.max(maxY, totalTransformation.y());
+                    maxZ = Math.max(maxZ, totalTransformation.z());
+                }
+            }
+        }
+        
+        this.animatedAabbMin.set(minX, minY, minZ);
+        this.animatedAabbMax.set(maxX, maxY, maxZ);
+        this.animatedAabbCenter.set(
+                (minX * 0.5f) + (maxX * 0.5f),
+                (minY * 0.5f) + (maxY * 0.5f),
+                (minZ * 0.5f) + (maxZ * 0.5f)
+        );
+        
+        this.animatedAabbGenerated = true;
+    }
+    
+    public Vector3fc getAnimatedAabbMin() {
+        return animatedAabbMin;
+    }
+
+    public Vector3fc getAnimatedAabbMax() {
+        return animatedAabbMax;
+    }
+
+    public Vector3fc getAnimatedAabbCenter() {
+        return animatedAabbCenter;
+    }
+    
+    public boolean isAnimatedAabbGenerated() {
+        return animatedAabbGenerated;
     }
 
     private void validateVAO() {

@@ -144,6 +144,32 @@ public class NTexturesIO {
         return new LoadedImage(newWidth, newHeight, newData);
     }
     
+    public static LoadedImage flipY(LoadedImage image) {
+        byte[] newData = new byte[image.width * image.height * 4];
+        for (int y = 0; y < image.height; y++) {
+            System.arraycopy(
+                    image.pixelData, y * image.width * 4,
+                    newData, ((image.height - 1) - y) * image.width * 4,
+                    image.width * 4
+            );
+        }
+        return new LoadedImage(image.width, image.height, newData);
+    }
+    
+    public static LoadedImage flipX(LoadedImage image) {
+        byte[] newData = new byte[image.width * image.height * 4];
+        for (int y = 0; y < image.height; y++) {
+            for (int x = 0; x < image.width; x++) {
+                System.arraycopy(
+                        image.pixelData, (x * 4) + (y * image.width * 4),
+                        newData, (((image.width - 1) - x) * 4) + (y * image.width * 4),
+                        4
+                );
+            }
+        }
+        return new LoadedImage(image.width, image.height, newData);
+    }
+    
     public static LoadedImage loadImage(byte[] image) {
         try {
             return loadImageChecked(image);

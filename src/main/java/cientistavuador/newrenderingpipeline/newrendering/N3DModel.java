@@ -58,6 +58,11 @@ public class N3DModel {
     private final Map<String, Integer> nodesMap = new HashMap<>();
     private final String[] bones;
     
+    private final Vector3f animatedAabbMin = new Vector3f();
+    private final Vector3f animatedAabbMax = new Vector3f();
+    private final Vector3f animatedAabbCenter = new Vector3f();
+    private boolean animatedAabbGenerated = false;
+    
     public N3DModel(String name, N3DModelNode rootNode) {
         this(name, rootNode, null);
     }
@@ -149,6 +154,10 @@ public class N3DModel {
                 (minZ * 0.5f) + (maxZ * 0.5f)
         );
         
+        this.animatedAabbMin.set(this.aabbMin);
+        this.animatedAabbMax.set(this.aabbMax);
+        this.animatedAabbCenter.set(this.aabbCenter);
+        
         this.nodes = nodesList.toArray(N3DModelNode[]::new);
         for (int i = 0; i < this.nodes.length; i++) {
             this.nodesMap.put(this.nodes[i].getName(), i);
@@ -219,5 +228,58 @@ public class N3DModel {
     public String getBone(int index) {
         return this.bones[index];
     }
+
+    public void generateAnimatedAabb() {
+        float minX = Float.POSITIVE_INFINITY;
+        float minY = Float.POSITIVE_INFINITY;
+        float minZ = Float.POSITIVE_INFINITY;
+        
+        float maxX = Float.NEGATIVE_INFINITY;
+        float maxY = Float.NEGATIVE_INFINITY;
+        float maxZ = Float.NEGATIVE_INFINITY;
+        
+        for (N3DModelNode node:this.nodes) {
+            for (NGeometry g:node.getGeometries()) {
+                NMesh mesh = g.getMesh();
+                mesh.generateAnimatedAabb(this);
+                
+                Vector3fc meshMin = mesh.getAnimatedAabbMin();
+                Vector3fc meshMax = mesh.getAnimatedAabbMax();
+                
+                minX = Math.min(minX, meshMin.x());
+                minY = Math.min(minY, meshMin.y());
+                minZ = Math.min(minZ, meshMin.z());
+                
+                maxX = Math.max(maxX, meshMax.x());
+                maxY = Math.max(maxY, meshMax.y());
+                maxZ = Math.max(maxZ, meshMax.z());
+            }
+        }
+        
+        this.animatedAabbMin.set(minX, minY, minZ);
+        this.animatedAabbMax.set(maxX, maxY, maxZ);
+        this.animatedAabbCenter.set(
+                (minX * 0.5f) + (maxX * 0.5f),
+                (minY * 0.5f) + (maxY * 0.5f),
+                (minZ * 0.5f) + (maxZ * 0.5f)
+        );
+        
+        this.animatedAabbGenerated = true;
+    }
     
+    public Vector3fc getAnimatedAabbMin() {
+        return animatedAabbMin;
+    }
+
+    public Vector3fc getAnimatedAabbMax() {
+        return animatedAabbMax;
+    }
+
+    public Vector3fc getAnimatedAabbCenter() {
+        return animatedAabbCenter;
+    }
+
+    public boolean isAnimatedAabbGenerated() {
+        return animatedAabbGenerated;
+    }
 }

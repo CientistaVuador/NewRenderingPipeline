@@ -29,7 +29,6 @@ package cientistavuador.newrenderingpipeline.newrendering;
 import cientistavuador.newrenderingpipeline.Main;
 import cientistavuador.newrenderingpipeline.camera.Camera;
 import cientistavuador.newrenderingpipeline.util.BetterUniformSetter;
-import cientistavuador.newrenderingpipeline.util.TransformUtils;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -48,7 +47,7 @@ import static org.lwjgl.opengl.GL33C.*;
  */
 public class N3DObjectRenderer {
 
-    public static boolean PARALLAX_ENABLED = true;
+    public static boolean PARALLAX_ENABLED = false;
 
     private static final ConcurrentLinkedQueue<N3DObject> renderQueue = new ConcurrentLinkedQueue<>();
 
@@ -74,52 +73,70 @@ public class N3DObjectRenderer {
     }
 
     public static void render(Camera camera, List<NLight> lights) {
+        List<NProgram.NProgramLight> renderableLightsList = new ArrayList<>();
+        for (NLight indexLight : lights) {
+            if (indexLight != null) {
+                if (indexLight instanceof NLight.NDirectionalLight d) {
+                    NProgram.NProgramLight light = new NProgram.NProgramLight(
+                            NProgram.DIRECTIONAL_LIGHT_TYPE,
+                            0f, 0f, 0f,
+                            d.getDirection().x(), d.getDirection().y(), d.getDirection().z(),
+                            0f, 0f,
+                            d.getDiffuse().x(), d.getDiffuse().y(), d.getDiffuse().z(),
+                            d.getSpecular().x(), d.getSpecular().y(), d.getSpecular().z(),
+                            d.getAmbient().x(), d.getAmbient().y(), d.getAmbient().z()
+                    );
+                    renderableLightsList.add(light);
+                }
+                if (indexLight instanceof NLight.NPointLight p) {
+                    float relativeX = (float) (p.getPosition().x() - camera.getPosition().x());
+                    float relativeY = (float) (p.getPosition().y() - camera.getPosition().y());
+                    float relativeZ = (float) (p.getPosition().z() - camera.getPosition().z());
+                    NProgram.NProgramLight light = new NProgram.NProgramLight(
+                            NProgram.POINT_LIGHT_TYPE,
+                            relativeX, relativeY, relativeZ,
+                            0f, 0f, 0f,
+                            0f, 0f,
+                            p.getDiffuse().x(), p.getDiffuse().y(), p.getDiffuse().z(),
+                            p.getSpecular().x(), p.getSpecular().y(), p.getSpecular().z(),
+                            p.getAmbient().x(), p.getAmbient().y(), p.getAmbient().z()
+                    );
+                    renderableLightsList.add(light);
+                }
+                if (indexLight instanceof NLight.NSpotLight s) {
+                    float relativeX = (float) (s.getPosition().x() - camera.getPosition().x());
+                    float relativeY = (float) (s.getPosition().y() - camera.getPosition().y());
+                    float relativeZ = (float) (s.getPosition().z() - camera.getPosition().z());
+                    NProgram.NProgramLight light = new NProgram.NProgramLight(
+                            NProgram.SPOT_LIGHT_TYPE,
+                            relativeX, relativeY, relativeZ,
+                            s.getDirection().x(), s.getDirection().y(), s.getDirection().z(),
+                            s.getInnerCone(), s.getOuterCone(),
+                            s.getDiffuse().x(), s.getDiffuse().y(), s.getDiffuse().z(),
+                            s.getSpecular().x(), s.getSpecular().y(), s.getSpecular().z(),
+                            s.getAmbient().x(), s.getAmbient().y(), s.getAmbient().z()
+                    );
+                    renderableLightsList.add(light);
+                }
+            }
+        }
+        renderableLightsList.sort((o1, o2) -> {
+            float o1Dist = (o1.x * o1.x) + (o1.y * o1.y) + (o1.z * o1.z);
+            float o2Dist = (o2.x * o2.x) + (o2.y * o2.y) + (o2.z * o2.z);
+            if (o1.type == NProgram.DIRECTIONAL_LIGHT_TYPE) {
+                o1Dist = 0f;
+            }
+            if (o2.type == NProgram.DIRECTIONAL_LIGHT_TYPE) {
+                o2Dist = 0f;
+            }
+            return Float.compare(o1Dist, o2Dist);
+        });
+
         NProgram.NProgramLight[] renderableLights = new NProgram.NProgramLight[NProgram.MAX_AMOUNT_OF_LIGHTS];
         for (int i = 0; i < renderableLights.length; i++) {
-            NProgram.NProgramLight light = NProgram.NULL_LIGHT;
-            if (i < lights.size()) {
-                NLight indexLight = lights.get(i);
-                if (indexLight != null) {
-                    if (indexLight instanceof NLight.NDirectionalLight d) {
-                        light = new NProgram.NProgramLight(
-                                NProgram.DIRECTIONAL_LIGHT_TYPE,
-                                0f, 0f, 0f,
-                                d.getDirection().x(), d.getDirection().y(), d.getDirection().z(),
-                                0f, 0f,
-                                d.getDiffuse().x(), d.getDiffuse().y(), d.getDiffuse().z(),
-                                d.getSpecular().x(), d.getSpecular().y(), d.getSpecular().z(),
-                                d.getAmbient().x(), d.getAmbient().y(), d.getAmbient().z()
-                        );
-                    }
-                    if (indexLight instanceof NLight.NPointLight p) {
-                        float relativeX = (float) (p.getPosition().x() - camera.getPosition().x());
-                        float relativeY = (float) (p.getPosition().y() - camera.getPosition().y());
-                        float relativeZ = (float) (p.getPosition().z() - camera.getPosition().z());
-                        light = new NProgram.NProgramLight(
-                                NProgram.POINT_LIGHT_TYPE,
-                                relativeX, relativeY, relativeZ,
-                                0f, 0f, 0f,
-                                0f, 0f,
-                                p.getDiffuse().x(), p.getDiffuse().y(), p.getDiffuse().z(),
-                                p.getSpecular().x(), p.getSpecular().y(), p.getSpecular().z(),
-                                p.getAmbient().x(), p.getAmbient().y(), p.getAmbient().z()
-                        );
-                    }
-                    if (indexLight instanceof NLight.NSpotLight s) {
-                        float relativeX = (float) (s.getPosition().x() - camera.getPosition().x());
-                        float relativeY = (float) (s.getPosition().y() - camera.getPosition().y());
-                        float relativeZ = (float) (s.getPosition().z() - camera.getPosition().z());
-                        light = new NProgram.NProgramLight(
-                                NProgram.SPOT_LIGHT_TYPE,
-                                relativeX, relativeY, relativeZ,
-                                s.getDirection().x(), s.getDirection().y(), s.getDirection().z(),
-                                s.getInnerCone(), s.getOuterCone(),
-                                s.getDiffuse().x(), s.getDiffuse().y(), s.getDiffuse().z(),
-                                s.getSpecular().x(), s.getSpecular().y(), s.getSpecular().z(),
-                                s.getAmbient().x(), s.getAmbient().y(), s.getAmbient().z()
-                        );
-                    }
-                }
+            NProgram.NProgramLight light = null;
+            if (i < renderableLightsList.size()) {
+                light = renderableLightsList.get(i);
             }
             renderableLights[i] = light;
         }
@@ -134,7 +151,11 @@ public class N3DObjectRenderer {
         {
             N3DObject obj;
             while ((obj = renderQueue.poll()) != null) {
-                obj.transformAabb(transformedMin, transformedMax);
+                if (obj.getAnimator() != null) {
+                    obj.transformAnimatedAabb(transformedMin, transformedMax);
+                } else {
+                    obj.transformAabb(transformedMin, transformedMax);
+                }
                 if (!transformedMin.isFinite() || !transformedMax.isFinite()) {
                     continue;
                 }
@@ -149,7 +170,7 @@ public class N3DObjectRenderer {
         }
 
         List<ToRender> toRenderList = new ArrayList<>();
-
+        
         {
             for (N3DObject obj : objectsToRender) {
                 Matrix4f modelMatrix = obj.getModel();
@@ -162,11 +183,17 @@ public class N3DObjectRenderer {
 
                     NGeometry[] geometries = n.getGeometries();
                     for (NGeometry geometry : geometries) {
-                        TransformUtils.transformAabb(
-                                geometry.getMesh().getAabbMin(), geometry.getMesh().getAabbMax(),
-                                transformation,
-                                transformedMin, transformedMax
-                        );
+                        if (animator != null) {
+                            modelMatrix.transformAab(
+                                    geometry.getMesh().getAnimatedAabbMin(), geometry.getMesh().getAnimatedAabbMax(),
+                                    transformedMin, transformedMax
+                            );
+                        } else {
+                            transformation.transformAab(
+                                    geometry.getMesh().getAabbMin(), geometry.getMesh().getAabbMax(),
+                                    transformedMin, transformedMax
+                            );
+                        }
                         if (!transformedMin.isFinite() || !transformedMax.isFinite()) {
                             continue;
                         }
@@ -234,11 +261,11 @@ public class N3DObjectRenderer {
             }
             glEnable(GL_BLEND);
         }
-        
+
         if (!blendList.isEmpty()) {
             renderVariant(NProgram.VARIANT_ALPHA_BLENDING, camera, renderableLights, blendList);
         }
-        
+
     }
 
     private static void renderVariant(
@@ -295,7 +322,7 @@ public class N3DObjectRenderer {
                 Vector4fc d = material.getDiffuseColor();
                 Vector3fc s = material.getSpecularColor();
                 Vector3fc e = material.getEmissiveColor();
-                
+
                 NProgram.sendMaterial(variant, new NProgram.NProgramMaterial(
                         d.x(), d.y(), d.z(), d.w(),
                         s.x(), s.y(), s.z(),
@@ -307,15 +334,19 @@ public class N3DObjectRenderer {
             }
 
             if (!textures.equals(lastTextures)) {
+                int r_g_b_a = textures.r_g_b_a();
+                int ht_ie_rf_nx = textures.ht_ie_rf_nx();
+                int er_eg_eb_ny = textures.er_eg_eb_ny();
+
                 glActiveTexture(GL_TEXTURE0);
-                glBindTexture(GL_TEXTURE_2D, textures.r_g_b_a());
+                glBindTexture(GL_TEXTURE_2D, r_g_b_a);
 
                 glActiveTexture(GL_TEXTURE1);
-                glBindTexture(GL_TEXTURE_2D, textures.ht_ie_rf_nx());
-                
+                glBindTexture(GL_TEXTURE_2D, ht_ie_rf_nx);
+
                 glActiveTexture(GL_TEXTURE2);
-                glBindTexture(GL_TEXTURE_2D, textures.er_eg_eb_ny());
-                
+                glBindTexture(GL_TEXTURE_2D, er_eg_eb_ny);
+
                 glUniform1i(
                         variant.locationOf(NProgram.UNIFORM_PARALLAX_SUPPORTED),
                         textures.isHeightMapSupported() ? 1 : 0

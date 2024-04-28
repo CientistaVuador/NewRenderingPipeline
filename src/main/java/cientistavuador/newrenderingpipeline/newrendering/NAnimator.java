@@ -167,8 +167,12 @@ public class NAnimator {
         return animationCounter;
     }
     
+    public boolean isFinished() {
+        return this.animationCounter >= this.animation.getDuration();
+    }
+    
     public void update(double tpf) {
-        if (this.animationCounter >= this.animation.getDuration()) {
+        if (isFinished()) {
             if (this.looping) {
                 reset();
             } else {

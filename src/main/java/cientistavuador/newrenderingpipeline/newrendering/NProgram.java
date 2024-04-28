@@ -37,7 +37,7 @@ import static org.lwjgl.opengl.GL33C.*;
  * @author Cien
  */
 public class NProgram {
-
+    
     public static final float LIGHT_ATTENUATION = 0.75f;
 
     public static final int MAX_AMOUNT_OF_LIGHTS = 16;
@@ -363,8 +363,6 @@ public class NProgram {
                 vec3 diffuseColor,
                 vec3 specularColor,
                 float exponent,
-                float normalizationFactor,
-                float fresnel,
                 vec3 normal,
                 vec3 viewDirection,
                 vec3 worldPosition
@@ -378,7 +376,7 @@ public class NProgram {
                 vec3 halfwayDirection = normalize(oppositeLightDirection + viewDirection);
                 
                 float diffuseFactor = max(dot(normal, oppositeLightDirection), 0.0);
-                float specularFactor = pow(max(dot(normal, halfwayDirection), 0.0), exponent) * diffuseFactor * normalizationFactor * fresnel;
+                float specularFactor = pow(max(dot(normal, halfwayDirection), 0.0), exponent) * diffuseFactor;
                 
                 vec3 diffuse = light.diffuse * diffuseFactor * diffuseColor;
                 vec3 specular = light.specular * specularFactor * specularColor;
@@ -461,14 +459,16 @@ public class NProgram {
                 
                 normal = normalize(TBN * normal);
                 
+                vec3 worldPosition = inVertex.worldPosition;
+                vec3 viewDirection = normalize(-worldPosition);
+                
                 float exponent = (pow((material.maxExponent - material.minExponent) + 1.0, 1.0 - hirnx[1]) - 1.0) + material.minExponent;
                 float normalizationFactor = ((exponent + 2.0) * (exponent + 4.0)) / (8.0 * PI * (pow(2.0, -exponent * 0.5) + exponent));
-                vec3 viewDirection = normalize(-inVertex.worldPosition);
-                float fresnel = 1.0 - max(dot(normal, viewDirection), 0.0);
-                fresnel = (fresnel * 0.80) + 0.20;
-                vec3 worldPosition = inVertex.worldPosition;
+                float fresnel = (1.0 - max(dot(normal, viewDirection), 0.0)) * 0.80 + 0.20;
+                
                 vec3 diffuseColor = material.diffuseColor.rgb * rgba.rgb;
-                vec3 specularColor = material.specularColor;
+                vec3 metallicSpecularColor = mix(vec3(1.0), diffuseColor / ((diffuseColor.r + diffuseColor.g + diffuseColor.b) / 3.0), hirnx[2]);
+                vec3 specularColor = material.specularColor * normalizationFactor * fresnel * metallicSpecularColor;
                 
                 for (int i = 0; i < MAX_AMOUNT_OF_LIGHTS; i++) {
                     Light light = lights[i];
@@ -478,7 +478,7 @@ public class NProgram {
                     finalColor.rgb += calculateLight(
                         light,
                         diffuseColor, specularColor,
-                        exponent, normalizationFactor, fresnel,
+                        exponent,
                         normal, viewDirection,
                         worldPosition
                     );

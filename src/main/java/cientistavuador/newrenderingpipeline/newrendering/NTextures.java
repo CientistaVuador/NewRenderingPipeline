@@ -284,14 +284,14 @@ public class NTextures {
             }
             
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
+            
             if (NBlendingMode.ALPHA_TESTING.equals(this.blendingMode)) {
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
             } else {
                 glGenerateMipmap(GL_TEXTURE_2D);
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
             }
-
+            
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
@@ -334,7 +334,7 @@ public class NTextures {
 
         long textureId = NTextures.textureIds.getAndIncrement();
         glActiveTexture(GL_TEXTURE0);
-
+        
         this.r_g_b_a.texture = loadTexture(internalFormatSRGB,
                 this.redGreenBlueAlpha,
                 "r_g_b_a",
