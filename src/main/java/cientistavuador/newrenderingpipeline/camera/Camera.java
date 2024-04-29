@@ -61,6 +61,10 @@ public interface Camera {
     
     Matrix4fc getView();
     
+    Matrix4fc getInverseProjection();
+    
+    Matrix4fc getInverseView();
+    
     Vector3dc getPosition();
     
     Matrix4dc getProjectionView();

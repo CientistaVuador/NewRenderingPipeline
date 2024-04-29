@@ -76,7 +76,7 @@ public class Main {
     public static final float TO_PHYSICS_ENGINE_UNITS = PHYSICS_ENGINE_UNITS;
     public static final float FROM_PHYSICS_ENGINE_UNITS = 1f / PHYSICS_ENGINE_UNITS;
     
-    public static final boolean USE_MSAA = false;
+    public static final boolean USE_MSAA = true;
     public static final boolean DEBUG_ENABLED = true;
     public static final boolean SPIKE_LAG_WARNINGS = false;
     public static final int MIN_UNIFORM_BUFFER_BINDINGS = UBOBindingPoints.MIN_NUMBER_OF_UBO_BINDING_POINTS;
@@ -311,7 +311,7 @@ public class Main {
         });
 
         if (USE_MSAA) {
-            glfwWindowHint(GLFW_SAMPLES, 8);
+            glfwWindowHint(GLFW_SAMPLES, 4);
         }
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, OPENGL_MAJOR_VERSION);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, OPENGL_MINOR_VERSION);
@@ -461,6 +461,7 @@ public class Main {
         glCullFace(GL_BACK);
         glLineWidth(1f);
         glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+        glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
         int maxUBOBindings = glGetInteger(GL_MAX_UNIFORM_BUFFER_BINDINGS);
         if (maxUBOBindings < MIN_UNIFORM_BUFFER_BINDINGS) {
             throw new IllegalStateException("Max UBO Bindings too small! Update your drivers or buy a new GPU.");

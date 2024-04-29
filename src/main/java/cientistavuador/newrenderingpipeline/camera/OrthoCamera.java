@@ -71,6 +71,9 @@ public class OrthoCamera implements Camera {
     private final Matrix4d projectionView = new Matrix4d();
     private final Matrix4f projectionViewFloat = new Matrix4f();
     
+    private final Matrix4f inverseView = new Matrix4f();
+    private final Matrix4f inverseProjection = new Matrix4f();
+    
     //UBO
     private CameraUBO ubo = null;
     
@@ -89,6 +92,16 @@ public class OrthoCamera implements Camera {
         return projection;
     }
 
+    @Override
+    public Matrix4fc getInverseView() {
+        return this.inverseView;
+    }
+
+    @Override
+    public Matrix4fc getInverseProjection() {
+        return this.inverseProjection;
+    }
+    
     private void updateProjection() {
         this.projection
                 .identity()
@@ -98,6 +111,7 @@ public class OrthoCamera implements Camera {
                         this.nearPlane,
                         this.farPlane
                 );
+        this.inverseProjection.set(this.projection).invertOrtho();
         
         if (this.ubo != null) {
             this.ubo.setProjection(this.projection);
@@ -120,6 +134,7 @@ public class OrthoCamera implements Camera {
                 0 + this.front.z(),
                 this.up.x(), this.up.y(), this.up.z()
         );
+        this.inverseView.set(this.view).invertAffine();
         
         if (this.ubo != null) {
             this.ubo.setView(this.view);

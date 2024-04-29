@@ -33,6 +33,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.regex.Pattern;
 import org.lwjgl.system.MemoryUtil;
 import static org.lwjgl.stb.STBImage.*;
@@ -43,22 +45,22 @@ import org.lwjgl.system.MemoryStack;
  * @author Cien
  */
 public class NTexturesIO {
-    
+
     public static final float MINIMUM_AMBIENT_OCCLUSION = 0.5f;
-    
+
     private static byte[] loadFromJarOrNull(String path) throws FileNotFoundException, IOException {
         if (path == null) {
             return null;
         }
         try (InputStream stream = ClassLoader.getSystemResourceAsStream(path)) {
             if (stream == null) {
-                throw new FileNotFoundException("File not found: "+path);
+                throw new FileNotFoundException("File not found: " + path);
             }
             byte[] data = stream.readAllBytes();
             return data;
         }
     }
-    
+
     public static NTextures loadFromJar(
             String diffusePath,
             String aoPath,
@@ -68,7 +70,7 @@ public class NTexturesIO {
             String reflectivenessPath,
             String emissivePath
     ) throws IOException {
-        String[] paths = new String[] {
+        String[] paths = new String[]{
             diffusePath, aoPath, heightPath, invertedExponentPath, normalPath, reflectivenessPath, emissivePath
         };
         StringBuilder b = new StringBuilder();
@@ -87,7 +89,7 @@ public class NTexturesIO {
         if (name.isEmpty()) {
             name = null;
         }
-        
+
         byte[] diffuse = loadFromJarOrNull(diffusePath);
         byte[] ao = loadFromJarOrNull(aoPath);
         byte[] height = loadFromJarOrNull(heightPath);
@@ -95,10 +97,10 @@ public class NTexturesIO {
         byte[] normal = loadFromJarOrNull(normalPath);
         byte[] reflectiveness = loadFromJarOrNull(reflectivenessPath);
         byte[] emissive = loadFromJarOrNull(emissivePath);
-        
+
         return loadFromImages(name, diffuse, ao, height, invertedExponent, normal, reflectiveness, emissive);
     }
-    
+
     public static class ImageFailedToLoadException extends Exception {
 
         private static final long serialVersionUID = 1L;
@@ -106,10 +108,11 @@ public class NTexturesIO {
         public ImageFailedToLoadException(String message) {
             super(message);
         }
-        
+
     }
-    
+
     public static class LoadedImage {
+
         public final int width;
         public final int height;
         public final byte[] pixelData;
@@ -120,7 +123,7 @@ public class NTexturesIO {
             this.pixelData = pixelData;
         }
     }
-    
+
     public static LoadedImage nearestResize(LoadedImage image, int newWidth, int newHeight) {
         if (newWidth < 0 || newHeight < 0) {
             throw new IllegalArgumentException("Negative dimensions.");
@@ -128,9 +131,9 @@ public class NTexturesIO {
         byte[] newData = new byte[newWidth * newHeight * 4];
         for (int y = 0; y < newHeight; y++) {
             for (int x = 0; x < newWidth; x++) {
-                int ox = (int) Math.floor((x / ((float)newWidth)) * image.width);
-                int oy = (int) Math.floor((y / ((float)newHeight)) * image.height);
-                
+                int ox = (int) Math.floor((x / ((float) newWidth)) * image.width);
+                int oy = (int) Math.floor((y / ((float) newHeight)) * image.height);
+
                 byte r = image.pixelData[0 + (ox * 4) + (oy * image.width * 4)];
                 byte g = image.pixelData[1 + (ox * 4) + (oy * image.width * 4)];
                 byte b = image.pixelData[2 + (ox * 4) + (oy * image.width * 4)];
@@ -143,7 +146,7 @@ public class NTexturesIO {
         }
         return new LoadedImage(newWidth, newHeight, newData);
     }
-    
+
     public static LoadedImage flipY(LoadedImage image) {
         byte[] newData = new byte[image.width * image.height * 4];
         for (int y = 0; y < image.height; y++) {
@@ -155,7 +158,7 @@ public class NTexturesIO {
         }
         return new LoadedImage(image.width, image.height, newData);
     }
-    
+
     public static LoadedImage flipX(LoadedImage image) {
         byte[] newData = new byte[image.width * image.height * 4];
         for (int y = 0; y < image.height; y++) {
@@ -169,7 +172,7 @@ public class NTexturesIO {
         }
         return new LoadedImage(image.width, image.height, newData);
     }
-    
+
     public static LoadedImage loadImage(byte[] image) {
         try {
             return loadImageChecked(image);
@@ -177,38 +180,38 @@ public class NTexturesIO {
             throw new RuntimeException(ex);
         }
     }
-    
+
     public static LoadedImage loadImageChecked(byte[] image) throws ImageFailedToLoadException {
         if (image == null) {
             return null;
         }
-        
+
         ByteBuffer nativeImage = MemoryUtil.memAlloc(image.length).put(image).flip();
         try {
             stbi_set_flip_vertically_on_load_thread(1);
-            
+
             try (MemoryStack stack = MemoryStack.stackPush()) {
                 IntBuffer widthBuffer = stack.callocInt(1);
                 IntBuffer heightBuffer = stack.callocInt(1);
                 IntBuffer channelsBuffer = stack.callocInt(1);
-                
+
                 ByteBuffer pixelDataBuffer = stbi_load_from_memory(nativeImage, widthBuffer, heightBuffer, channelsBuffer, 4);
                 if (pixelDataBuffer == null) {
-                    throw new ImageFailedToLoadException("Image failed to load: "+stbi_failure_reason());
+                    throw new ImageFailedToLoadException("Image failed to load: " + stbi_failure_reason());
                 }
-                
+
                 LoadedImage loaded = new LoadedImage(widthBuffer.get(), heightBuffer.get(), new byte[pixelDataBuffer.capacity()]);
                 pixelDataBuffer.get(loaded.pixelData).flip();
-                
+
                 stbi_image_free(pixelDataBuffer);
-                
+
                 return loaded;
             }
         } finally {
             MemoryUtil.memFree(nativeImage);
         }
     }
-    
+
     public static NTextures loadFromImages(
             String name,
             byte[] diffuseImage,
@@ -226,15 +229,15 @@ public class NTexturesIO {
         LoadedImage normal = loadImage(normalImage);
         LoadedImage reflectiveness = loadImage(reflectivenessImage);
         LoadedImage emissive = loadImage(emissiveImage);
-        
-        LoadedImage[] loadedArray = new LoadedImage[] {
+
+        LoadedImage[] loadedArray = new LoadedImage[]{
             diffuse, ao, height, exponent, normal, reflectiveness, emissive
         };
-        
+
         int foundWidth = -1;
         int foundHeight = -1;
-        
-        for (LoadedImage i:loadedArray) {
+
+        for (LoadedImage i : loadedArray) {
             if (i != null) {
                 foundWidth = i.width;
                 foundHeight = i.height;
@@ -245,12 +248,12 @@ public class NTexturesIO {
                 }
             }
         }
-        
+
         if (foundWidth == -1 && foundHeight == -1) {
             foundWidth = 0;
             foundHeight = 0;
         }
-        
+
         return load(
                 name,
                 foundWidth,
@@ -264,20 +267,20 @@ public class NTexturesIO {
                 (emissive != null ? emissive.pixelData : null)
         );
     }
-    
+
     private static void validate(String mapName, byte[] map, int requiredPixels) {
         if (map != null && map.length != (requiredPixels * 4)) {
-            throw new IllegalArgumentException(mapName+" requires "+requiredPixels+" pixels but found "+(map.length / 4));
+            throw new IllegalArgumentException(mapName + " requires " + requiredPixels + " pixels but found " + (map.length / 4));
         }
     }
-    
+
     private static int fetch(byte[] map, int index, int fallback) {
         if (map == null) {
             return fallback;
         }
         return map[index] & 0xFF;
     }
-    
+
     public static NTextures load(
             String name,
             int width, int height,
@@ -295,9 +298,9 @@ public class NTexturesIO {
         if (height < 0) {
             throw new IllegalArgumentException("height is negative.");
         }
-        
+
         int pixels = width * height;
-        
+
         validate("diffuse map", diffuseMap, pixels);
         validate("ao map", aoMap, pixels);
         validate("height map", heightMap, pixels);
@@ -305,9 +308,9 @@ public class NTexturesIO {
         validate("normal map", normalMap, pixels);
         validate("reflectiveness map", reflectivenessMap, pixels);
         validate("emissive map", emissiveMap, pixels);
-        
+
         NBlendingMode mode = NBlendingMode.OPAQUE;
-        
+
         if (diffuseMap != null) {
             for (int p = 0; p < pixels; p++) {
                 int alpha = diffuseMap[(p * 4) + 3] & 0xFF;
@@ -320,56 +323,63 @@ public class NTexturesIO {
                 }
             }
         }
-        
+
         byte[] rgba = new byte[pixels * 4];
         byte[] hirnx = new byte[pixels * 4];
         byte[] eregebny = new byte[pixels * 4];
-        
+
         boolean heightMapSupported = false;
-        
+
         for (int p = 0; p < pixels; p++) {
             int r = fetch(diffuseMap, (p * 4) + 0, 255);
             int g = fetch(diffuseMap, (p * 4) + 1, 255);
             int b = fetch(diffuseMap, (p * 4) + 2, 255);
             int a = fetch(diffuseMap, (p * 4) + 3, 255);
-            
+
             int ao = fetch(aoMap, (p * 4) + 0, 255);
             int hei = fetch(heightMap, (p * 4) + 0, 255);
             int invexp = fetch(invertedExponentMap, (p * 4) + 0, 255);
-            
+
             int nx = fetch(normalMap, (p * 4) + 0, 127);
             int ny = fetch(normalMap, (p * 4) + 1, 127);
-            
+
             int re = fetch(reflectivenessMap, (p * 4) + 0, 0);
-            
+
             int er = fetch(emissiveMap, (p * 4) + 0, 0);
             int eg = fetch(emissiveMap, (p * 4) + 1, 0);
             int eb = fetch(emissiveMap, (p * 4) + 2, 0);
-            
+
             if (hei != 255) {
                 heightMapSupported = true;
             }
-            
+
             float ambientOcclusion = ((ao / 255f) * (1f - MINIMUM_AMBIENT_OCCLUSION)) + MINIMUM_AMBIENT_OCCLUSION;
-            
+
             rgba[(p * 4) + 0] = (byte) Math.floor(r * ambientOcclusion);
             rgba[(p * 4) + 1] = (byte) Math.floor(g * ambientOcclusion);
             rgba[(p * 4) + 2] = (byte) Math.floor(b * ambientOcclusion);
             rgba[(p * 4) + 3] = (byte) a;
-            
+
             hirnx[(p * 4) + 0] = (byte) hei;
             hirnx[(p * 4) + 1] = (byte) invexp;
             hirnx[(p * 4) + 2] = (byte) re;
             hirnx[(p * 4) + 3] = (byte) nx;
-            
+
             eregebny[(p * 4) + 0] = (byte) er;
             eregebny[(p * 4) + 1] = (byte) eg;
             eregebny[(p * 4) + 2] = (byte) eb;
             eregebny[(p * 4) + 3] = (byte) ny;
         }
-        
+
         if (!NBlendingMode.OPAQUE.equals(mode)) {
-            MarginAutomata.MarginAutomataIO io = new MarginAutomata.MarginAutomataIO() {
+            class IO implements MarginAutomata.MarginAutomataIO {
+
+                private final int buffer;
+
+                public IO(int buffer) {
+                    this.buffer = buffer;
+                }
+
                 @Override
                 public int width() {
                     return width;
@@ -379,20 +389,42 @@ public class NTexturesIO {
                 public int height() {
                     return height;
                 }
-                
+
                 @Override
                 public boolean empty(int x, int y) {
                     int pixel = ((y * width) + x) * 4;
                     int alpha = fetch(rgba, pixel + 3, 255);
                     return alpha == 0;
                 }
-                
+
                 @Override
                 public void read(int x, int y, MarginAutomata.MarginAutomataColor color) {
                     int pixel = ((y * width) + x) * 4;
-                    float red = fetch(rgba, pixel + 0, 255) / 255f;
-                    float green = fetch(rgba, pixel + 1, 255) / 255f;
-                    float blue = fetch(rgba, pixel + 2, 255) / 255f;
+                    float red = 1f;
+                    float green = 0f;
+                    float blue = 1f;
+                    switch (this.buffer) {
+                        case 0 -> {
+                            red = fetch(rgba, pixel + 0, 255) / 255f;
+                            green = fetch(rgba, pixel + 1, 255) / 255f;
+                            blue = fetch(rgba, pixel + 2, 255) / 255f;
+                        }
+                        case 1 -> {
+                            red = fetch(hirnx, pixel + 0, 255) / 255f;
+                            green = fetch(hirnx, pixel + 1, 255) / 255f;
+                            blue = fetch(hirnx, pixel + 2, 255) / 255f;
+                        }
+                        case 2 -> {
+                            red = fetch(eregebny, pixel + 0, 255) / 255f;
+                            green = fetch(eregebny, pixel + 1, 255) / 255f;
+                            blue = fetch(eregebny, pixel + 2, 255) / 255f;
+                        }
+                        case 3 -> {
+                            red = fetch(hirnx, pixel + 3, 255) / 255f;
+                            green = fetch(eregebny, pixel + 3, 255) / 255f;
+                            blue = 0f;
+                        }
+                    }
                     color.r = red;
                     color.g = green;
                     color.b = blue;
@@ -404,14 +436,56 @@ public class NTexturesIO {
                     int green = (int) (Math.min(Math.max(color.g, 0f), 1f) * 255f);
                     int blue = (int) (Math.min(Math.max(color.b, 0f), 1f) * 255f);
                     int pixel = ((y * width) + x) * 4;
-                    rgba[pixel + 0] = (byte) red;
-                    rgba[pixel + 1] = (byte) green;
-                    rgba[pixel + 2] = (byte) blue;
+                    switch (this.buffer) {
+                        case 0 -> {
+                            rgba[pixel + 0] = (byte) red;
+                            rgba[pixel + 1] = (byte) green;
+                            rgba[pixel + 2] = (byte) blue;
+                        }
+                        case 1 -> {
+                            hirnx[pixel + 0] = (byte) red;
+                            hirnx[pixel + 1] = (byte) green;
+                            hirnx[pixel + 2] = (byte) blue;
+                        }
+                        case 2 -> {
+                            eregebny[pixel + 0] = (byte) red;
+                            eregebny[pixel + 1] = (byte) green;
+                            eregebny[pixel + 2] = (byte) blue;
+                        }
+                        case 3 -> {
+                            hirnx[pixel + 3] = (byte) red;
+                            eregebny[pixel + 3] = (byte) green;
+                        }
+                    }
                 }
-            };
-            MarginAutomata.generateMargin(io, -1);
+            }
+            
+            Thread[] threads = new Thread[4];
+            Throwable[] exceptions = new Throwable[threads.length];
+            for (int i = 0; i < threads.length; i++) {
+                final int index = i;
+                threads[i] = new Thread(() -> {
+                    MarginAutomata.generateMargin(new IO(index), -1);
+                }, "NTexturesIO-"+i+"-"+name);
+                threads[i].setUncaughtExceptionHandler((t, ex) -> {
+                    exceptions[index] = ex;
+                });
+                threads[i].start();
+            }
+            for (int i = 0; i < threads.length; i++) {
+                try {
+                    threads[i].join();
+                } catch (InterruptedException ex) {
+                    throw new RuntimeException(ex);
+                }
+            }
+            for (int i = 0; i < threads.length; i++) {
+                if (exceptions[i] != null) {
+                    throw new RuntimeException(exceptions[i]);
+                }
+            }
         }
-        
+
         ByteBuffer totalData = ByteBuffer.allocate(
                 Integer.BYTES + Integer.BYTES + rgba.length + hirnx.length + eregebny.length
         )
@@ -421,9 +495,9 @@ public class NTexturesIO {
                 .put(hirnx)
                 .put(eregebny)
                 .flip();
-        
+
         String sha256 = CryptoUtils.sha256(totalData);
-        
+
         return new NTextures(
                 name,
                 width, height,
@@ -435,9 +509,9 @@ public class NTexturesIO {
                 sha256
         );
     }
-    
+
     private NTexturesIO() {
-        
+
     }
-    
+
 }

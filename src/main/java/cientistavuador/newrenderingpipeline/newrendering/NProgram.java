@@ -38,6 +38,9 @@ import static org.lwjgl.opengl.GL33C.*;
  */
 public class NProgram {
     
+    public static final float DIFFUSE_STRENGTH = 0.90f;
+    public static final float SPECULAR_STRENGTH = 0.10f;
+    
     public static final float LIGHT_ATTENUATION = 0.75f;
 
     public static final int MAX_AMOUNT_OF_LIGHTS = 16;
@@ -385,7 +388,7 @@ public class NProgram {
                 float distance = length(light.position - worldPosition);
                 float attenuation = 1.0 / ((distance * distance) + LIGHT_ATTENUATION);
                 
-                float pointAttenuation = (lightType == POINT_LIGHT_TYPE || lightType == SPOT_LIGHT_TYPE ? attenuation : 1.0);
+                float pointAttenuation = (lightType != DIRECTIONAL_LIGHT_TYPE ? attenuation : 1.0);
                 
                 diffuse *= pointAttenuation;
                 specular *= pointAttenuation;
@@ -409,7 +412,7 @@ public class NProgram {
                 float c = 2.43;
                 float d = 0.59;
                 float e = 0.14;
-                return clamp((rgb*(a*rgb+b))/(rgb*(c*rgb+d)+e), vec3(0.0), vec3(1.0));
+                return (rgb*(a*rgb+b))/(rgb*(c*rgb+d)+e);
             }
             
             vec3 gammaCorrection(vec3 rgb) {
@@ -464,11 +467,10 @@ public class NProgram {
                 
                 float exponent = (pow((material.maxExponent - material.minExponent) + 1.0, 1.0 - hirnx[1]) - 1.0) + material.minExponent;
                 float normalizationFactor = ((exponent + 2.0) * (exponent + 4.0)) / (8.0 * PI * (pow(2.0, -exponent * 0.5) + exponent));
-                float fresnel = (1.0 - max(dot(normal, viewDirection), 0.0)) * 0.80 + 0.20;
                 
-                vec3 diffuseColor = material.diffuseColor.rgb * rgba.rgb;
-                vec3 metallicSpecularColor = mix(vec3(1.0), diffuseColor / ((diffuseColor.r + diffuseColor.g + diffuseColor.b) / 3.0), hirnx[2]);
-                vec3 specularColor = material.specularColor * normalizationFactor * fresnel * metallicSpecularColor;
+                vec3 diffuseColor = material.diffuseColor.rgb * rgba.rgb * DIFFUSE_STRENGTH;
+                vec3 metallicSpecularColor = mix(vec3(1.0), diffuseColor / max(((diffuseColor.r + diffuseColor.g + diffuseColor.b) / 3.0), 0.001), hirnx[2]);
+                vec3 specularColor = material.specularColor * normalizationFactor * metallicSpecularColor * SPECULAR_STRENGTH;
                 
                 for (int i = 0; i < MAX_AMOUNT_OF_LIGHTS; i++) {
                     Light light = lights[i];
@@ -518,7 +520,9 @@ public class NProgram {
         new ProgramCompiler.ShaderConstant("SPOT_LIGHT_TYPE", SPOT_LIGHT_TYPE),
         new ProgramCompiler.ShaderConstant("LIGHT_ATTENUATION", LIGHT_ATTENUATION),
         new ProgramCompiler.ShaderConstant("MAX_AMOUNT_OF_BONES", NMesh.MAX_AMOUNT_OF_BONES),
-        new ProgramCompiler.ShaderConstant("MAX_AMOUNT_OF_BONE_WEIGHTS", NMesh.MAX_AMOUNT_OF_BONE_WEIGHTS)
+        new ProgramCompiler.ShaderConstant("MAX_AMOUNT_OF_BONE_WEIGHTS", NMesh.MAX_AMOUNT_OF_BONE_WEIGHTS),
+        new ProgramCompiler.ShaderConstant("DIFFUSE_STRENGTH", DIFFUSE_STRENGTH),
+        new ProgramCompiler.ShaderConstant("SPECULAR_STRENGTH", SPECULAR_STRENGTH)
     };
 
     static {

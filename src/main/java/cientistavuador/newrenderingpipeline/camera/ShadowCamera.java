@@ -52,8 +52,12 @@ public class ShadowCamera implements Camera {
     private final Vector3f up = new Vector3f();
 
     private final Vector3d position = new Vector3d();
+    
     private final Matrix4f projection = new Matrix4f();
     private final Matrix4f view = new Matrix4f();
+    
+    private final Matrix4f inverseProjection = new Matrix4f();
+    private final Matrix4f inverseView = new Matrix4f();
 
     private final Matrix4d viewPosition = new Matrix4d();
     private final Matrix4d inverseCameraProjectionView = new Matrix4d();
@@ -148,6 +152,7 @@ public class ShadowCamera implements Camera {
         this.nearPlane = minZ;
         this.dimensions.set((maxX - minX), (maxY - minY));
         this.projection.setOrtho(minX, maxX, minY, maxY, -maxZ, -minZ);
+        this.inverseProjection.set(this.projection).invertOrtho();
         if (this.ubo != null) {
             this.ubo.setProjection(this.projection);
         }
@@ -168,6 +173,8 @@ public class ShadowCamera implements Camera {
                 0 + this.front.z(),
                 this.up.x(), this.up.y(), this.up.z()
         );
+        this.inverseView.set(this.view).invertAffine();
+        
         this.viewPosition
                 .set(this.view)
                 .translate(-this.position.x(), -this.position.y(), -this.position.z());
@@ -215,6 +222,16 @@ public class ShadowCamera implements Camera {
     @Override
     public Matrix4fc getView() {
         return this.view;
+    }
+
+    @Override
+    public Matrix4fc getInverseProjection() {
+        return this.inverseProjection;
+    }
+
+    @Override
+    public Matrix4fc getInverseView() {
+        return this.inverseView;
     }
 
     @Override

@@ -47,7 +47,7 @@ import static org.lwjgl.opengl.GL33C.*;
  */
 public class N3DObjectRenderer {
 
-    public static boolean PARALLAX_ENABLED = false;
+    public static boolean PARALLAX_ENABLED = true;
 
     private static final ConcurrentLinkedQueue<N3DObject> renderQueue = new ConcurrentLinkedQueue<>();
 
@@ -56,7 +56,7 @@ public class N3DObjectRenderer {
     }
 
     private static class ToRender {
-
+        
         public final Matrix4f transformation;
         public final Matrix4f model;
         public final float distanceSquared;
@@ -149,22 +149,29 @@ public class N3DObjectRenderer {
         Vector3f transformedMax = new Vector3f();
 
         {
+            Matrix4f modelMatrix = new Matrix4f();
+            
             N3DObject obj;
             while ((obj = renderQueue.poll()) != null) {
+                obj.calculateModelMatrix(modelMatrix, camera);
+                
                 if (obj.getAnimator() != null) {
-                    obj.transformAnimatedAabb(transformedMin, transformedMax);
+                    obj.transformAnimatedAabb(modelMatrix, transformedMin, transformedMax);
                 } else {
-                    obj.transformAabb(transformedMin, transformedMax);
+                    obj.transformAabb(modelMatrix, transformedMin, transformedMax);
                 }
+                
                 if (!transformedMin.isFinite() || !transformedMax.isFinite()) {
                     continue;
                 }
+                
                 if (!projectionView.testAab(
                         transformedMin.x(), transformedMin.y(), transformedMin.z(),
                         transformedMax.x(), transformedMax.y(), transformedMax.z()
                 )) {
                     continue;
                 }
+                
                 objectsToRender.add(obj);
             }
         }
@@ -173,14 +180,18 @@ public class N3DObjectRenderer {
         
         {
             for (N3DObject obj : objectsToRender) {
-                Matrix4f modelMatrix = obj.getModel();
+                Matrix4f modelMatrix = new Matrix4f();
                 N3DModel n3dmodel = obj.getN3DModel();
                 NAnimator animator = obj.getAnimator();
-
+                
+                obj.calculateModelMatrix(modelMatrix, camera);
+                
                 for (int nodeIndex = 0; nodeIndex < n3dmodel.getNumberOfNodes(); nodeIndex++) {
                     N3DModelNode n = n3dmodel.getNode(nodeIndex);
-                    Matrix4f transformation = new Matrix4f(modelMatrix).mul(n.getTotalTransformation());
-
+                    
+                    Matrix4f transformation = new Matrix4f(modelMatrix)
+                            .mul(n.getTotalTransformation());
+                    
                     NGeometry[] geometries = n.getGeometries();
                     for (NGeometry geometry : geometries) {
                         if (animator != null) {
@@ -194,21 +205,24 @@ public class N3DObjectRenderer {
                                     transformedMin, transformedMax
                             );
                         }
+                        
                         if (!transformedMin.isFinite() || !transformedMax.isFinite()) {
                             continue;
                         }
-                        if (animator == null && !projectionView.testAab(
+                        
+                        if (!projectionView.testAab(
                                 transformedMin.x(), transformedMin.y(), transformedMin.z(),
                                 transformedMax.x(), transformedMax.y(), transformedMax.z()
                         )) {
                             continue;
                         }
+                        
                         float centerX = (transformedMin.x() * 0.5f) + (transformedMax.x() * 0.5f);
                         float centerY = (transformedMin.y() * 0.5f) + (transformedMax.y() * 0.5f);
                         float centerZ = (transformedMin.z() * 0.5f) + (transformedMax.z() * 0.5f);
 
                         float distanceSquared = (centerX * centerX) + (centerY * centerY) + (centerZ * centerZ);
-
+                        
                         toRenderList.add(new ToRender(
                                 transformation, modelMatrix, distanceSquared, obj.getAnimator(), geometry
                         ));
@@ -298,7 +312,7 @@ public class N3DObjectRenderer {
         glUniform1i(variant.locationOf(NProgram.UNIFORM_ER_EG_EB_NY), 2);
 
         render(variant, toRender);
-
+        
         glUseProgram(0);
     }
 
@@ -386,7 +400,10 @@ public class N3DObjectRenderer {
                         transformedBone.identity();
 
                         if (boneMatrix != null) {
-                            transformedBone.set(render.model).mul(boneMatrix).mul(offset);
+                            transformedBone
+                                    .set(render.model)
+                                    .mul(boneMatrix)
+                                    .mul(offset);
                         }
 
                         NProgram.sendBoneMatrix(variant, transformedBone, boneIndex);

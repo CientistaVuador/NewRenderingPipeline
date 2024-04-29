@@ -198,8 +198,6 @@ public class ProgramCompiler {
         
         headerBuilder.append("#version ").append(Main.OPENGL_MAJOR_VERSION).append(Main.OPENGL_MINOR_VERSION).append("0 core\n\n");
         
-        headerBuilder.append("//Compiled at ").append(new Date().toString()).append("\n\n");
-        
         int[] glslVersions = {
             3, 3,
             4, 0,

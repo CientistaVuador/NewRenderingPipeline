@@ -27,9 +27,11 @@
 package cientistavuador.newrenderingpipeline.newrendering;
 
 import cientistavuador.newrenderingpipeline.Main;
+import cientistavuador.newrenderingpipeline.camera.Camera;
 import cientistavuador.newrenderingpipeline.util.ObjectCleaner;
-import com.jme3.math.Quaternion;
 import org.joml.Matrix4f;
+import org.joml.Matrix4fc;
+import org.joml.Quaternionf;
 import org.joml.Vector3d;
 import org.joml.Vector3f;
 
@@ -49,13 +51,10 @@ public class N3DObject {
     private final N3DModel n3DModel;
     
     private final Vector3d position = new Vector3d(0.0, 0.0, 0.0);
-    private final Quaternion rotation = new Quaternion();
-    private final Vector3f scale = new Vector3f();
+    private final Quaternionf rotation = new Quaternionf();
+    private final Vector3f scale = new Vector3f(1f, 1f, 1f);
     private final Matrix4f transformation = new Matrix4f();
     private boolean billboardEnabled = false;
-    
-    private final Matrix4f model = new Matrix4f();
-    private final Vector3d hintPosition = new Vector3d(0.0, 0.0, 0.0);
     
     private final WrappedQueryObject queryObject = new WrappedQueryObject();
     
@@ -94,7 +93,7 @@ public class N3DObject {
         return position;
     }
 
-    public Quaternion getRotation() {
+    public Quaternionf getRotation() {
         return rotation;
     }
 
@@ -114,14 +113,6 @@ public class N3DObject {
         this.billboardEnabled = billboardEnabled;
     }
     
-    public Matrix4f getModel() {
-        return model;
-    }
-
-    public Vector3d getHintPosition() {
-        return hintPosition;
-    }
-    
     public int getQueryObject() {
         if (this.queryObject.object == 0) {
             this.queryObject.object = glGenQueries();
@@ -129,15 +120,33 @@ public class N3DObject {
         return this.queryObject.object;
     }
     
-    public void transformAabb(Vector3f outMin, Vector3f outMax) {
-        this.model.transformAab(
+    public void calculateModelMatrix(Matrix4f outputModelMatrix, Camera camera) {
+        outputModelMatrix
+                .identity()
+                .translate(
+                    (float) (getPosition().x() - camera.getPosition().x()),
+                    (float) (getPosition().y() - camera.getPosition().y()),
+                    (float) (getPosition().z() - camera.getPosition().z())
+                )
+                .rotate(getRotation())
+                .scale(getScale());
+        
+        if (isBillboardEnabled()) {
+            outputModelMatrix.mul(camera.getInverseView());
+        }
+        
+        getTransformation().mul(outputModelMatrix, outputModelMatrix);
+    }
+    
+    public void transformAabb(Matrix4fc modelMatrix, Vector3f outMin, Vector3f outMax) {
+        modelMatrix.transformAab(
                 this.n3DModel.getAabbMin(), this.n3DModel.getAabbMax(),
                 outMin, outMax
         );
     }
     
-    public void transformAnimatedAabb(Vector3f outMin, Vector3f outMax) {
-        this.model.transformAab(
+    public void transformAnimatedAabb(Matrix4fc modelMatrix, Vector3f outMin, Vector3f outMax) {
+        modelMatrix.transformAab(
                 this.n3DModel.getAnimatedAabbMin(), this.n3DModel.getAnimatedAabbMax(),
                 outMin, outMax
         );

@@ -33,6 +33,7 @@
                     <include>**/*.collision</include>
                     <include>**/*.glb</include>
                     <include>**/*.mdl</include>
+                    <include>**/*.jpeg</include>
                 </includes>
             </resource>
         </resources>

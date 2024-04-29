@@ -38,7 +38,6 @@ import cientistavuador.newrenderingpipeline.newrendering.N3DModelImporter;
 import cientistavuador.newrenderingpipeline.newrendering.N3DModelNode;
 import cientistavuador.newrenderingpipeline.newrendering.N3DObject;
 import cientistavuador.newrenderingpipeline.newrendering.N3DObjectRenderer;
-import cientistavuador.newrenderingpipeline.newrendering.NAnimation;
 import cientistavuador.newrenderingpipeline.newrendering.NAnimator;
 import cientistavuador.newrenderingpipeline.newrendering.NGeometry;
 import cientistavuador.newrenderingpipeline.newrendering.NLight;
@@ -299,7 +298,7 @@ public class Game {
         );
     }
 
-    private final N3DObject groundObj  = new N3DObject("ground", new N3DModel(
+    private final N3DObject groundObj = new N3DObject("ground", new N3DModel(
             "ground",
             new N3DModelNode(
                     "ground",
@@ -395,44 +394,52 @@ public class Game {
         System.out.println(spacing + "<- end node");
     }
 
-    private N3DModel testModel = null;
-    private N3DModel myBalls = null;
-    private NAnimator animator = null;
-    
+    private N3DObject testModel = null;
+    private N3DObject myBalls = null;
     private N3DObject waterBottle = null;
     private N3DObject fox = null;
-    
+
     public void start() {
         try {
             N3DModel model = N3DModelImporter.importFromJarFile("cientistavuador/newrenderingpipeline/cc0_zacxophone_triceratops.glb");
-            //print(model.getRootNode(), 0);
-            testModel = model;
-            
-            myBalls = N3DModelImporter.importFromJarFile("cientistavuador/newrenderingpipeline/my_balls.glb");
+            testModel = new N3DObject("test model", model);
+            testModel.setAnimator(new NAnimator(model, "Armature|Armature|Fall"));
+            testModel.getPosition().set(8f, 10.75f, -25f);
+            testModel.getRotation().rotateY((float) Math.toRadians(-90f + -45f));
         } catch (IOException ex) {
             throw new UncheckedIOException(ex);
         }
-        
+
+        try {
+            N3DModel model = N3DModelImporter.importFromJarFile("cientistavuador/newrenderingpipeline/my_metallic_balls.glb");
+            myBalls = new N3DObject("test model", model);
+            myBalls.getPosition().set(0f, 20f, -15f);
+        } catch (IOException ex) {
+            throw new UncheckedIOException(ex);
+        }
+
         try {
             N3DModel waterBottle3DModel = N3DModelImporter.importFromJarFile("cientistavuador/newrenderingpipeline/cc0_WaterBottle.glb");
             waterBottle = new N3DObject("water bottle", waterBottle3DModel);
-            waterBottle.getHintPosition().set(0f, 10f, -15f);
+            waterBottle.getPosition().set(0f, 10f, -15f);
+            waterBottle.getScale().set(5f);
         } catch (IOException ex) {
             throw new UncheckedIOException(ex);
         }
-        
+
         try {
             N3DModel fox3DModel = N3DModelImporter.importFromJarFile("cientistavuador/newrenderingpipeline/cc0_Fox.glb");
             fox = new N3DObject("fox", fox3DModel);
-            fox.getHintPosition().set(0f, 10f, -20f);
-            
+            fox.getPosition().set(0f, 10f, -20f);
+            fox.getScale().set(0.02f);
+
             NAnimator foxAnimator = new NAnimator(fox3DModel, "Run");
             fox.setAnimator(foxAnimator);
         } catch (IOException ex) {
             throw new UncheckedIOException(ex);
         }
-
-        animator = new NAnimator(testModel, "Armature|Armature|Fall");
+        
+        this.groundObj.getPosition().set(0f, 10f, -15f);
 
         this.physicsSpace.setMaxSubSteps(8);
         this.physicsSpace.setAccuracy(1f / 60f);
@@ -776,77 +783,19 @@ public class Game {
         sun.getSpecular().set(1f);
         sun.getAmbient().set(0.05f);
         lights.add(sun);
-        
+
         NLight.NPointLight point = new NLight.NPointLight("point");
-        point.getPosition().set(8f, 10.75f, -25f);
+        point.getPosition().set(13f, 11f, -17f);
         //lights.add(point);
+
+        this.fox.getAnimator().update(Main.TPF);
+        N3DObjectRenderer.queueRender(this.fox);
+        N3DObjectRenderer.queueRender(this.waterBottle);
+        N3DObjectRenderer.queueRender(this.myBalls);
+        N3DObjectRenderer.queueRender(this.groundObj);
+        this.testModel.getAnimator().update(Main.TPF);
+        N3DObjectRenderer.queueRender(this.testModel);
         
-        {
-            float brX = (float) (fox.getHintPosition().x() - this.camera.getPosition().x());
-            float brY = (float) (fox.getHintPosition().y() - this.camera.getPosition().y());
-            float brZ = (float) (fox.getHintPosition().z() - this.camera.getPosition().z());
-            
-            fox.getModel().identity()
-                    .translate(brX, brY, brZ)
-                    .scale(0.02f)
-                    ;
-            
-            fox.getAnimator().update(Main.TPF);
-            
-            N3DObjectRenderer.queueRender(fox);
-        }
-        
-        {
-            float brX = (float) (waterBottle.getHintPosition().x() - this.camera.getPosition().x());
-            float brY = (float) (waterBottle.getHintPosition().y() - this.camera.getPosition().y());
-            float brZ = (float) (waterBottle.getHintPosition().z() - this.camera.getPosition().z());
-            
-            waterBottle.getModel().identity().translate(brX, brY, brZ).scale(5f);
-            
-            N3DObjectRenderer.queueRender(waterBottle);
-        }
-        
-        {
-            N3DObject myBalls = new N3DObject("my balls", this.myBalls);
-            myBalls.getHintPosition().set(0f, 20f, -15f);
-            
-            float brX = (float) (myBalls.getHintPosition().x() - this.camera.getPosition().x());
-            float brY = (float) (myBalls.getHintPosition().y() - this.camera.getPosition().y());
-            float brZ = (float) (myBalls.getHintPosition().z() - this.camera.getPosition().z());
-            
-            myBalls.getModel().translate(brX, brY, brZ);
-            
-            N3DObjectRenderer.queueRender(myBalls);
-            
-            groundObj.getHintPosition().set(0f, 10f, -15f);
-
-            float rX = (float) (groundObj.getHintPosition().x() - this.camera.getPosition().x());
-            float rY = (float) (groundObj.getHintPosition().y() - this.camera.getPosition().y());
-            float rZ = (float) (groundObj.getHintPosition().z() - this.camera.getPosition().z());
-
-            groundObj.getModel().identity().translate(rX, rY, rZ);
-
-            N3DObjectRenderer.queueRender(groundObj);
-
-            N3DObject backpack = new N3DObject("backpack", this.testModel);
-            backpack.setAnimator(this.animator);
-            backpack.getAnimator().update((float) Main.TPF);
-
-            backpack.getHintPosition().set(8f, 10.75f, -25f);
-
-            float relativeX = (float) (backpack.getHintPosition().x() - this.camera.getPosition().x());
-            float relativeY = (float) (backpack.getHintPosition().y() - this.camera.getPosition().y());
-            float relativeZ = (float) (backpack.getHintPosition().z() - this.camera.getPosition().z());
-
-            backpack.getModel()
-                    .identity()
-                    .translate(relativeX, relativeY, relativeZ)
-                    .rotateY((float) Math.toRadians(-90f + -45f))
-                    ;
-
-            N3DObjectRenderer.queueRender(backpack);
-        }
-
         N3DObjectRenderer.render(this.camera, lights);
 
         AabRender.renderQueue(camera);

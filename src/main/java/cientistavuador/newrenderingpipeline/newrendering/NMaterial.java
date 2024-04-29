@@ -38,10 +38,10 @@ import org.joml.Vector4fc;
  */
 public class NMaterial {
 
-    public static final Vector4fc DEFAULT_DIFFUSE_COLOR = new Vector4f(0.75f, 0.75f, 0.75f, 1.0f);
-    public static final Vector3fc DEFAULT_SPECULAR_COLOR = new Vector3f(0.25f, 0.25f, 0.25f);
+    public static final Vector4fc DEFAULT_DIFFUSE_COLOR = new Vector4f(1.0f, 1.0f, 1.0f, 1.0f);
+    public static final Vector3fc DEFAULT_SPECULAR_COLOR = new Vector3f(1.0f, 1.0f, 1.0f);
     public static final Vector3fc DEFAULT_EMISSIVE_COLOR = new Vector3f(1.2f, 1.2f, 1.2f);
-    public static final float DEFAULT_MIN_EXPONENT = 0.25f;
+    public static final float DEFAULT_MIN_EXPONENT = 0.1f;
     public static final float DEFAULT_MAX_EXPONENT = 2048f;
     public static final float DEFAULT_PARALLAX_HEIGHT_COEFFICIENT = 0.065f;
     public static final float DEFAULT_PARALLAX_MIN_LAYERS = 8f;
