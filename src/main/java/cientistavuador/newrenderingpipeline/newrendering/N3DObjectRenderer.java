@@ -72,7 +72,7 @@ public class N3DObjectRenderer {
         }
     }
 
-    public static void render(Camera camera, List<NLight> lights) {
+    public static void render(Camera camera, List<NLight> lights, NCubemap skybox) {
         List<NProgram.NProgramLight> renderableLightsList = new ArrayList<>();
         for (NLight indexLight : lights) {
             if (indexLight != null) {
@@ -268,23 +268,54 @@ public class N3DObjectRenderer {
         if (!opaqueList.isEmpty() || !testedList.isEmpty()) {
             glDisable(GL_BLEND);
             if (!opaqueList.isEmpty()) {
-                renderVariant(NProgram.VARIANT_ALPHA_BLENDING, camera, renderableLights, opaqueList);
+                renderVariant(NProgram.VARIANT_ALPHA_BLENDING, camera, skybox, renderableLights, opaqueList);
             }
             if (!testedList.isEmpty()) {
-                renderVariant(NProgram.VARIANT_ALPHA_TESTING, camera, renderableLights, testedList);
+                renderVariant(NProgram.VARIANT_ALPHA_TESTING, camera, skybox, renderableLights, testedList);
             }
             glEnable(GL_BLEND);
         }
-
-        if (!blendList.isEmpty()) {
-            renderVariant(NProgram.VARIANT_ALPHA_BLENDING, camera, renderableLights, blendList);
+        
+        if (skybox != null) {
+            renderSkybox(camera, skybox);
         }
 
+        if (!blendList.isEmpty()) {
+            renderVariant(NProgram.VARIANT_ALPHA_BLENDING, camera, skybox, renderableLights, blendList);
+        }
+
+    }
+    
+    private static void renderSkybox(
+            Camera camera,
+            NCubemap skybox
+    ) {
+        BetterUniformSetter program = NSkybox.SKYBOX_PROGRAM;
+        
+        glUseProgram(program.getProgram());
+        
+        BetterUniformSetter.uniformMatrix4fv(program.locationOf(NSkybox.UNIFORM_PROJECTION),
+                camera.getProjection()
+        );
+        BetterUniformSetter.uniformMatrix4fv(program.locationOf(NSkybox.UNIFORM_VIEW),
+                camera.getView()
+        );
+        
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, skybox.cubemap());
+        glUniform1i(program.locationOf(NSkybox.UNIFORM_SKYBOX), 0);
+        
+        glBindVertexArray(NSkybox.VAO);
+        glDrawElements(GL_TRIANGLES, NSkybox.AMOUNT_OF_INDICES, GL_UNSIGNED_INT, 0);
+        glBindVertexArray(0);
+        
+        glUseProgram(0);
     }
 
     private static void renderVariant(
             BetterUniformSetter variant,
             Camera camera,
+            NCubemap skybox,
             NProgram.NProgramLight[] lights,
             List<ToRender> toRender
     ) {
@@ -302,7 +333,14 @@ public class N3DObjectRenderer {
         glUniform1i(variant.locationOf(NProgram.UNIFORM_PARALLAX_ENABLED),
                 (PARALLAX_ENABLED ? 1 : 0)
         );
-
+        
+        int skyboxCubemap = skybox.cubemap();
+        
+        glActiveTexture(GL_TEXTURE3);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, skyboxCubemap);
+        
+        glUniform1i(variant.locationOf(NProgram.UNIFORM_REFLECTION_CUBEMAP), 3);
+        
         for (int i = 0; i < lights.length; i++) {
             NProgram.sendLight(variant, lights[i], i);
         }

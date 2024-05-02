@@ -26,6 +26,15 @@
  */
 package cientistavuador.newrenderingpipeline.util.postprocess;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
 /**
  *
  * @author Cien
@@ -44,11 +53,11 @@ public class MarginAutomata {
         public int width();
 
         public int height();
-        
+
         public default boolean outOfBounds(int x, int y) {
             return x < 0 || x >= width() || y < 0 || y >= height();
         }
-        
+
         public boolean empty(int x, int y);
 
         public void read(int x, int y, MarginAutomataColor color);
@@ -56,6 +65,10 @@ public class MarginAutomata {
         public void write(int x, int y, MarginAutomataColor color);
 
         public default void writeEmptyPixel(int x, int y) {
+
+        }
+
+        public default void progressStatus(int currentIteration, int maxIterations) {
 
         }
     }
@@ -79,6 +92,8 @@ public class MarginAutomata {
         -1, -1 //bottom-left
     };
     private static final int NEIGHBORS_ROTATED = NEIGHBORS_POSITIONS_ROTATED.length / 2;
+
+    private final ExecutorService service = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
 
     private final MarginAutomataIO io;
     private final int iterations;
@@ -133,36 +148,66 @@ public class MarginAutomata {
         }
     }
 
-    public boolean iterate() {
+    private void logStatus(int current) {
+        int max = this.iterations;
+        if (max == Integer.MAX_VALUE) {
+            max = (int) Math.ceil(Math.max(this.io.width(), this.io.height()) * 0.5);
+        }
+        this.io.progressStatus(current, max);
+    }
+
+    private boolean lineIterate(int y) {
         boolean finished = true;
-        for (int y = 0; y < this.height; y++) {
-            for (int x = 0; x < this.width; x++) {
-                if (this.io.outOfBounds(x, y)) {
+        for (int x = 0; x < this.width; x++) {
+            if (this.io.outOfBounds(x, y)) {
+                continue;
+            }
+
+            int emptyIndex = x + (y * this.width);
+            int colorIndex = (x * 3) + (y * this.width * 3);
+
+            if (!this.emptyMap[emptyIndex]) {
+                System.arraycopy(
+                        this.colorMap,
+                        colorIndex,
+                        this.nextColorMap,
+                        colorIndex,
+                        3
+                );
+                this.nextEmptyMap[emptyIndex] = false;
+                continue;
+            }
+
+            float r = 0f;
+            float g = 0f;
+            float b = 0f;
+            int numSamples = 0;
+            for (int s = 0; s < NEIGHBORS; s++) {
+                int xOffset = NEIGHBORS_POSITIONS[(s * 2) + 0];
+                int yOffset = NEIGHBORS_POSITIONS[(s * 2) + 1];
+
+                int sX = x + xOffset;
+                int sY = y + yOffset;
+
+                if (this.io.outOfBounds(sX, sY)) {
                     continue;
                 }
 
-                int emptyIndex = x + (y * this.width);
-                int colorIndex = (x * 3) + (y * this.width * 3);
-
-                if (!this.emptyMap[emptyIndex]) {
-                    System.arraycopy(
-                            this.colorMap,
-                            colorIndex,
-                            this.nextColorMap,
-                            colorIndex,
-                            3
-                    );
-                    this.nextEmptyMap[emptyIndex] = false;
+                if (this.emptyMap[sX + (sY * this.width)]) {
                     continue;
                 }
 
-                float r = 0f;
-                float g = 0f;
-                float b = 0f;
-                int numSamples = 0;
-                for (int s = 0; s < NEIGHBORS; s++) {
-                    int xOffset = NEIGHBORS_POSITIONS[(s * 2) + 0];
-                    int yOffset = NEIGHBORS_POSITIONS[(s * 2) + 1];
+                int sampleColorIndex = (sX * 3) + (sY * this.width * 3);
+                r += this.colorMap[sampleColorIndex + 0];
+                g += this.colorMap[sampleColorIndex + 1];
+                b += this.colorMap[sampleColorIndex + 2];
+                numSamples++;
+            }
+
+            if (numSamples == 0) {
+                for (int s = 0; s < NEIGHBORS_ROTATED; s++) {
+                    int xOffset = NEIGHBORS_POSITIONS_ROTATED[(s * 2) + 0];
+                    int yOffset = NEIGHBORS_POSITIONS_ROTATED[(s * 2) + 1];
 
                     int sX = x + xOffset;
                     int sY = y + yOffset;
@@ -181,49 +226,49 @@ public class MarginAutomata {
                     b += this.colorMap[sampleColorIndex + 2];
                     numSamples++;
                 }
+            }
 
-                if (numSamples == 0) {
-                    for (int s = 0; s < NEIGHBORS_ROTATED; s++) {
-                        int xOffset = NEIGHBORS_POSITIONS_ROTATED[(s * 2) + 0];
-                        int yOffset = NEIGHBORS_POSITIONS_ROTATED[(s * 2) + 1];
+            if (numSamples == 0) {
+                this.nextEmptyMap[emptyIndex] = true;
+                continue;
+            }
 
-                        int sX = x + xOffset;
-                        int sY = y + yOffset;
+            float invNumSamples = 1f / numSamples;
+            r *= invNumSamples;
+            g *= invNumSamples;
+            b *= invNumSamples;
 
-                        if (this.io.outOfBounds(sX, sY)) {
-                            continue;
-                        }
+            this.nextColorMap[colorIndex + 0] = r;
+            this.nextColorMap[colorIndex + 1] = g;
+            this.nextColorMap[colorIndex + 2] = b;
+            this.nextEmptyMap[emptyIndex] = false;
 
-                        if (this.emptyMap[sX + (sY * this.width)]) {
-                            continue;
-                        }
+            finished = false;
+        }
+        return finished;
+    }
 
-                        int sampleColorIndex = (sX * 3) + (sY * this.width * 3);
-                        r += this.colorMap[sampleColorIndex + 0];
-                        g += this.colorMap[sampleColorIndex + 1];
-                        b += this.colorMap[sampleColorIndex + 2];
-                        numSamples++;
-                    }
+    public boolean iterate() {
+        boolean finished = true;
+        
+        List<Future<Boolean>> futureLinesList = new ArrayList<>();
+        
+        for (int y = 0; y < this.height; y++) {
+            final int line = y;
+            futureLinesList.add(this.service.submit(() -> lineIterate(line)));
+        }
+        
+        for (Future<Boolean> futureLine:futureLinesList) {
+            try {
+                boolean done = futureLine.get();
+                if (!done) {
+                    finished = false;
                 }
-
-                if (numSamples == 0) {
-                    this.nextEmptyMap[emptyIndex] = true;
-                    continue;
-                }
-
-                float invNumSamples = 1f / numSamples;
-                r *= invNumSamples;
-                g *= invNumSamples;
-                b *= invNumSamples;
-
-                this.nextColorMap[colorIndex + 0] = r;
-                this.nextColorMap[colorIndex + 1] = g;
-                this.nextColorMap[colorIndex + 2] = b;
-                this.nextEmptyMap[emptyIndex] = false;
-
-                finished = false;
+            } catch (InterruptedException | ExecutionException ex) {
+                throw new RuntimeException(ex);
             }
         }
+        
         return finished;
     }
 
@@ -260,13 +305,18 @@ public class MarginAutomata {
     }
 
     public void process() {
-        load();
-        for (int i = 0; i < this.iterations; i++) {
-            if (iterate()) {
-                break;
+        try {
+            load();
+            for (int i = 0; i < this.iterations; i++) {
+                logStatus(i);
+                if (iterate()) {
+                    break;
+                }
+                flipMaps();
             }
-            flipMaps();
+            output();
+        } finally {
+            this.service.shutdownNow();
         }
-        output();
     }
 }

@@ -29,6 +29,7 @@ package cientistavuador.newrenderingpipeline;
 import cientistavuador.newrenderingpipeline.sound.SoundSystem;
 import cientistavuador.newrenderingpipeline.geometry.Geometries;
 import cientistavuador.newrenderingpipeline.newrendering.NProgram;
+import cientistavuador.newrenderingpipeline.newrendering.NSkybox;
 import cientistavuador.newrenderingpipeline.sound.Sounds;
 import cientistavuador.newrenderingpipeline.text.GLFonts;
 import cientistavuador.newrenderingpipeline.texture.Textures;
@@ -76,7 +77,7 @@ public class Main {
     public static final float TO_PHYSICS_ENGINE_UNITS = PHYSICS_ENGINE_UNITS;
     public static final float FROM_PHYSICS_ENGINE_UNITS = 1f / PHYSICS_ENGINE_UNITS;
     
-    public static final boolean USE_MSAA = true;
+    public static final boolean USE_MSAA = false;
     public static final boolean DEBUG_ENABLED = true;
     public static final boolean SPIKE_LAG_WARNINGS = false;
     public static final int MIN_UNIFORM_BUFFER_BINDINGS = UBOBindingPoints.MIN_NUMBER_OF_UBO_BINDING_POINTS;
@@ -487,6 +488,7 @@ public class Main {
         NProgram.init(); //static initialize
         GPUOcclusion.init(); //static initialize
         ConvexPolygonRenderer.polyStaticInit(); //static initialize
+        NSkybox.init(); //static initialize
         Game.get(); //static initialize
 
         Main.checkGLError();

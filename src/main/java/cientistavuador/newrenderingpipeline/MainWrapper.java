@@ -28,19 +28,26 @@ package cientistavuador.newrenderingpipeline;
 
 import cientistavuador.newrenderingpipeline.natives.Natives;
 import cientistavuador.newrenderingpipeline.sound.SoundSystem;
+import cientistavuador.newrenderingpipeline.util.postprocess.MarginAutomata;
 import com.formdev.flatlaf.FlatDarkLaf;
 import com.jme3.bullet.objects.PhysicsRigidBody;
 import com.jme3.system.NativeLibraryLoader;
 import java.awt.Toolkit;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Locale;
 import java.util.UUID;
 import java.util.logging.Level;
+import java.util.logging.Logger;
+import java.util.regex.Pattern;
+import javax.imageio.ImageIO;
 import javax.swing.JFrame;
 import javax.swing.JOptionPane;
 import static org.lwjgl.glfw.GLFW.glfwTerminate;
@@ -82,10 +89,156 @@ public class MainWrapper {
         }
     }
 
+    public static void marginAutomata(String file, int iterations, boolean keepAlpha) {
+        Path path = Path.of(file);
+        
+        if (!Files.exists(path)) {
+            System.out.println(file+" does not exists");
+            return;
+        }
+        
+        if (!Files.isRegularFile(path)) {
+            System.out.println(file+" is not a valid file.");
+            return;
+        }
+        
+        byte[] imageData;
+        try {
+            imageData = Files.readAllBytes(path);
+        } catch (IOException ex) {
+            System.out.println("Failed to read file "+file);
+            ex.printStackTrace(System.out);
+            return;
+        }
+        
+        System.out.println("Reading "+file+"...");
+        
+        BufferedImage image;
+        try {
+            image = ImageIO.read(new ByteArrayInputStream(imageData));
+        } catch (IOException ex) {
+            System.out.println("Failed to read image "+file);
+            ex.printStackTrace(System.out);
+            return;
+        }
+        if (image == null) {
+            System.out.println("Failed to read image "+file);
+            System.out.println("Image is corrupted or uses a unknown format");
+            return;
+        }
+        
+        System.out.println(image.getWidth()+"x"+image.getHeight()+" pixels");
+        System.out.println("Processing... (this may take a while!)");
+        
+        BufferedImage output = new BufferedImage(image.getWidth(), image.getHeight(), BufferedImage.TYPE_INT_ARGB);
+        
+        MarginAutomata.MarginAutomataIO io = new MarginAutomata.MarginAutomataIO() {
+            @Override
+            public int width() {
+                return image.getWidth();
+            }
+
+            @Override
+            public int height() {
+                return image.getHeight();
+            }
+
+            @Override
+            public boolean empty(int x, int y) {
+                return ((image.getRGB(x, y) >>> 24) & 0xFF) == 0;
+            }
+            
+            @Override
+            public void read(int x, int y, MarginAutomata.MarginAutomataColor color) {
+                int argb = image.getRGB(x, y);
+                int red = (argb >>> 16) & 0xFF;
+                int green = (argb >>> 8) & 0xFF;
+                int blue = (argb >>> 0) & 0xFF;
+                color.r = red / 255f;
+                color.g = green / 255f;
+                color.b = blue / 255f;
+            }
+
+            @Override
+            public void write(int x, int y, MarginAutomata.MarginAutomataColor color) {
+                int red = Math.min(Math.max((int)(color.r * 255f), 0), 255);
+                int green = Math.min(Math.max((int)(color.g * 255f), 0), 255);
+                int blue = Math.min(Math.max((int)(color.b * 255f), 0), 255);
+                int alpha;
+                if (keepAlpha) {
+                    alpha = (image.getRGB(x, y) >>> 24) & 0xFF;
+                } else {
+                    alpha = 255;
+                }
+                int argb = (alpha << 24) | (red << 16) | (green << 8) | (blue << 0);
+                output.setRGB(x, y, argb);
+            }
+
+            @Override
+            public void progressStatus(int currentIteration, int maxIterations) {
+                System.out.println(currentIteration+"/"+maxIterations);
+            }
+            
+            @Override
+            public void writeEmptyPixel(int x, int y) {
+                output.setRGB(x, y, image.getRGB(x, y));
+            }
+        };
+        MarginAutomata.generateMargin(io, iterations);
+        
+        System.out.println("Finished!");
+        
+        Path outputFile = path.toAbsolutePath().getParent().resolve(UUID.randomUUID().toString()+".png");
+        
+        System.out.println("Writing to "+outputFile.getFileName());
+        
+        try {
+            ImageIO.write(output, "PNG", outputFile.toFile());
+        } catch (IOException ex) {
+            System.out.println("Failed to write:");
+            ex.printStackTrace(System.out);
+            return;
+        }
+        
+        System.out.println("Done!");
+    }
+    
     /**
      * @param args the command line arguments
      */
     public static void main(String[] args) {
+        if (args.length != 0 && args[0].toLowerCase().startsWith("-marginautomata")) {
+            int iterations = -1;
+            boolean keepAlpha = false;
+            {
+                String[] split = args[0].split(Pattern.quote("/"));
+                if (split.length > 1) {
+                    String iterationsString = split[1];
+                    try {
+                        iterations = Integer.parseInt(iterationsString);
+                    } catch (NumberFormatException ex) {
+                        System.out.println("Invalid number of iterations:");
+                        ex.printStackTrace(System.out);
+                        return;
+                    }
+                    if (split.length > 2) {
+                        if (split[2].equalsIgnoreCase("keepAlpha")) {
+                            keepAlpha = true;
+                        }
+                    }
+                }
+            }
+            StringBuilder fileBuilder = new StringBuilder();
+            for (int i = 1; i < args.length; i++) {
+                fileBuilder.append(args[i]);
+                if (i != (args.length - 1)) {
+                    fileBuilder.append(' ');
+                }
+            }
+            marginAutomata(fileBuilder.toString(), iterations, keepAlpha);
+            return;
+        }
+        
         boolean error = false;
         
         try {

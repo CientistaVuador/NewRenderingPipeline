@@ -295,7 +295,9 @@ public class N3DModelImporter {
             images[fallbackOpacityIndex] = getMaterialTexture(aiMaterial, aiTextureType_OPACITY);
 
             final NMaterial material = new NMaterial("material_" + materialIndex);
-
+            
+            //todo: configure material
+            
             futureMaterials.add(this.service.submit(() -> {
                 int textureWidth = -1;
                 int textureHeight = -1;

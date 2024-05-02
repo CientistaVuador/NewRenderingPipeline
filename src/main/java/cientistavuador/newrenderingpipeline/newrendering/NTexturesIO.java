@@ -33,8 +33,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.regex.Pattern;
 import org.lwjgl.system.MemoryUtil;
 import static org.lwjgl.stb.STBImage.*;

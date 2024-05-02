@@ -294,7 +294,7 @@ public class NTextures {
             
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-
+            
             if (GL.getCapabilities().GL_EXT_texture_filter_anisotropic) {
                 glTexParameterf(
                         GL_TEXTURE_2D,
@@ -302,7 +302,7 @@ public class NTextures {
                         glGetFloat(EXTTextureFilterAnisotropic.GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT)
                 );
             }
-
+            
             glBindTexture(GL_TEXTURE_2D, 0);
 
             if (GL.getCapabilities().GL_KHR_debug) {

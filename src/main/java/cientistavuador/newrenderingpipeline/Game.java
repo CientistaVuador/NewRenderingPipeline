@@ -39,6 +39,8 @@ import cientistavuador.newrenderingpipeline.newrendering.N3DModelNode;
 import cientistavuador.newrenderingpipeline.newrendering.N3DObject;
 import cientistavuador.newrenderingpipeline.newrendering.N3DObjectRenderer;
 import cientistavuador.newrenderingpipeline.newrendering.NAnimator;
+import cientistavuador.newrenderingpipeline.newrendering.NCubemap;
+import cientistavuador.newrenderingpipeline.newrendering.NCubemapIO;
 import cientistavuador.newrenderingpipeline.newrendering.NGeometry;
 import cientistavuador.newrenderingpipeline.newrendering.NLight;
 import cientistavuador.newrenderingpipeline.newrendering.NMaterial;
@@ -398,8 +400,11 @@ public class Game {
     private N3DObject myBalls = null;
     private N3DObject waterBottle = null;
     private N3DObject fox = null;
-
+    private NCubemap cubemap = null;
+    
     public void start() {
+        cubemap = NCubemapIO.loadFromJar("cientistavuador/newrenderingpipeline/resources/image/generic_cubemap.png", true, false);
+        
         try {
             N3DModel model = N3DModelImporter.importFromJarFile("cientistavuador/newrenderingpipeline/cc0_zacxophone_triceratops.glb");
             testModel = new N3DObject("test model", model);
@@ -781,7 +786,7 @@ public class Game {
         sun.getDirection().set(1f, -1f, 1f).normalize();
         sun.getDiffuse().set(1f);
         sun.getSpecular().set(1f);
-        sun.getAmbient().set(0.05f);
+        sun.getAmbient().set(0.1f);
         lights.add(sun);
 
         NLight.NPointLight point = new NLight.NPointLight("point");
@@ -796,7 +801,7 @@ public class Game {
         this.testModel.getAnimator().update(Main.TPF);
         N3DObjectRenderer.queueRender(this.testModel);
         
-        N3DObjectRenderer.render(this.camera, lights);
+        N3DObjectRenderer.render(this.camera, lights, cubemap);
 
         AabRender.renderQueue(camera);
         LineRender.renderQueue(camera);
