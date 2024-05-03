@@ -263,8 +263,8 @@ public class N3DModelImporter {
             final int diffuseIndex = 0;
 
             final int aoIndex = 1;
-            final int invertedExponentIndex = 2;
-            final int reflectivenessIndex = 3;
+            final int roughnessIndex = 2;
+            final int metallicIndex = 3;
 
             final int heightIndex = 4;
             final int normalIndex = 5;
@@ -281,8 +281,8 @@ public class N3DModelImporter {
             images[diffuseIndex] = getMaterialTexture(aiMaterial, aiTextureType_BASE_COLOR);
 
             images[aoIndex] = getMaterialTexture(aiMaterial, aiTextureType_AMBIENT_OCCLUSION);
-            images[invertedExponentIndex] = getMaterialTexture(aiMaterial, aiTextureType_DIFFUSE_ROUGHNESS);
-            images[reflectivenessIndex] = getMaterialTexture(aiMaterial, aiTextureType_METALNESS);
+            images[roughnessIndex] = getMaterialTexture(aiMaterial, aiTextureType_DIFFUSE_ROUGHNESS);
+            images[metallicIndex] = getMaterialTexture(aiMaterial, aiTextureType_METALNESS);
 
             images[heightIndex] = getMaterialTexture(aiMaterial, aiTextureType_HEIGHT);
             images[normalIndex] = getMaterialTexture(aiMaterial, aiTextureType_NORMALS);
@@ -354,20 +354,20 @@ public class N3DModelImporter {
                     aoMap = images[aoIndex].pixelData;
                 }
 
-                byte[] invertedExponentMap = null;
-                if (images[invertedExponentIndex] != null) {
-                    invertedExponentMap = images[invertedExponentIndex].pixelData;
+                byte[] roughnessMap = null;
+                if (images[roughnessIndex] != null) {
+                    roughnessMap = images[roughnessIndex].pixelData;
                 } else if (images[fallbackSpecularIndex] != null) {
-                    invertedExponentMap = images[fallbackSpecularIndex].pixelData;
+                    roughnessMap = images[fallbackSpecularIndex].pixelData;
                     usingSpecularMap = true;
                 }
 
-                byte[] reflectivenessMap = null;
-                if (images[reflectivenessIndex] != null) {
-                    reflectivenessMap = images[reflectivenessIndex].pixelData;
-                    if (reflectivenessMap == invertedExponentMap) {
+                byte[] metallicMap = null;
+                if (images[metallicIndex] != null) {
+                    metallicMap = images[metallicIndex].pixelData;
+                    if (metallicMap == roughnessMap) {
                         usingMetallicRoughness = true;
-                        if (reflectivenessMap == aoMap) {
+                        if (metallicMap == aoMap) {
                             usingAoMetallicRoughness = true;
                         }
                     }
@@ -399,41 +399,40 @@ public class N3DModelImporter {
                     byte[] newMap = new byte[width * height * 4];
                     for (int y = 0; y < height; y++) {
                         for (int x = 0; x < width; x++) {
-                            int value = invertedExponentMap[0 + (x * 4) + (y * width * 4)] & 0xFF;
+                            int value = roughnessMap[0 + (x * 4) + (y * width * 4)] & 0xFF;
                             newMap[0 + (x * 4) + (y * width * 4)] = (byte) (255 - value);
                         }
                     }
-                    invertedExponentMap = newMap;
+                    roughnessMap = newMap;
                 } else if (usingMetallicRoughness) {
                     byte[] newAoMap = new byte[width * height * 4];
-                    byte[] newInvertedExponentMap = new byte[width * height * 4];
-                    byte[] newReflectivenessMap = new byte[width * height * 4];
+                    byte[] newRoughnessMap = new byte[width * height * 4];
+                    byte[] newMetallicMap = new byte[width * height * 4];
                     for (int y = 0; y < height; y++) {
                         for (int x = 0; x < width; x++) {
-                            byte ao = invertedExponentMap[0 + (x * 4) + (y * width * 4)];
-                            byte ie = invertedExponentMap[1 + (x * 4) + (y * width * 4)];
-                            byte rf = invertedExponentMap[2 + (x * 4) + (y * width * 4)];
+                            byte ao = roughnessMap[0 + (x * 4) + (y * width * 4)];
+                            byte ie = roughnessMap[1 + (x * 4) + (y * width * 4)];
+                            byte rf = roughnessMap[2 + (x * 4) + (y * width * 4)];
                             newAoMap[0 + (x * 4) + (y * width * 4)] = ao;
-                            newInvertedExponentMap[0 + (x * 4) + (y * width * 4)] = ie;
-                            newReflectivenessMap[0 + (x * 4) + (y * width * 4)] = rf;
+                            newRoughnessMap[0 + (x * 4) + (y * width * 4)] = ie;
+                            newMetallicMap[0 + (x * 4) + (y * width * 4)] = rf;
                         }
                     }
                     if (usingAoMetallicRoughness) {
                         aoMap = newAoMap;
                     }
-                    invertedExponentMap = newInvertedExponentMap;
-                    reflectivenessMap = newReflectivenessMap;
+                    roughnessMap = newRoughnessMap;
+                    metallicMap = newMetallicMap;
                 }
 
-                NTextures textures = NTexturesIO.load(
-                        "textures_" + materialIndex,
+                NTextures textures = NTexturesIO.load("textures_" + materialIndex,
                         textureWidth, textureHeight,
                         diffuseMap,
                         aoMap,
                         heightMap,
-                        invertedExponentMap,
+                        roughnessMap,
                         normalMap,
-                        reflectivenessMap,
+                        metallicMap,
                         emissiveMap
                 );
 

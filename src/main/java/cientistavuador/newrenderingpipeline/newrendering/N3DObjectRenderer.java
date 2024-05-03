@@ -346,7 +346,7 @@ public class N3DObjectRenderer {
         }
 
         glUniform1i(variant.locationOf(NProgram.UNIFORM_R_G_B_A), 0);
-        glUniform1i(variant.locationOf(NProgram.UNIFORM_HT_IE_RF_NX), 1);
+        glUniform1i(variant.locationOf(NProgram.UNIFORM_HT_RG_MT_NX), 1);
         glUniform1i(variant.locationOf(NProgram.UNIFORM_ER_EG_EB_NY), 2);
 
         render(variant, toRender);
@@ -374,11 +374,13 @@ public class N3DObjectRenderer {
                 Vector4fc d = material.getDiffuseColor();
                 Vector3fc s = material.getSpecularColor();
                 Vector3fc e = material.getEmissiveColor();
+                Vector3fc r = material.getReflectionColor();
 
                 NProgram.sendMaterial(variant, new NProgram.NProgramMaterial(
                         d.x(), d.y(), d.z(), d.w(),
                         s.x(), s.y(), s.z(),
                         e.x(), e.y(), e.z(),
+                        r.x(), r.y(), r.z(),
                         material.getMinExponent(), material.getMaxExponent(),
                         material.getParallaxHeightCoefficient(), material.getParallaxMinLayers(), material.getParallaxMaxLayers()
                 ));
@@ -387,7 +389,7 @@ public class N3DObjectRenderer {
 
             if (!textures.equals(lastTextures)) {
                 int r_g_b_a = textures.r_g_b_a();
-                int ht_ie_rf_nx = textures.ht_ie_rf_nx();
+                int ht_ie_rf_nx = textures.ht_rg_mt_nx();
                 int er_eg_eb_ny = textures.er_eg_eb_ny();
 
                 glActiveTexture(GL_TEXTURE0);

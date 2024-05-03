@@ -39,8 +39,8 @@ import static org.lwjgl.opengl.GL33C.*;
  */
 public class NProgram {
     
-    public static final float DIFFUSE_STRENGTH = 0.90f;
-    public static final float SPECULAR_STRENGTH = 0.10f;
+    public static final float DIFFUSE_STRENGTH = 0.85f;
+    public static final float SPECULAR_STRENGTH = 0.15f;
     
     public static final float LIGHT_ATTENUATION = 0.75f;
 
@@ -126,6 +126,9 @@ public class NProgram {
         public final float emissiveColorR;
         public final float emissiveColorG;
         public final float emissiveColorB;
+        public final float reflectionColorR;
+        public final float reflectionColorG;
+        public final float reflectionColorB;
         public final float minExponent;
         public final float maxExponent;
         public final float parallaxHeightCoefficient;
@@ -136,6 +139,7 @@ public class NProgram {
                 float diffuseColorR, float diffuseColorG, float diffuseColorB, float diffuseColorA,
                 float specularColorR, float specularColorG, float specularColorB,
                 float emissiveColorR, float emissiveColorG, float emissiveColorB,
+                float reflectionColorR, float reflectionColorG, float reflectionColorB,
                 float minExponent, float maxExponent,
                 float parallaxHeightCoefficient, float parallaxMinLayers, float parallaxMaxLayers
         ) {
@@ -149,6 +153,9 @@ public class NProgram {
             this.emissiveColorR = emissiveColorR;
             this.emissiveColorG = emissiveColorG;
             this.emissiveColorB = emissiveColorB;
+            this.reflectionColorR = reflectionColorR;
+            this.reflectionColorG = reflectionColorG;
+            this.reflectionColorB = reflectionColorB;
             this.minExponent = minExponent;
             this.maxExponent = maxExponent;
             this.parallaxHeightCoefficient = parallaxHeightCoefficient;
@@ -163,6 +170,7 @@ public class NProgram {
             NMaterial.DEFAULT_DIFFUSE_COLOR.x(), NMaterial.DEFAULT_DIFFUSE_COLOR.y(), NMaterial.DEFAULT_DIFFUSE_COLOR.z(), NMaterial.DEFAULT_DIFFUSE_COLOR.w(),
             NMaterial.DEFAULT_SPECULAR_COLOR.x(), NMaterial.DEFAULT_SPECULAR_COLOR.y(), NMaterial.DEFAULT_SPECULAR_COLOR.z(),
             NMaterial.DEFAULT_EMISSIVE_COLOR.x(), NMaterial.DEFAULT_EMISSIVE_COLOR.y(), NMaterial.DEFAULT_EMISSIVE_COLOR.z(),
+            NMaterial.DEFAULT_REFLECTION_COLOR.x(), NMaterial.DEFAULT_REFLECTION_COLOR.y(), NMaterial.DEFAULT_REFLECTION_COLOR.z(),
             NMaterial.DEFAULT_MIN_EXPONENT, NMaterial.DEFAULT_MAX_EXPONENT,
             NMaterial.DEFAULT_PARALLAX_HEIGHT_COEFFICIENT,
             NMaterial.DEFAULT_PARALLAX_MIN_LAYERS, NMaterial.DEFAULT_PARALLAX_MAX_LAYERS
@@ -281,7 +289,7 @@ public class NProgram {
             #endif
             
             uniform sampler2D r_g_b_a;
-            uniform sampler2D ht_ie_rf_nx;
+            uniform sampler2D ht_rg_mt_nx;
             uniform sampler2D er_eg_eb_ny;
             
             uniform bool parallaxSupported;
@@ -306,6 +314,7 @@ public class NProgram {
                 vec4 diffuseColor;
                 vec3 specularColor;
                 vec3 emissiveColor;
+                vec3 reflectionColor;
                 float minExponent;
                 float maxExponent;
                 float parallaxHeightCoefficient;
@@ -365,18 +374,18 @@ public class NProgram {
                 vec2 deltaUv = scaledViewDirection / numLayers;
                 
                 vec2 currentUv = uv;
-                float currentDepth = 1.0 - texture(ht_ie_rf_nx, currentUv)[0];
+                float currentDepth = 1.0 - texture(ht_rg_mt_nx, currentUv)[0];
                 
                 while (currentLayerDepth < currentDepth) {
                     currentUv -= deltaUv;
-                    currentDepth = 1.0 - texture(ht_ie_rf_nx, currentUv)[0];
+                    currentDepth = 1.0 - texture(ht_rg_mt_nx, currentUv)[0];
                     currentLayerDepth += layerDepth;
                 }
                  
                 vec2 previousUv = currentUv + deltaUv;
                 
                 float afterDepth = currentDepth - currentLayerDepth;
-                float beforeDepth = (1.0 - texture(ht_ie_rf_nx, previousUv)[0]) - currentLayerDepth + layerDepth;
+                float beforeDepth = (1.0 - texture(ht_rg_mt_nx, previousUv)[0]) - currentLayerDepth + layerDepth;
                 
                 float weight = afterDepth / (afterDepth - beforeDepth);
                 vec2 finalUv = (previousUv * weight) + (currentUv * (1.0 - weight));
@@ -389,8 +398,9 @@ public class NProgram {
                 vec3 diffuseColor,
                 vec3 specularColor,
                 float exponent,
+                float normalizationFactor,
                 vec3 normal,
-                vec3 viewDirection,
+                vec3 fragDirection,
                 vec3 worldPosition
             ) {
                 int lightType = light.type;
@@ -399,13 +409,13 @@ public class NProgram {
                 vec3 infiniteLightDirection = normalize(-light.direction);
                 
                 vec3 oppositeLightDirection = (lightType == DIRECTIONAL_LIGHT_TYPE ? infiniteLightDirection : positionalLightDirection);
-                vec3 halfwayDirection = normalize(oppositeLightDirection + viewDirection);
+                vec3 halfwayDirection = normalize(oppositeLightDirection + fragDirection);
                 
                 float diffuseFactor = max(dot(normal, oppositeLightDirection), 0.0);
                 float specularFactor = pow(max(dot(normal, halfwayDirection), 0.0), exponent) * diffuseFactor;
                 
                 vec3 diffuse = light.diffuse * diffuseFactor * diffuseColor;
-                vec3 specular = light.specular * specularFactor * specularColor;
+                vec3 specular = light.specular * specularFactor * specularColor * normalizationFactor;
                 vec3 ambient = light.ambient * diffuseColor;
                 
                 float distance = length(light.position - worldPosition);
@@ -427,6 +437,46 @@ public class NProgram {
                 specular *= spotIntensity;
                 
                 return diffuse + specular + ambient;
+            }
+            
+            vec3 computeReflection(
+                vec3 fragDirection,
+                vec3 normal,
+                vec3 diffuseColor,
+                vec3 specularColor,
+                float roughness
+            ) {
+                vec3 reflection = vec3(0.0);
+                
+                #ifdef SUPPORTED_430
+                float mipLevels = float(textureQueryLevels(reflectionCubemap));
+                #else
+                ivec2 cubemapSize = textureSize(reflectionCubemap, 0);
+                float mipLevels = 1.0 + floor(log2(max(float(cubemapSize.x), float(cubemapSize.y))));
+                #endif
+                
+                float materialRoughness = pow(roughness, 1.0/2.2);
+                
+                float lodLevel = mipLevels * materialRoughness;
+                float lodFactor = lodLevel - floor(lodLevel);
+                
+                vec3 reflectedDirection = reflect(-fragDirection, normal);
+                
+                vec3 reflectedFloor = textureLod(reflectionCubemap, reflectedDirection, floor(lodLevel)).rgb;
+                vec3 reflectedCeil = textureLod(reflectionCubemap, reflectedDirection, ceil(lodLevel)).rgb;
+                vec3 reflectedColor = mix(reflectedFloor, reflectedCeil, lodFactor);
+                
+                vec3 diffuse = reflectedColor * diffuseColor;
+                vec3 specular = reflectedColor * specularColor;
+                
+                float fresnel = pow(1.0 - max(dot(fragDirection, normal), 0.0), 2.0);
+                
+                reflection += diffuse;
+                reflection += specular * fresnel;
+                
+                reflection *= material.reflectionColor;
+                
+                return reflection;
             }
             
             vec3 ACESFilm(vec3 rgb) {
@@ -452,7 +502,7 @@ public class NProgram {
                 }
                 
                 vec4 rgba = texture(r_g_b_a, textureUv);
-                vec4 hirnx = texture(ht_ie_rf_nx, textureUv);
+                vec4 hrmnx = texture(ht_rg_mt_nx, textureUv);
                 vec4 eregebny = texture(er_eg_eb_ny, textureUv);
                 
                 finalColor.a = rgba.a * material.diffuseColor.a;
@@ -477,7 +527,7 @@ public class NProgram {
                 mat3 TBN = inVertex.TBN;
                 
                 vec3 normal = vec3(
-                    (hirnx[3] * 2.0) - 1.0,
+                    (hrmnx[3] * 2.0) - 1.0,
                     (eregebny[3] * 2.0) - 1.0,
                     0.0
                 );
@@ -489,15 +539,19 @@ public class NProgram {
                 
                 normal = normalize(TBN * normal);
                 
-                vec3 worldPosition = inVertex.worldPosition;
-                vec3 viewDirection = normalize(-worldPosition);
+                float roughness = hrmnx[1];
+                float metallic = hrmnx[2];
                 
-                float exponent = (pow((material.maxExponent - material.minExponent) + 1.0, 1.0 - hirnx[1]) - 1.0) + material.minExponent;
+                vec3 worldPosition = inVertex.worldPosition;
+                vec3 fragDirection = normalize(-worldPosition);
+                
+                float exponent = (pow((material.maxExponent - material.minExponent) + 1.0, 1.0 - roughness) - 1.0) + material.minExponent;
                 float normalizationFactor = ((exponent + 2.0) * (exponent + 4.0)) / (8.0 * PI * (pow(2.0, -exponent * 0.5) + exponent));
                 
                 vec3 diffuseColor = material.diffuseColor.rgb * rgba.rgb * DIFFUSE_STRENGTH;
-                vec3 metallicSpecularColor = mix(vec3(1.0), diffuseColor / max(((diffuseColor.r + diffuseColor.g + diffuseColor.b) / 3.0), 0.001), hirnx[2]);
-                vec3 specularColor = material.specularColor * normalizationFactor * metallicSpecularColor * SPECULAR_STRENGTH;
+                vec3 normalizedDiffuse = diffuseColor / max(((diffuseColor.r + diffuseColor.g + diffuseColor.b) / 3.0), 0.001);
+                vec3 metallicSpecularColor = mix(vec3(1.0), normalizedDiffuse, metallic);
+                vec3 specularColor = material.specularColor * metallicSpecularColor * SPECULAR_STRENGTH;
                 
                 for (int i = 0; i < MAX_AMOUNT_OF_LIGHTS; i++) {
                     Light light = lights[i];
@@ -507,21 +561,13 @@ public class NProgram {
                     finalColor.rgb += calculateLight(
                         light,
                         diffuseColor, specularColor,
-                        exponent,
-                        normal, viewDirection,
+                        exponent, normalizationFactor,
+                        normal, fragDirection,
                         worldPosition
                     );
                 }
                 
-                float reflectedRoughness = (exponent - material.minExponent) / (material.maxExponent - material.minExponent);
-                vec3 reflectedDirection = reflect(-viewDirection, normal);
-                vec3 reflectedColor = textureLod(reflectionCubemap, reflectedDirection, (1.0 - reflectedRoughness) * 10.0).rgb;
-                reflectedColor *= mix((diffuseColor / max(((diffuseColor.r + diffuseColor.g + diffuseColor.b) / 3.0), 0.001)) * vec3(pow(1.0 - max(dot(viewDirection, normal), 0.0), 2.0)), metallicSpecularColor, hirnx[2]);
-                reflectedColor *= normalizationFactor;
-                reflectedColor *= 0.05;
-                
-                finalColor.rgb += reflectedColor;
-                
+                finalColor.rgb += computeReflection(fragDirection, normal, diffuseColor, specularColor, roughness);
                 finalColor.rgb += eregebny.rgb * material.emissiveColor;
                 
                 finalColor.rgb = gammaCorrection(ACESFilm(finalColor.rgb));
@@ -581,7 +627,7 @@ public class NProgram {
     public static final String UNIFORM_MODEL = "model";
     public static final String UNIFORM_NORMAL_MODEL = "normalModel";
     public static final String UNIFORM_R_G_B_A = "r_g_b_a";
-    public static final String UNIFORM_HT_IE_RF_NX = "ht_ie_rf_nx";
+    public static final String UNIFORM_HT_RG_MT_NX = "ht_rg_mt_nx";
     public static final String UNIFORM_ER_EG_EB_NY = "er_eg_eb_ny";
     public static final String UNIFORM_LIGHTMAPS_UVS = "lightmapUvs";
     public static final String UNIFORM_LIGHTMAPS = "lightmaps";
@@ -597,6 +643,7 @@ public class NProgram {
         glUniform4f(uniforms.locationOf("material.diffuseColor"), material.diffuseColorR, material.diffuseColorG, material.diffuseColorB, material.diffuseColorA);
         glUniform3f(uniforms.locationOf("material.specularColor"), material.specularColorR, material.specularColorG, material.specularColorB);
         glUniform3f(uniforms.locationOf("material.emissiveColor"), material.emissiveColorR, material.emissiveColorG, material.emissiveColorB);
+        glUniform3f(uniforms.locationOf("material.reflectionColor"), material.reflectionColorR, material.reflectionColorG, material.reflectionColorB);
         glUniform1f(uniforms.locationOf("material.minExponent"), material.minExponent);
         glUniform1f(uniforms.locationOf("material.maxExponent"), material.maxExponent);
         glUniform1f(uniforms.locationOf("material.parallaxHeightCoefficient"), material.parallaxHeightCoefficient);

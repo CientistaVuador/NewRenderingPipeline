@@ -63,13 +63,13 @@ public class NTexturesIO {
             String diffusePath,
             String aoPath,
             String heightPath,
-            String invertedExponentPath,
+            String roughnessPath,
             String normalPath,
-            String reflectivenessPath,
+            String metallicPath,
             String emissivePath
     ) throws IOException {
         String[] paths = new String[]{
-            diffusePath, aoPath, heightPath, invertedExponentPath, normalPath, reflectivenessPath, emissivePath
+            diffusePath, aoPath, heightPath, roughnessPath, normalPath, metallicPath, emissivePath
         };
         StringBuilder b = new StringBuilder();
         for (String path1 : paths) {
@@ -91,12 +91,12 @@ public class NTexturesIO {
         byte[] diffuse = loadFromJarOrNull(diffusePath);
         byte[] ao = loadFromJarOrNull(aoPath);
         byte[] height = loadFromJarOrNull(heightPath);
-        byte[] invertedExponent = loadFromJarOrNull(invertedExponentPath);
+        byte[] roughness = loadFromJarOrNull(roughnessPath);
         byte[] normal = loadFromJarOrNull(normalPath);
-        byte[] reflectiveness = loadFromJarOrNull(reflectivenessPath);
+        byte[] metallic = loadFromJarOrNull(metallicPath);
         byte[] emissive = loadFromJarOrNull(emissivePath);
 
-        return loadFromImages(name, diffuse, ao, height, invertedExponent, normal, reflectiveness, emissive);
+        return loadFromImages(name, diffuse, ao, height, roughness, normal, metallic, emissive);
     }
 
     public static class ImageFailedToLoadException extends Exception {
@@ -215,21 +215,21 @@ public class NTexturesIO {
             byte[] diffuseImage,
             byte[] aoImage,
             byte[] heightImage,
-            byte[] invertedExponentImage,
+            byte[] roughnessImage,
             byte[] normalImage,
-            byte[] reflectivenessImage,
+            byte[] metallicImage,
             byte[] emissiveImage
     ) {
         LoadedImage diffuse = loadImage(diffuseImage);
         LoadedImage ao = loadImage(aoImage);
         LoadedImage height = loadImage(heightImage);
-        LoadedImage exponent = loadImage(invertedExponentImage);
+        LoadedImage exponent = loadImage(roughnessImage);
         LoadedImage normal = loadImage(normalImage);
-        LoadedImage reflectiveness = loadImage(reflectivenessImage);
+        LoadedImage metallic = loadImage(metallicImage);
         LoadedImage emissive = loadImage(emissiveImage);
 
         LoadedImage[] loadedArray = new LoadedImage[]{
-            diffuse, ao, height, exponent, normal, reflectiveness, emissive
+            diffuse, ao, height, exponent, normal, metallic, emissive
         };
 
         int foundWidth = -1;
@@ -261,7 +261,7 @@ public class NTexturesIO {
                 (height != null ? height.pixelData : null),
                 (exponent != null ? exponent.pixelData : null),
                 (normal != null ? normal.pixelData : null),
-                (reflectiveness != null ? reflectiveness.pixelData : null),
+                (metallic != null ? metallic.pixelData : null),
                 (emissive != null ? emissive.pixelData : null)
         );
     }
@@ -285,9 +285,9 @@ public class NTexturesIO {
             byte[] diffuseMap,
             byte[] aoMap,
             byte[] heightMap,
-            byte[] invertedExponentMap,
+            byte[] roughnessMap,
             byte[] normalMap,
-            byte[] reflectivenessMap,
+            byte[] metallicMap,
             byte[] emissiveMap
     ) {
         if (width < 0) {
@@ -302,9 +302,9 @@ public class NTexturesIO {
         validate("diffuse map", diffuseMap, pixels);
         validate("ao map", aoMap, pixels);
         validate("height map", heightMap, pixels);
-        validate("inverted exponent map", invertedExponentMap, pixels);
+        validate("roughness map", roughnessMap, pixels);
         validate("normal map", normalMap, pixels);
-        validate("reflectiveness map", reflectivenessMap, pixels);
+        validate("metallic map", metallicMap, pixels);
         validate("emissive map", emissiveMap, pixels);
 
         NBlendingMode mode = NBlendingMode.OPAQUE;
@@ -323,7 +323,7 @@ public class NTexturesIO {
         }
 
         byte[] rgba = new byte[pixels * 4];
-        byte[] hirnx = new byte[pixels * 4];
+        byte[] hrmnx = new byte[pixels * 4];
         byte[] eregebny = new byte[pixels * 4];
 
         boolean heightMapSupported = false;
@@ -336,12 +336,12 @@ public class NTexturesIO {
 
             int ao = fetch(aoMap, (p * 4) + 0, 255);
             int hei = fetch(heightMap, (p * 4) + 0, 255);
-            int invexp = fetch(invertedExponentMap, (p * 4) + 0, 255);
+            int rg = fetch(roughnessMap, (p * 4) + 0, 255);
 
             int nx = fetch(normalMap, (p * 4) + 0, 127);
             int ny = fetch(normalMap, (p * 4) + 1, 127);
 
-            int re = fetch(reflectivenessMap, (p * 4) + 0, 0);
+            int mt = fetch(metallicMap, (p * 4) + 0, 0);
 
             int er = fetch(emissiveMap, (p * 4) + 0, 0);
             int eg = fetch(emissiveMap, (p * 4) + 1, 0);
@@ -358,10 +358,10 @@ public class NTexturesIO {
             rgba[(p * 4) + 2] = (byte) Math.floor(b * ambientOcclusion);
             rgba[(p * 4) + 3] = (byte) a;
 
-            hirnx[(p * 4) + 0] = (byte) hei;
-            hirnx[(p * 4) + 1] = (byte) invexp;
-            hirnx[(p * 4) + 2] = (byte) re;
-            hirnx[(p * 4) + 3] = (byte) nx;
+            hrmnx[(p * 4) + 0] = (byte) hei;
+            hrmnx[(p * 4) + 1] = (byte) rg;
+            hrmnx[(p * 4) + 2] = (byte) mt;
+            hrmnx[(p * 4) + 3] = (byte) nx;
 
             eregebny[(p * 4) + 0] = (byte) er;
             eregebny[(p * 4) + 1] = (byte) eg;
@@ -408,9 +408,9 @@ public class NTexturesIO {
                             blue = fetch(rgba, pixel + 2, 255) / 255f;
                         }
                         case 1 -> {
-                            red = fetch(hirnx, pixel + 0, 255) / 255f;
-                            green = fetch(hirnx, pixel + 1, 255) / 255f;
-                            blue = fetch(hirnx, pixel + 2, 255) / 255f;
+                            red = fetch(hrmnx, pixel + 0, 255) / 255f;
+                            green = fetch(hrmnx, pixel + 1, 255) / 255f;
+                            blue = fetch(hrmnx, pixel + 2, 255) / 255f;
                         }
                         case 2 -> {
                             red = fetch(eregebny, pixel + 0, 255) / 255f;
@@ -418,10 +418,11 @@ public class NTexturesIO {
                             blue = fetch(eregebny, pixel + 2, 255) / 255f;
                         }
                         case 3 -> {
-                            red = fetch(hirnx, pixel + 3, 255) / 255f;
+                            red = fetch(hrmnx, pixel + 3, 255) / 255f;
                             green = fetch(eregebny, pixel + 3, 255) / 255f;
                             blue = 0f;
                         }
+
                     }
                     color.r = red;
                     color.g = green;
@@ -441,9 +442,9 @@ public class NTexturesIO {
                             rgba[pixel + 2] = (byte) blue;
                         }
                         case 1 -> {
-                            hirnx[pixel + 0] = (byte) red;
-                            hirnx[pixel + 1] = (byte) green;
-                            hirnx[pixel + 2] = (byte) blue;
+                            hrmnx[pixel + 0] = (byte) red;
+                            hrmnx[pixel + 1] = (byte) green;
+                            hrmnx[pixel + 2] = (byte) blue;
                         }
                         case 2 -> {
                             eregebny[pixel + 0] = (byte) red;
@@ -451,9 +452,10 @@ public class NTexturesIO {
                             eregebny[pixel + 2] = (byte) blue;
                         }
                         case 3 -> {
-                            hirnx[pixel + 3] = (byte) red;
+                            hrmnx[pixel + 3] = (byte) red;
                             eregebny[pixel + 3] = (byte) green;
                         }
+
                     }
                 }
             }
@@ -484,13 +486,12 @@ public class NTexturesIO {
             }
         }
 
-        ByteBuffer totalData = ByteBuffer.allocate(
-                Integer.BYTES + Integer.BYTES + rgba.length + hirnx.length + eregebny.length
+        ByteBuffer totalData = ByteBuffer.allocate(Integer.BYTES + Integer.BYTES + rgba.length + hrmnx.length + eregebny.length
         )
                 .putInt(width)
                 .putInt(height)
                 .put(rgba)
-                .put(hirnx)
+                .put(hrmnx)
                 .put(eregebny)
                 .flip();
 
@@ -500,7 +501,7 @@ public class NTexturesIO {
                 name,
                 width, height,
                 rgba,
-                hirnx,
+                hrmnx,
                 eregebny,
                 mode,
                 heightMapSupported,

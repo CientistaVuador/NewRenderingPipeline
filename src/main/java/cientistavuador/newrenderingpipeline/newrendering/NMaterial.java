@@ -41,6 +41,7 @@ public class NMaterial {
     public static final Vector4fc DEFAULT_DIFFUSE_COLOR = new Vector4f(1.0f, 1.0f, 1.0f, 1.0f);
     public static final Vector3fc DEFAULT_SPECULAR_COLOR = new Vector3f(1.0f, 1.0f, 1.0f);
     public static final Vector3fc DEFAULT_EMISSIVE_COLOR = new Vector3f(1.2f, 1.2f, 1.2f);
+    public static final Vector3fc DEFAULT_REFLECTION_COLOR = new Vector3f(1.0f, 1.0f, 1.0f);
     public static final float DEFAULT_MIN_EXPONENT = 0.1f;
     public static final float DEFAULT_MAX_EXPONENT = 2048f;
     public static final float DEFAULT_PARALLAX_HEIGHT_COEFFICIENT = 0.065f;
@@ -52,6 +53,7 @@ public class NMaterial {
     static {
         NULL_MATERIAL.getDiffuseColor().set(1f, 1f, 1f, 1f);
         NULL_MATERIAL.getSpecularColor().set(0f, 0f, 0f);
+        NULL_MATERIAL.getReflectionColor().set(0f, 0f, 0f);
         NULL_MATERIAL.setParallaxHeightCoefficient(0f);
     }
     
@@ -62,6 +64,7 @@ public class NMaterial {
     private final Vector4f diffuseColor = new Vector4f(DEFAULT_DIFFUSE_COLOR);
     private final Vector3f specularColor = new Vector3f(DEFAULT_SPECULAR_COLOR);
     private final Vector3f emissiveColor = new Vector3f(DEFAULT_EMISSIVE_COLOR);
+    private final Vector3f reflectionColor = new Vector3f(DEFAULT_REFLECTION_COLOR);
     
     private float minExponent = DEFAULT_MIN_EXPONENT;
     private float maxExponent = DEFAULT_MAX_EXPONENT;
@@ -106,6 +109,10 @@ public class NMaterial {
 
     public Vector3f getEmissiveColor() {
         return emissiveColor;
+    }
+
+    public Vector3f getReflectionColor() {
+        return reflectionColor;
     }
     
     public float getMinExponent() {

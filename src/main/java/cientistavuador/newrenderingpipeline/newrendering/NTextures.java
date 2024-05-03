@@ -116,7 +116,7 @@ public class NTextures {
     private final String sha256;
 
     private final WrappedTexture r_g_b_a = new WrappedTexture();
-    private final WrappedTexture ht_ie_rf_nx = new WrappedTexture();
+    private final WrappedTexture ht_rg_mt_nx = new WrappedTexture();
     private final WrappedTexture er_eg_eb_ny = new WrappedTexture();
 
     public NTextures(
@@ -175,22 +175,22 @@ public class NTextures {
 
     private void registerForCleaning() {
         final WrappedTexture final_r_g_b_a = this.r_g_b_a;
-        final WrappedTexture final_ht_ie_rf_nx = this.ht_ie_rf_nx;
+        final WrappedTexture final_ht_rg_mt_nx = this.ht_rg_mt_nx;
         final WrappedTexture final_er_eg_eb_ny = this.er_eg_eb_ny;
 
         ObjectCleaner.get().register(this, () -> {
             Main.MAIN_TASKS.add(() -> {
                 int tex_r_g_b_a = final_r_g_b_a.texture;
-                int tex_ht_ie_rf_nx = final_ht_ie_rf_nx.texture;
+                int tex_ht_rg_mt_nx = final_ht_rg_mt_nx.texture;
                 int tex_er_eg_eb_ny = final_er_eg_eb_ny.texture;
 
                 if (tex_r_g_b_a != 0) {
                     glDeleteTextures(tex_r_g_b_a);
                     final_r_g_b_a.texture = 0;
                 }
-                if (tex_ht_ie_rf_nx != 0) {
-                    glDeleteTextures(tex_ht_ie_rf_nx);
-                    final_ht_ie_rf_nx.texture = 0;
+                if (tex_ht_rg_mt_nx != 0) {
+                    glDeleteTextures(tex_ht_rg_mt_nx);
+                    final_ht_rg_mt_nx.texture = 0;
                 }
                 if (tex_er_eg_eb_ny != 0) {
                     glDeleteTextures(tex_er_eg_eb_ny);
@@ -340,9 +340,9 @@ public class NTextures {
                 "r_g_b_a",
                 textureId
         );
-        this.ht_ie_rf_nx.texture = loadTexture(internalFormatRGB,
+        this.ht_rg_mt_nx.texture = loadTexture(internalFormatRGB,
                 this.heightInvertedExponentReflectivenessNormalX,
-                "ht_ie_rf_nx",
+                "ht_rg_mt_nx",
                 textureId
         );
         this.er_eg_eb_ny.texture = loadTexture(internalFormatSRGB,
@@ -357,9 +357,9 @@ public class NTextures {
         return this.r_g_b_a.texture;
     }
 
-    public int ht_ie_rf_nx() {
+    public int ht_rg_mt_nx() {
         validateTextures();
-        return this.ht_ie_rf_nx.texture;
+        return this.ht_rg_mt_nx.texture;
     }
 
     public int er_eg_eb_ny() {
@@ -369,20 +369,20 @@ public class NTextures {
 
     public void manualFree() {
         final WrappedTexture final_r_g_b_a = this.r_g_b_a;
-        final WrappedTexture final_ht_ie_rf_nx = this.ht_ie_rf_nx;
+        final WrappedTexture final_ht_rg_mt_nx = this.ht_rg_mt_nx;
         final WrappedTexture final_er_eg_eb_ny = this.er_eg_eb_ny;
 
         int tex_r_g_b_a = final_r_g_b_a.texture;
-        int tex_ht_ie_rf_nx = final_ht_ie_rf_nx.texture;
+        int tex_ht_rg_mt_nx = final_ht_rg_mt_nx.texture;
         int tex_er_eg_eb_ny = final_er_eg_eb_ny.texture;
 
         if (tex_r_g_b_a != 0) {
             glDeleteTextures(tex_r_g_b_a);
             final_r_g_b_a.texture = 0;
         }
-        if (tex_ht_ie_rf_nx != 0) {
-            glDeleteTextures(tex_ht_ie_rf_nx);
-            final_ht_ie_rf_nx.texture = 0;
+        if (tex_ht_rg_mt_nx != 0) {
+            glDeleteTextures(tex_ht_rg_mt_nx);
+            final_ht_rg_mt_nx.texture = 0;
         }
         if (tex_er_eg_eb_ny != 0) {
             glDeleteTextures(tex_er_eg_eb_ny);
