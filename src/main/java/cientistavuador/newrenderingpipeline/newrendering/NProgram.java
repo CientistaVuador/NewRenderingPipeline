@@ -472,9 +472,10 @@ public class NProgram {
                 vec3 diffuse = reflectedColor * diffuseColor;
                 vec3 specular = reflectedColor * specularColor;
                 
-                reflection += diffuse;
-                //hack! todo: fix washed colors
-                reflection += specular * max(metallic, 1.0 - pow(roughness, 1.0/8.0));
+                float fresnel = 1.0 - max(dot(fragDirection, normal), 0.0);
+                
+                reflection += diffuse * vec3(0.0);
+                reflection += specular * mix((1.0 - materialRoughness) * fresnel, 1.0, metallic);
                 
                 reflection *= material.reflectionColor;
                 
