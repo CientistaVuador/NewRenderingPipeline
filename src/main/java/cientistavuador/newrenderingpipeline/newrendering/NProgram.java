@@ -39,8 +39,8 @@ import static org.lwjgl.opengl.GL33C.*;
  */
 public class NProgram {
     
-    public static final float DIFFUSE_STRENGTH = 0.85f;
-    public static final float SPECULAR_STRENGTH = 0.15f;
+    public static final float DIFFUSE_STRENGTH = 0.90f;
+    public static final float SPECULAR_STRENGTH = 0.10f;
     
     public static final float LIGHT_ATTENUATION = 0.75f;
 
@@ -310,6 +310,8 @@ public class NProgram {
             
             uniform ParallaxCubemap parallaxCubemap;
             
+            uniform bool reflectionsEnabled;
+            
             struct Material {
                 vec4 diffuseColor;
                 vec3 specularColor;
@@ -444,7 +446,8 @@ public class NProgram {
                 vec3 normal,
                 vec3 diffuseColor,
                 vec3 specularColor,
-                float roughness
+                float roughness,
+                float metallic
             ) {
                 vec3 reflection = vec3(0.0);
                 
@@ -469,10 +472,9 @@ public class NProgram {
                 vec3 diffuse = reflectedColor * diffuseColor;
                 vec3 specular = reflectedColor * specularColor;
                 
-                float fresnel = pow(1.0 - max(dot(fragDirection, normal), 0.0), 2.0);
-                
                 reflection += diffuse;
-                reflection += specular * fresnel;
+                //hack! todo: fix washed colors
+                reflection += specular * max(metallic, 1.0 - pow(roughness, 1.0/8.0));
                 
                 reflection *= material.reflectionColor;
                 
@@ -548,10 +550,17 @@ public class NProgram {
                 float exponent = (pow((material.maxExponent - material.minExponent) + 1.0, 1.0 - roughness) - 1.0) + material.minExponent;
                 float normalizationFactor = ((exponent + 2.0) * (exponent + 4.0)) / (8.0 * PI * (pow(2.0, -exponent * 0.5) + exponent));
                 
-                vec3 diffuseColor = material.diffuseColor.rgb * rgba.rgb * DIFFUSE_STRENGTH;
-                vec3 normalizedDiffuse = diffuseColor / max(((diffuseColor.r + diffuseColor.g + diffuseColor.b) / 3.0), 0.001);
-                vec3 metallicSpecularColor = mix(vec3(1.0), normalizedDiffuse, metallic);
-                vec3 specularColor = material.specularColor * metallicSpecularColor * SPECULAR_STRENGTH;
+                vec3 diffuseColor = material.diffuseColor.rgb * rgba.rgb;
+                vec3 specularColor = material.specularColor;
+                
+                specularColor = mix(specularColor, diffuseColor, metallic);
+                
+                float metallicStrength = (reflectionsEnabled ? metallic : 0.0);
+                float diffuseStrength = mix(DIFFUSE_STRENGTH, 1.0 - DIFFUSE_STRENGTH, metallicStrength);
+                float specularStrength = mix(SPECULAR_STRENGTH, 1.0 - SPECULAR_STRENGTH, metallicStrength);
+                
+                diffuseColor *= diffuseStrength;
+                specularColor *= specularStrength;
                 
                 for (int i = 0; i < MAX_AMOUNT_OF_LIGHTS; i++) {
                     Light light = lights[i];
@@ -567,7 +576,9 @@ public class NProgram {
                     );
                 }
                 
-                finalColor.rgb += computeReflection(fragDirection, normal, diffuseColor, specularColor, roughness);
+                if (reflectionsEnabled) {
+                    finalColor.rgb += computeReflection(fragDirection, normal, diffuseColor, specularColor, roughness, metallic);
+                }
                 finalColor.rgb += eregebny.rgb * material.emissiveColor;
                 
                 finalColor.rgb = gammaCorrection(ACESFilm(finalColor.rgb));
@@ -635,6 +646,7 @@ public class NProgram {
     public static final String UNIFORM_PARALLAX_ENABLED = "parallaxEnabled";
     public static final String UNIFORM_ANIMATION_ENABLED = "animationEnabled";
     public static final String UNIFORM_REFLECTION_CUBEMAP = "reflectionCubemap";
+    public static final String UNIFORM_REFLECTIONS_ENABLED = "reflectionsEnabled";
 
     public static void sendMaterial(BetterUniformSetter uniforms, NProgramMaterial material) {
         if (material == null) {

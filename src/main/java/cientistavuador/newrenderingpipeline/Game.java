@@ -260,7 +260,7 @@ public class Game {
                     "cientistavuador/newrenderingpipeline/resources/image/height.jpg",
                     "cientistavuador/newrenderingpipeline/resources/image/invertedexponent.jpg",
                     "cientistavuador/newrenderingpipeline/resources/image/normal.jpg",
-                    null,
+                    null,//"cientistavuador/newrenderingpipeline/resources/image/reflectiveness.jpg",
                     null
             );
         } catch (IOException ex) {
@@ -426,7 +426,7 @@ public class Game {
         try {
             N3DModel waterBottle3DModel = N3DModelImporter.importFromJarFile("cientistavuador/newrenderingpipeline/cc0_WaterBottle.glb");
             waterBottle = new N3DObject("water bottle", waterBottle3DModel);
-            waterBottle.getPosition().set(0f, 10f, -15f);
+            waterBottle.getPosition().set(0f, 25f, -15f);
             waterBottle.getScale().set(5f);
         } catch (IOException ex) {
             throw new UncheckedIOException(ex);
@@ -1087,6 +1087,9 @@ public class Game {
             if (this.playerActive) {
                 this.player.getCharacterController().setNoclipEnabled(!this.player.getCharacterController().isNoclipEnabled());
             }
+        }
+        if (key == GLFW_KEY_H && action == GLFW_PRESS) {
+            N3DObjectRenderer.REFLECTIONS_ENABLED = !N3DObjectRenderer.REFLECTIONS_ENABLED;
         }
     }
 

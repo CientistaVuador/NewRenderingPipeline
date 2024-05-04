@@ -47,7 +47,8 @@ import static org.lwjgl.opengl.GL33C.*;
  */
 public class N3DObjectRenderer {
 
-    public static boolean PARALLAX_ENABLED = true;
+    public static boolean PARALLAX_ENABLED = false;
+    public static boolean REFLECTIONS_ENABLED = true;
 
     private static final ConcurrentLinkedQueue<N3DObject> renderQueue = new ConcurrentLinkedQueue<>();
 
@@ -332,6 +333,10 @@ public class N3DObjectRenderer {
 
         glUniform1i(variant.locationOf(NProgram.UNIFORM_PARALLAX_ENABLED),
                 (PARALLAX_ENABLED ? 1 : 0)
+        );
+        
+        glUniform1i(variant.locationOf(NProgram.UNIFORM_REFLECTIONS_ENABLED),
+                (REFLECTIONS_ENABLED ? 1 : 0)
         );
         
         int skyboxCubemap = skybox.cubemap();
