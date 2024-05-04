@@ -474,7 +474,7 @@ public class NProgram {
                 
                 float fresnel = 1.0 - max(dot(fragDirection, normal), 0.0);
                 
-                reflection += diffuse * vec3(0.0);
+                reflection += diffuse;
                 reflection += specular * mix((1.0 - materialRoughness) * fresnel, 1.0, metallic);
                 
                 reflection *= material.reflectionColor;
