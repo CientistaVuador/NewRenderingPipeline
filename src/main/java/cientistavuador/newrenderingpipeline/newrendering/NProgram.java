@@ -302,6 +302,17 @@ public class NProgram {
             
             uniform samplerCube reflectionCubemap;
             
+            uniform bool reflectionsSupported;
+            uniform bool reflectionsEnabled;
+            
+            struct FresnelOutline {
+                bool enabled;
+                float exponent;
+                vec3 color;
+            };
+            
+            uniform FresnelOutline fresnelOutline;
+            
             struct ParallaxCubemap {
                 bool enabled;
                 vec3 position;
@@ -309,8 +320,6 @@ public class NProgram {
             };
             
             uniform ParallaxCubemap parallaxCubemap;
-            
-            uniform bool reflectionsEnabled;
             
             struct Material {
                 vec4 diffuseColor;
@@ -455,7 +464,7 @@ public class NProgram {
                 float mipLevels = 1.0 + floor(log2(max(float(cubemapSize.x), float(cubemapSize.y))));
                 #endif
                 
-                float materialRoughness = pow(roughness, 1.0/2.2);
+                float materialRoughness = pow(roughness, 1.0/2.41);
                 
                 float lodLevel = mipLevels * materialRoughness;
                 float lodFactor = lodLevel - floor(lodLevel);
@@ -466,10 +475,10 @@ public class NProgram {
                 vec3 reflectedCeil = textureLod(reflectionCubemap, reflectedDirection, ceil(lodLevel)).rgb;
                 vec3 reflectedColor = mix(reflectedFloor, reflectedCeil, lodFactor);
                 
-                float fresnel = pow(1.0 - max(dot(fragDirection, normal), 0.0), 4.0);
+                float fresnel = (1.0 - materialRoughness) * pow(1.0 - max(dot(fragDirection, normal), 0.0), 5.0);
                 
                 vec3 metallicReflection = reflectedColor * specularColor;
-                vec3 nonmetallicReflection = reflectedColor * fresnel * (1.0 - materialRoughness);
+                vec3 nonmetallicReflection = reflectedColor * fresnel;
                 
                 vec3 reflection = material.reflectionColor * mix(nonmetallicReflection, metallicReflection, metallic);
                 
@@ -491,6 +500,7 @@ public class NProgram {
             
             void main() {
                 vec4 finalColor = vec4(0.0, 0.0, 0.0, 1.0);
+                
                 vec2 textureUv = inVertex.worldTexture;
                 float heightScale = material.parallaxHeightCoefficient;
                 
@@ -509,6 +519,8 @@ public class NProgram {
                     discard;
                 }
                 #endif
+                
+                vec3 vertexNormal = normalize(inVertex.worldNormal);
                 
                 #ifdef IS_LIGHTMAPPED
                 int amountOfLightmaps = textureSize(lightmaps, 0).z;
@@ -572,12 +584,17 @@ public class NProgram {
                     );
                 }
                 
-                if (reflectionsEnabled) {
+                if (reflectionsSupported && reflectionsEnabled) {
                     finalColor.rgb += computeReflection(fragDirection, normal, specularColor, roughness, metallic);
                 }
-                finalColor.rgb += eregebny.rgb * material.emissiveColor;
                 
+                finalColor.rgb += eregebny.rgb * material.emissiveColor;
                 finalColor.rgb = gammaCorrection(ACESFilm(finalColor.rgb));
+                
+                if (fresnelOutline.enabled) {
+                    float fresnel = pow(1.0 - max(dot(fragDirection, vertexNormal), 0.0), fresnelOutline.exponent);
+                    finalColor.rgb = mix(finalColor.rgb, fresnelOutline.color, fresnel);
+                }
                 
                 #ifdef IS_ALPHA_TESTING
                 outputFragColor = vec4(finalColor.rgb, 1.0);
@@ -642,6 +659,7 @@ public class NProgram {
     public static final String UNIFORM_PARALLAX_ENABLED = "parallaxEnabled";
     public static final String UNIFORM_ANIMATION_ENABLED = "animationEnabled";
     public static final String UNIFORM_REFLECTION_CUBEMAP = "reflectionCubemap";
+    public static final String UNIFORM_REFLECTIONS_SUPPORTED = "reflectionsSupported";
     public static final String UNIFORM_REFLECTIONS_ENABLED = "reflectionsEnabled";
 
     public static void sendMaterial(BetterUniformSetter uniforms, NProgramMaterial material) {
@@ -694,6 +712,14 @@ public class NProgram {
         if (enabled) {
             glUniform3f(uniforms.locationOf("parallaxCubemap.position"), x, y, z);
             BetterUniformSetter.uniformMatrix3fv(uniforms.locationOf("parallaxCubemap.box"), box);
+        }
+    }
+    
+    public static void sendFresnelOutlineInfo(BetterUniformSetter uniforms, boolean enabled, float exponent, float r, float g, float b) {
+        glUniform1i(uniforms.locationOf("fresnelOutline.enabled"), (enabled ? 1 : 0));
+        if (enabled) {
+            glUniform1f(uniforms.locationOf("fresnelOutline.exponent"), exponent);
+            glUniform3f(uniforms.locationOf("fresnelOutline.color"), r, g, b);
         }
     }
     

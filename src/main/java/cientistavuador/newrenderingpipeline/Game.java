@@ -437,7 +437,7 @@ public class Game {
             fox = new N3DObject("fox", fox3DModel);
             fox.getPosition().set(0f, 10f, -20f);
             fox.getScale().set(0.02f);
-
+            
             NAnimator foxAnimator = new NAnimator(fox3DModel, "Run");
             fox.setAnimator(foxAnimator);
         } catch (IOException ex) {

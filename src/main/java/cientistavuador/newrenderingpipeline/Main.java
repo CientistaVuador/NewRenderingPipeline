@@ -77,7 +77,7 @@ public class Main {
     public static final float TO_PHYSICS_ENGINE_UNITS = PHYSICS_ENGINE_UNITS;
     public static final float FROM_PHYSICS_ENGINE_UNITS = 1f / PHYSICS_ENGINE_UNITS;
     
-    public static final boolean USE_MSAA = true;
+    public static final boolean USE_MSAA = false;
     public static final boolean DEBUG_ENABLED = true;
     public static final boolean SPIKE_LAG_WARNINGS = false;
     public static final int MIN_UNIFORM_BUFFER_BINDINGS = UBOBindingPoints.MIN_NUMBER_OF_UBO_BINDING_POINTS;

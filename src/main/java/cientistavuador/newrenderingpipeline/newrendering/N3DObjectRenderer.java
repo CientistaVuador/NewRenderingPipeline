@@ -58,17 +58,23 @@ public class N3DObjectRenderer {
 
     private static class ToRender {
         
+        public final N3DObject obj;
         public final Matrix4f transformation;
         public final Matrix4f model;
         public final float distanceSquared;
-        public final NAnimator animator;
         public final NGeometry geometry;
-
-        public ToRender(Matrix4f transformation, Matrix4f model, float distanceSquared, NAnimator animator, NGeometry geometry) {
+        
+        public ToRender(
+                N3DObject obj,
+                Matrix4f transformation,
+                Matrix4f model,
+                float distanceSquared,
+                NGeometry geometry
+        ) {
+            this.obj = obj;
             this.transformation = transformation;
             this.model = model;
             this.distanceSquared = distanceSquared;
-            this.animator = animator;
             this.geometry = geometry;
         }
     }
@@ -225,7 +231,10 @@ public class N3DObjectRenderer {
                         float distanceSquared = (centerX * centerX) + (centerY * centerY) + (centerZ * centerZ);
                         
                         toRenderList.add(new ToRender(
-                                transformation, modelMatrix, distanceSquared, obj.getAnimator(), geometry
+                                obj,
+                                transformation, modelMatrix,
+                                distanceSquared,
+                                geometry
                         ));
                     }
                 }
@@ -338,6 +347,9 @@ public class N3DObjectRenderer {
         glUniform1i(variant.locationOf(NProgram.UNIFORM_REFLECTIONS_ENABLED),
                 (REFLECTIONS_ENABLED ? 1 : 0)
         );
+        glUniform1i(variant.locationOf(NProgram.UNIFORM_REFLECTIONS_SUPPORTED),
+                (REFLECTIONS_ENABLED ? 1 : 0)
+        );
         
         int skyboxCubemap = skybox.cubemap();
         
@@ -367,14 +379,16 @@ public class N3DObjectRenderer {
         Matrix4f lastTransformation = null;
         NMesh lastMesh = null;
         NAnimator lastAnimator = null;
-
+        N3DObject lastFresnel = null;
+        
         for (ToRender render : list) {
             NMaterial material = render.geometry.getMaterial();
             NTextures textures = material.getTextures();
             Matrix4f transformation = render.transformation;
             NMesh mesh = render.geometry.getMesh();
-            NAnimator animator = render.animator;
-
+            NAnimator animator = render.obj.getAnimator();
+            N3DObject fresnel = render.obj;
+            
             if (!material.equalsPropertiesOnly(lastMaterial)) {
                 Vector4fc d = material.getDiffuseColor();
                 Vector3fc s = material.getSpecularColor();
@@ -455,6 +469,14 @@ public class N3DObjectRenderer {
                     }
                 }
                 lastAnimator = animator;
+            }
+            
+            if (!fresnel.equalsFresnelOutline(lastFresnel)) {
+                NProgram.sendFresnelOutlineInfo(variant,
+                        fresnel.isFresnelOutlineEnabled(),
+                        fresnel.getFresnelOutlineExponent(),
+                        fresnel.getFresnelOutlineColor().x(), fresnel.getFresnelOutlineColor().y(), fresnel.getFresnelOutlineColor().z()
+                );
             }
 
             glDrawElements(GL_TRIANGLES, mesh.getIndices().length, GL_UNSIGNED_INT, 0);

@@ -54,7 +54,12 @@ public class N3DObject {
     private final Quaternionf rotation = new Quaternionf();
     private final Vector3f scale = new Vector3f(1f, 1f, 1f);
     private final Matrix4f transformation = new Matrix4f();
+    
     private boolean billboardEnabled = false;
+    
+    private boolean fresnelOutlineEnabled = false;
+    private float fresnelOutlineExponent = 3f;
+    private final Vector3f fresnelOutlineColor = new Vector3f(1f, 1f, 1f);
     
     private final WrappedQueryObject queryObject = new WrappedQueryObject();
     
@@ -111,6 +116,35 @@ public class N3DObject {
 
     public void setBillboardEnabled(boolean billboardEnabled) {
         this.billboardEnabled = billboardEnabled;
+    }
+
+    public boolean isFresnelOutlineEnabled() {
+        return fresnelOutlineEnabled;
+    }
+    
+    public void setFresnelOutlineEnabled(boolean fresnelOutlineEnabled) {
+        this.fresnelOutlineEnabled = fresnelOutlineEnabled;
+    }
+    
+    public float getFresnelOutlineExponent() {
+        return fresnelOutlineExponent;
+    }
+    
+    public void setFresnelOutlineExponent(float fresnelOutlineExponent) {
+        this.fresnelOutlineExponent = fresnelOutlineExponent;
+    }
+    
+    public Vector3f getFresnelOutlineColor() {
+        return fresnelOutlineColor;
+    }
+    
+    public boolean equalsFresnelOutline(N3DObject other) {
+        return 
+                other != null
+                && this.fresnelOutlineEnabled == other.fresnelOutlineEnabled
+                && Float.floatToRawIntBits(this.fresnelOutlineExponent) == Float.floatToRawIntBits(other.fresnelOutlineExponent)
+                && this.fresnelOutlineColor.equals(other.fresnelOutlineColor)
+                ;
     }
     
     public int getQueryObject() {
