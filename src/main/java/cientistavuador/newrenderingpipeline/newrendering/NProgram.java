@@ -444,13 +444,10 @@ public class NProgram {
             vec3 computeReflection(
                 vec3 fragDirection,
                 vec3 normal,
-                vec3 diffuseColor,
                 vec3 specularColor,
                 float roughness,
                 float metallic
             ) {
-                vec3 reflection = vec3(0.0);
-                
                 #ifdef SUPPORTED_430
                 float mipLevels = float(textureQueryLevels(reflectionCubemap));
                 #else
@@ -469,15 +466,12 @@ public class NProgram {
                 vec3 reflectedCeil = textureLod(reflectionCubemap, reflectedDirection, ceil(lodLevel)).rgb;
                 vec3 reflectedColor = mix(reflectedFloor, reflectedCeil, lodFactor);
                 
-                vec3 diffuse = reflectedColor * diffuseColor;
-                vec3 specular = reflectedColor * specularColor;
+                float fresnel = pow(1.0 - max(dot(fragDirection, normal), 0.0), 4.0);
                 
-                float fresnel = 1.0 - max(dot(fragDirection, normal), 0.0);
+                vec3 metallicReflection = reflectedColor * specularColor;
+                vec3 nonmetallicReflection = reflectedColor * fresnel * (1.0 - materialRoughness);
                 
-                reflection += diffuse;
-                reflection += specular * mix((1.0 - materialRoughness) * fresnel, 1.0, metallic);
-                
-                reflection *= material.reflectionColor;
+                vec3 reflection = material.reflectionColor * mix(nonmetallicReflection, metallicReflection, metallic);
                 
                 return reflection;
             }
@@ -554,11 +548,12 @@ public class NProgram {
                 vec3 diffuseColor = material.diffuseColor.rgb * rgba.rgb;
                 vec3 specularColor = material.specularColor;
                 
-                specularColor = mix(specularColor, diffuseColor, metallic);
-                
                 float metallicStrength = (reflectionsEnabled ? metallic : 0.0);
+                
                 float diffuseStrength = mix(DIFFUSE_STRENGTH, 1.0 - DIFFUSE_STRENGTH, metallicStrength);
                 float specularStrength = mix(SPECULAR_STRENGTH, 1.0 - SPECULAR_STRENGTH, metallicStrength);
+                
+                specularColor = mix(specularColor, diffuseColor, metallicStrength);
                 
                 diffuseColor *= diffuseStrength;
                 specularColor *= specularStrength;
@@ -578,7 +573,7 @@ public class NProgram {
                 }
                 
                 if (reflectionsEnabled) {
-                    finalColor.rgb += computeReflection(fragDirection, normal, diffuseColor, specularColor, roughness, metallic);
+                    finalColor.rgb += computeReflection(fragDirection, normal, specularColor, roughness, metallic);
                 }
                 finalColor.rgb += eregebny.rgb * material.emissiveColor;
                 

@@ -47,7 +47,7 @@ import static org.lwjgl.opengl.GL33C.*;
  */
 public class N3DObjectRenderer {
 
-    public static boolean PARALLAX_ENABLED = false;
+    public static boolean PARALLAX_ENABLED = true;
     public static boolean REFLECTIONS_ENABLED = true;
 
     private static final ConcurrentLinkedQueue<N3DObject> renderQueue = new ConcurrentLinkedQueue<>();

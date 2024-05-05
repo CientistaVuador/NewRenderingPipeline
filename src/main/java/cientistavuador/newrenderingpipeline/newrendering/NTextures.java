@@ -46,6 +46,8 @@ import org.lwjgl.opengl.GL42C;
  * @author Cien
  */
 public class NTextures {
+    
+    private static final AtomicLong textureIds = new AtomicLong();
 
     public static final NTextures NULL_TEXTURE;
 
@@ -97,8 +99,6 @@ public class NTextures {
                 null
         );
     }
-
-    private static final AtomicLong textureIds = new AtomicLong();
 
     private static class WrappedTexture {
 
@@ -307,7 +307,7 @@ public class NTextures {
 
             if (GL.getCapabilities().GL_KHR_debug) {
                 KHRDebug.glObjectLabel(GL_TEXTURE, texture,
-                        StringUtils.truncateStringTo255Bytes(name + textureId + "_" + this.name)
+                        StringUtils.truncateStringTo255Bytes(name + "_" + textureId + "_" + this.name)
                 );
             }
 
