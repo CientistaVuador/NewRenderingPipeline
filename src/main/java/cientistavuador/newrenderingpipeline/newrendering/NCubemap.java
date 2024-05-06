@@ -35,8 +35,12 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 import org.joml.Matrix3f;
 import org.joml.Matrix3fc;
+import org.joml.Quaternionf;
+import org.joml.Quaternionfc;
 import org.joml.Vector3d;
 import org.joml.Vector3dc;
+import org.joml.Vector3f;
+import org.joml.Vector3fc;
 import org.lwjgl.opengl.ARBSeamlessCubemapPerTexture;
 import org.lwjgl.opengl.EXTTextureCompressionS3TC;
 import org.lwjgl.opengl.EXTTextureFilterAnisotropic;
@@ -82,6 +86,8 @@ public class NCubemap {
                 true,
                 false,
                 null,
+                null,
+                null,
                 null
         );
     }
@@ -109,6 +115,8 @@ public class NCubemap {
                 true,
                 true,
                 false,
+                null,
+                null,
                 null,
                 null
         );
@@ -139,8 +147,10 @@ public class NCubemap {
     private final boolean srgb;
     private final boolean compressed;
     private final boolean parallaxCorrected;
+    private final Vector3d parallaxCubemapPosition;
     private final Vector3d parallaxPosition;
-    private final Matrix3f parallaxBox;
+    private final Quaternionf parallaxRotation;
+    private final Vector3f parallaxSize;
     private final WrappedCubemap wrappedCubemap;
 
     public NCubemap(
@@ -151,8 +161,10 @@ public class NCubemap {
             boolean srgb,
             boolean compressed,
             boolean parallaxCorrected,
+            Vector3dc parallaxCubemapPosition,
             Vector3dc parallaxPosition,
-            Matrix3fc parallaxBox
+            Quaternionf parallaxRotation,
+            Vector3fc parallaxSize
     ) {
         if (name == null) {
             this.name = sha256;
@@ -172,18 +184,30 @@ public class NCubemap {
         this.compressed = compressed;
         this.parallaxCorrected = parallaxCorrected;
         
+        if (parallaxCubemapPosition == null) {
+            this.parallaxCubemapPosition = new Vector3d();
+        } else {
+            this.parallaxCubemapPosition = new Vector3d(parallaxCubemapPosition);
+        }
+        
         if (parallaxPosition == null) {
             this.parallaxPosition = new Vector3d();
         } else {
             this.parallaxPosition = new Vector3d(parallaxPosition);
         }
-
-        if (parallaxBox == null) {
-            this.parallaxBox = new Matrix3f();
+        
+        if (parallaxRotation == null) {
+            this.parallaxRotation = new Quaternionf();
         } else {
-            this.parallaxBox = new Matrix3f(parallaxBox);
+            this.parallaxRotation = new Quaternionf(parallaxRotation);
         }
-
+        
+        if (parallaxSize == null) {
+            this.parallaxSize = new Vector3f();
+        } else {
+            this.parallaxSize = new Vector3f(parallaxSize);
+        }
+        
         this.wrappedCubemap = new WrappedCubemap();
 
         registerForCleaning();
@@ -231,12 +255,20 @@ public class NCubemap {
         return parallaxCorrected;
     }
 
+    public Vector3dc getParallaxCubemapPosition() {
+        return parallaxCubemapPosition;
+    }
+
     public Vector3dc getParallaxPosition() {
         return parallaxPosition;
     }
 
-    public Matrix3fc getParallaxBox() {
-        return parallaxBox;
+    public Quaternionfc getParallaxRotation() {
+        return parallaxRotation;
+    }
+    
+    public Vector3fc getParallaxSize() {
+        return parallaxSize;
     }
 
     public void manualFree() {

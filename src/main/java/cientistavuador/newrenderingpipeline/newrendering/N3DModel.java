@@ -63,6 +63,9 @@ public class N3DModel {
     private final Vector3f animatedAabbCenter = new Vector3f();
     private boolean animatedAabbGenerated = false;
     
+    private final int indicesCount;
+    private final int verticesCount;
+    
     public N3DModel(String name, N3DModelNode rootNode) {
         this(name, rootNode, null);
     }
@@ -78,7 +81,10 @@ public class N3DModel {
         for (int i = 0; i < animations.length; i++) {
             this.animationsMap.put(animations[i].getName(), i);
         }
-
+        
+        int indicesCounter = 0;
+        int verticesCounter = 0;
+        
         float minX = Float.POSITIVE_INFINITY;
         float minY = Float.POSITIVE_INFINITY;
         float minZ = Float.POSITIVE_INFINITY;
@@ -135,6 +141,9 @@ public class N3DModel {
                         maxY = Math.max(maxY, transformed.y());
                         maxZ = Math.max(maxZ, transformed.z());
                     }
+                    
+                    verticesCounter += mesh.getVertices().length / NMesh.VERTEX_SIZE;
+                    indicesCounter += mesh.getIndices().length;
                 }
                 
                 next.addAll(Arrays.asList(currentNode.getChildren()));
@@ -163,6 +172,9 @@ public class N3DModel {
             this.nodesMap.put(this.nodes[i].getName(), i);
         }
         this.bones = boneList.toArray(String[]::new);
+        
+        this.verticesCount = verticesCounter;
+        this.indicesCount = indicesCounter;
     }
 
     public String getName() {
@@ -282,4 +294,13 @@ public class N3DModel {
     public boolean isAnimatedAabbGenerated() {
         return animatedAabbGenerated;
     }
+    
+    public int getIndicesCount() {
+        return indicesCount;
+    }
+
+    public int getVerticesCount() {
+        return verticesCount;
+    }
+    
 }

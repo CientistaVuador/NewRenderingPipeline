@@ -38,6 +38,7 @@ import cientistavuador.newrenderingpipeline.newrendering.N3DModelImporter;
 import cientistavuador.newrenderingpipeline.newrendering.N3DModelNode;
 import cientistavuador.newrenderingpipeline.newrendering.N3DObject;
 import cientistavuador.newrenderingpipeline.newrendering.N3DObjectRenderer;
+import cientistavuador.newrenderingpipeline.newrendering.NAnimation;
 import cientistavuador.newrenderingpipeline.newrendering.NAnimator;
 import cientistavuador.newrenderingpipeline.newrendering.NCubemap;
 import cientistavuador.newrenderingpipeline.newrendering.NCubemapIO;
@@ -255,12 +256,12 @@ public class Game {
     {
         try {
             textures = NTexturesIO.loadFromJar(
-                    "cientistavuador/newrenderingpipeline/resources/image/diffuse.jpg",
-                    "cientistavuador/newrenderingpipeline/resources/image/ao.jpg",
-                    "cientistavuador/newrenderingpipeline/resources/image/height.jpg",
+                    null,//"cientistavuador/newrenderingpipeline/resources/image/diffuse.jpg",
+                    null,//"cientistavuador/newrenderingpipeline/resources/image/ao.jpg",
+                    null,//"cientistavuador/newrenderingpipeline/resources/image/height.jpg",
                     "cientistavuador/newrenderingpipeline/resources/image/invertedexponent.jpg",
-                    "cientistavuador/newrenderingpipeline/resources/image/normal.jpg",
-                    null,//"cientistavuador/newrenderingpipeline/resources/image/reflectiveness.jpg",
+                    null,//"cientistavuador/newrenderingpipeline/resources/image/normal.jpg",
+                    "cientistavuador/newrenderingpipeline/resources/image/reflectiveness.jpg",
                     null
             );
         } catch (IOException ex) {
@@ -403,7 +404,7 @@ public class Game {
     private NCubemap cubemap = null;
     
     public void start() {
-        cubemap = NCubemapIO.loadFromJar("cientistavuador/newrenderingpipeline/resources/image/generic_cubemap.png", true, false);
+        cubemap = NCubemapIO.loadFromJar("cientistavuador/newrenderingpipeline/resources/image/generic_cubemap2.png", true, false);
         
         try {
             N3DModel model = N3DModelImporter.importFromJarFile("cientistavuador/newrenderingpipeline/cc0_zacxophone_triceratops.glb");
@@ -414,7 +415,7 @@ public class Game {
         } catch (IOException ex) {
             throw new UncheckedIOException(ex);
         }
-
+        
         try {
             N3DModel model = N3DModelImporter.importFromJarFile("cientistavuador/newrenderingpipeline/my_metallic_balls.glb");
             myBalls = new N3DObject("test model", model);

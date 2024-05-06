@@ -358,6 +358,23 @@ public class N3DObjectRenderer {
         
         glUniform1i(variant.locationOf(NProgram.UNIFORM_REFLECTION_CUBEMAP), 3);
         
+        float width = 20f;
+        float height = 5f;
+        float depth = 20f;
+        
+        float relativeX = (float) ((0f + (width * 0.5f)) - camera.getPosition().x());
+        float relativeY = (float) ((10f + (height * 0.5f)) - camera.getPosition().y());
+        float relativeZ = (float) ((-15f + (depth * -0.5f)) - camera.getPosition().z());
+        
+        NProgram.sendParallaxCubemapInfo(variant,
+                true,
+                relativeX, relativeY, relativeZ + 5f,
+                new Matrix4f()
+                        .translate(relativeX, relativeY, relativeZ)
+                        .scale(width * 0.5f, height * 0.5f, depth * 0.5f)
+                        .invert()
+        );
+        
         for (int i = 0; i < lights.length; i++) {
             NProgram.sendLight(variant, lights[i], i);
         }

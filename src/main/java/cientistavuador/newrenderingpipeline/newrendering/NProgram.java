@@ -29,7 +29,6 @@ package cientistavuador.newrenderingpipeline.newrendering;
 import cientistavuador.newrenderingpipeline.util.BetterUniformSetter;
 import cientistavuador.newrenderingpipeline.util.ProgramCompiler;
 import java.util.Map;
-import org.joml.Matrix3fc;
 import org.joml.Matrix4fc;
 import static org.lwjgl.opengl.GL33C.*;
 
@@ -38,10 +37,10 @@ import static org.lwjgl.opengl.GL33C.*;
  * @author Cien
  */
 public class NProgram {
-    
+
     public static final float DIFFUSE_STRENGTH = 0.90f;
     public static final float SPECULAR_STRENGTH = 0.10f;
-    
+
     public static final float LIGHT_ATTENUATION = 0.75f;
 
     public static final int MAX_AMOUNT_OF_LIGHTS = 16;
@@ -53,7 +52,7 @@ public class NProgram {
     public static final int SPOT_LIGHT_TYPE = 3;
 
     public static final class NProgramLight {
-        
+
         public final int type;
         public final float x;
         public final float y;
@@ -72,7 +71,7 @@ public class NProgram {
         public final float ambientR;
         public final float ambientG;
         public final float ambientB;
-        
+
         public NProgramLight(
                 int type,
                 float x, float y, float z,
@@ -101,7 +100,7 @@ public class NProgram {
             this.ambientG = ambientG;
             this.ambientB = ambientB;
         }
-        
+
     }
 
     public static final NProgramLight NULL_LIGHT = new NProgramLight(
@@ -115,7 +114,7 @@ public class NProgram {
     );
 
     public static final class NProgramMaterial {
-        
+
         public final float diffuseColorR;
         public final float diffuseColorG;
         public final float diffuseColorB;
@@ -163,7 +162,6 @@ public class NProgram {
             this.parallaxMaxLayers = parallaxMaxLayers;
         }
 
-        
     }
 
     public static final NProgramMaterial NULL_MATERIAL = new NProgramMaterial(
@@ -175,14 +173,14 @@ public class NProgram {
             NMaterial.DEFAULT_PARALLAX_HEIGHT_COEFFICIENT,
             NMaterial.DEFAULT_PARALLAX_MIN_LAYERS, NMaterial.DEFAULT_PARALLAX_MAX_LAYERS
     );
-    
+
     public static final BetterUniformSetter VARIANT_ALPHA_TESTING;
     public static final BetterUniformSetter VARIANT_ALPHA_BLENDING;
     public static final BetterUniformSetter VARIANT_LIGHTMAPPED_ALPHA_TESTING;
     public static final BetterUniformSetter VARIANT_LIGHTMAPPED_ALPHA_BLENDING;
 
-    private static final String VERTEX_SHADER = 
-            """
+    private static final String VERTEX_SHADER
+            = """
             layout (location = VAO_INDEX_POSITION_XYZ) in vec3 vertexPosition;
             layout (location = VAO_INDEX_TEXTURE_XY) in vec2 vertexTexture;
             layout (location = VAO_INDEX_NORMAL_XYZ) in vec3 vertexNormal;
@@ -274,8 +272,8 @@ public class NProgram {
             }
             """;
 
-    private static final String FRAGMENT_SHADER = 
-            """
+    private static final String FRAGMENT_SHADER
+            = """
             #if defined(VARIANT_LIGHTMAPPED_ALPHA_TESTING) || defined(VARIANT_LIGHTMAPPED_ALPHA_BLENDING)
             #define IS_LIGHTMAPPED
             #endif
@@ -316,7 +314,7 @@ public class NProgram {
             struct ParallaxCubemap {
                 bool enabled;
                 vec3 position;
-                mat3 box;
+                mat4 worldToLocal;
             };
             
             uniform ParallaxCubemap parallaxCubemap;
@@ -451,12 +449,32 @@ public class NProgram {
             }
             
             vec3 computeReflection(
+                vec3 fragPosition,
                 vec3 fragDirection,
                 vec3 normal,
                 vec3 specularColor,
                 float roughness,
                 float metallic
             ) {
+                vec3 reflectedDirection = reflect(-fragDirection, normal);
+                
+                if (parallaxCubemap.enabled) {
+                    vec3 localDirection = mat3(parallaxCubemap.worldToLocal) * reflectedDirection;
+                    vec3 localPosition = (parallaxCubemap.worldToLocal * vec4(fragPosition, 1.0)).xyz;
+                    
+                    vec3 unitaryBox = vec3(1.0);
+                    vec3 firstPlane = (unitaryBox - localPosition) / localDirection;
+                    vec3 secondPlane = ((-unitaryBox) - localPosition) / localDirection;
+                    vec3 furthestPlane = max(firstPlane, secondPlane);
+                    
+                    float distance = min(furthestPlane.x, min(furthestPlane.y, furthestPlane.z));
+                    
+                    if (distance >= 0.0) {
+                        vec3 intersectionPosition = fragPosition + (reflectedDirection * distance);
+                        reflectedDirection = normalize(intersectionPosition - parallaxCubemap.position);
+                    }
+                }
+                
                 #ifdef SUPPORTED_430
                 float mipLevels = float(textureQueryLevels(reflectionCubemap));
                 #else
@@ -468,8 +486,6 @@ public class NProgram {
                 
                 float lodLevel = mipLevels * materialRoughness;
                 float lodFactor = lodLevel - floor(lodLevel);
-                
-                vec3 reflectedDirection = reflect(-fragDirection, normal);
                 
                 vec3 reflectedFloor = textureLod(reflectionCubemap, reflectedDirection, floor(lodLevel)).rgb;
                 vec3 reflectedCeil = textureLod(reflectionCubemap, reflectedDirection, ceil(lodLevel)).rgb;
@@ -522,17 +538,6 @@ public class NProgram {
                 
                 vec3 vertexNormal = normalize(inVertex.worldNormal);
                 
-                #ifdef IS_LIGHTMAPPED
-                int amountOfLightmaps = textureSize(lightmaps, 0).z;
-                for (int i = 0; i < amountOfLightmaps; i++) {
-                    float intensity = 1.0;
-                    if (i < MAX_AMOUNT_OF_LIGHTMAPS) {
-                        intensity = lightmapIntensity[i];
-                    }
-                    finalColor.rgb += texture(lightmaps, vec3(inVertex.worldLightmapUv, float(i))).rgb * intensity * rgba.rgb;
-                }
-                #endif
-                
                 mat3 TBN = inVertex.TBN;
                 
                 vec3 normal = vec3(
@@ -570,6 +575,18 @@ public class NProgram {
                 diffuseColor *= diffuseStrength;
                 specularColor *= specularStrength;
                 
+                #ifdef IS_LIGHTMAPPED
+                float lightmapAo = (max(dot(vertexNormal, normal), 0.0) * 0.5) + 0.5;
+                int amountOfLightmaps = textureSize(lightmaps, 0).z;
+                for (int i = 0; i < amountOfLightmaps; i++) {
+                    float intensity = 1.0;
+                    if (i < MAX_AMOUNT_OF_LIGHTMAPS) {
+                        intensity = lightmapIntensity[i];
+                    }
+                    finalColor.rgb += texture(lightmaps, vec3(inVertex.worldLightmapUv, float(i))).rgb * intensity * diffuseColor * lightmapAo;
+                }
+                #endif
+                
                 for (int i = 0; i < MAX_AMOUNT_OF_LIGHTS; i++) {
                     Light light = lights[i];
                     if (light.type == NULL_LIGHT_TYPE) {
@@ -585,7 +602,7 @@ public class NProgram {
                 }
                 
                 if (reflectionsSupported && reflectionsEnabled) {
-                    finalColor.rgb += computeReflection(fragDirection, normal, specularColor, roughness, metallic);
+                    finalColor.rgb += computeReflection(worldPosition, fragDirection, normal, specularColor, roughness, metallic);
                 }
                 
                 finalColor.rgb += eregebny.rgb * material.emissiveColor;
@@ -702,19 +719,19 @@ public class NProgram {
         }
         glUniform1f(uniforms.locationOf("lightmapIntensity[" + index + "]"), intensity);
     }
-    
+
     public static void sendBoneMatrix(BetterUniformSetter uniforms, Matrix4fc matrix, int boneId) {
-        BetterUniformSetter.uniformMatrix4fv(uniforms.locationOf("boneMatrices["+boneId+"]"), matrix);
+        BetterUniformSetter.uniformMatrix4fv(uniforms.locationOf("boneMatrices[" + boneId + "]"), matrix);
     }
-    
-    public static void sendParallaxCubemapInfo(BetterUniformSetter uniforms, boolean enabled, float x, float y, float z, Matrix3fc box) {
+
+    public static void sendParallaxCubemapInfo(BetterUniformSetter uniforms, boolean enabled, float x, float y, float z, Matrix4fc worldToLocal) {
         glUniform1i(uniforms.locationOf("parallaxCubemap.enabled"), (enabled ? 1 : 0));
         if (enabled) {
             glUniform3f(uniforms.locationOf("parallaxCubemap.position"), x, y, z);
-            BetterUniformSetter.uniformMatrix3fv(uniforms.locationOf("parallaxCubemap.box"), box);
+            BetterUniformSetter.uniformMatrix4fv(uniforms.locationOf("parallaxCubemap.worldToLocal"), worldToLocal);
         }
     }
-    
+
     public static void sendFresnelOutlineInfo(BetterUniformSetter uniforms, boolean enabled, float exponent, float r, float g, float b) {
         glUniform1i(uniforms.locationOf("fresnelOutline.enabled"), (enabled ? 1 : 0));
         if (enabled) {
@@ -722,7 +739,7 @@ public class NProgram {
             glUniform3f(uniforms.locationOf("fresnelOutline.color"), r, g, b);
         }
     }
-    
+
     public static void init() {
 
     }

@@ -116,7 +116,7 @@ public class NCubemapIO {
         ByteBuffer totalData = ByteBuffer.allocate(cubemapSides.length + 4).putInt(size).put(cubemapSides).flip();
         String sha256 = CryptoUtils.sha256(totalData);
 
-        return new NCubemap(name, size, cubemapSides, sha256, srgb, compressed, false, null, null);
+        return new NCubemap(name, size, cubemapSides, sha256, srgb, compressed, false, null, null, null, null);
     }
 
     private NCubemapIO() {
