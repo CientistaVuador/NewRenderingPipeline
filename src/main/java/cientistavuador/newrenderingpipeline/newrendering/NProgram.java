@@ -194,10 +194,7 @@ public class NProgram {
             uniform mat4 model;
             uniform mat3 normalModel;
             
-            #if defined(VARIANT_ALPHA_TESTING) || defined(VARIANT_ALPHA_BLENDING)
-            uniform bool animationEnabled;
-            uniform mat4 boneMatrices[MAX_AMOUNT_OF_BONES];
-            #endif
+            uniform mat4 boneMatrices[MAX_AMOUNT_OF_BONES + 1];
             
             #if defined(VARIANT_LIGHTMAPPED_ALPHA_TESTING) || defined(VARIANT_LIGHTMAPPED_ALPHA_BLENDING)
             uniform samplerBuffer lightmapUvs;
@@ -210,9 +207,7 @@ public class NProgram {
                 float worldAmbientOcclusion;
                 
                 mat3 TBN;
-                
                 vec3 tangentPosition;
-                vec3 tangentViewPosition;
                 
                 #if defined(VARIANT_LIGHTMAPPED_ALPHA_TESTING) || defined(VARIANT_LIGHTMAPPED_ALPHA_BLENDING)
                 vec2 worldLightmapUv;
@@ -220,49 +215,32 @@ public class NProgram {
             } outVertex;
             
             void main() {
-                vec3 tangent = normalize(normalModel * vertexTangent);
-                vec3 normal = normalize(normalModel * vertexNormal);
-                vec4 worldPosition = model * vec4(vertexPosition, 1.0);
-                
-                #if defined(VARIANT_ALPHA_TESTING) || defined(VARIANT_ALPHA_BLENDING)
-                if (animationEnabled) {
-                    bool hasBones = false;
-                    for (int i = 0; i < MAX_AMOUNT_OF_BONE_WEIGHTS; i++) {
-                        if (vertexBoneIds[i] >= 0) hasBones = true;
-                    }
-                    if (hasBones) {
-                        vec3 animatedTangent = vec3(0.0);
-                        vec3 animatedNormal = vec3(0.0);
-                        vec4 animatedWorldPosition = vec4(0.0);
-                        for (int i = 0; i < MAX_AMOUNT_OF_BONE_WEIGHTS; i++) {
-                            int boneId = vertexBoneIds[i];
-                            float weight = vertexBoneWeights[i];
-                            
-                            if (boneId >= 0) {
-                                mat4 boneModel = boneMatrices[boneId];
-                                mat3 normalBoneModel = mat3(boneModel);
-                                
-                                animatedTangent += (normalBoneModel * vertexTangent) * weight;
-                                animatedNormal += (normalBoneModel * vertexNormal) * weight;
-                                animatedWorldPosition += (boneModel * vec4(vertexPosition, 1.0)) * weight;
-                            }
-                        }
-                        tangent = normalize(animatedTangent);
-                        normal = normalize(animatedNormal);
-                        worldPosition = animatedWorldPosition;
-                    }
+                vec3 localTangent = vec3(0.0);
+                vec3 localNormal = vec3(0.0);
+                vec4 localPosition = vec4(0.0);
+              
+                for (int i = 0; i < MAX_AMOUNT_OF_BONE_WEIGHTS; i++) {
+                    int boneId = vertexBoneIds[i] + 1;
+                    float weight = vertexBoneWeights[i];
+                    
+                    mat4 boneModel = boneMatrices[boneId];
+                    mat3 normalBoneModel = mat3(boneModel);
+                    
+                    localTangent += normalBoneModel * vertexTangent * weight;
+                    localNormal += normalBoneModel * vertexNormal * weight;
+                    localPosition += boneModel * vec4(vertexPosition, 1.0) * weight;
                 }
-                #endif
+                
+                vec3 tangent = normalize(normalModel * localTangent);
+                vec3 normal = normalize(normalModel * localNormal);
+                vec4 worldPosition = model * localPosition;
                 
                 outVertex.worldPosition = worldPosition.xyz;
                 outVertex.worldTexture = vertexTexture;
                 outVertex.worldNormal = normal;
                 outVertex.worldAmbientOcclusion = vertexAmbientOcclusion;
                 outVertex.TBN = mat3(tangent, cross(normal, tangent), normal);
-                
-                mat3 transposedTBN = transpose(outVertex.TBN);
-                outVertex.tangentPosition = transposedTBN * outVertex.worldPosition;
-                outVertex.tangentViewPosition = transposedTBN * vec3(0.0);
+                outVertex.tangentPosition = transpose(outVertex.TBN) * outVertex.worldPosition;
                 
                 #if defined(VARIANT_LIGHTMAPPED_ALPHA_TESTING) || defined(VARIANT_LIGHTMAPPED_ALPHA_BLENDING)
                 outVertex.worldLightmapUv = texelFetch(lightmapUvs, gl_VertexID).xy;
@@ -353,9 +331,7 @@ public class NProgram {
                 float worldAmbientOcclusion;
                 
                 mat3 TBN;
-                
                 vec3 tangentPosition;
-                vec3 tangentViewPosition;
                 
                 #ifdef IS_LIGHTMAPPED
                 vec2 worldLightmapUv;
@@ -367,12 +343,11 @@ public class NProgram {
             vec2 parallaxMapping(
                 vec2 uv,
                 vec3 tangentPosition,
-                vec3 tangentViewPosition,
                 float minLayers,
                 float maxLayers,
                 float heightScale
             ) {
-                vec3 tangentViewDirection = normalize(tangentViewPosition - tangentPosition);
+                vec3 tangentViewDirection = normalize(-tangentPosition);
                 
                 float numLayers = mix(maxLayers, minLayers, max(dot(vec3(0.0, 0.0, 1.0), tangentViewDirection), 0.0));
                 
@@ -521,7 +496,7 @@ public class NProgram {
                 float heightScale = material.parallaxHeightCoefficient;
                 
                 if (parallaxSupported && parallaxEnabled && heightScale > 0.0) {
-                    textureUv = parallaxMapping(inVertex.worldTexture, inVertex.tangentPosition, inVertex.tangentViewPosition, material.parallaxMinLayers, material.parallaxMaxLayers, material.parallaxHeightCoefficient);
+                    textureUv = parallaxMapping(inVertex.worldTexture, inVertex.tangentPosition, material.parallaxMinLayers, material.parallaxMaxLayers, material.parallaxHeightCoefficient);
                 }
                 
                 vec4 rgba = texture(r_g_b_a, textureUv);
@@ -674,7 +649,6 @@ public class NProgram {
     public static final String UNIFORM_LIGHTMAPS = "lightmaps";
     public static final String UNIFORM_PARALLAX_SUPPORTED = "parallaxSupported";
     public static final String UNIFORM_PARALLAX_ENABLED = "parallaxEnabled";
-    public static final String UNIFORM_ANIMATION_ENABLED = "animationEnabled";
     public static final String UNIFORM_REFLECTION_CUBEMAP = "reflectionCubemap";
     public static final String UNIFORM_REFLECTIONS_SUPPORTED = "reflectionsSupported";
     public static final String UNIFORM_REFLECTIONS_ENABLED = "reflectionsEnabled";
@@ -721,7 +695,7 @@ public class NProgram {
     }
 
     public static void sendBoneMatrix(BetterUniformSetter uniforms, Matrix4fc matrix, int boneId) {
-        BetterUniformSetter.uniformMatrix4fv(uniforms.locationOf("boneMatrices[" + boneId + "]"), matrix);
+        BetterUniformSetter.uniformMatrix4fv(uniforms.locationOf("boneMatrices[" + (boneId + 1) + "]"), matrix);
     }
 
     public static void sendParallaxCubemapInfo(BetterUniformSetter uniforms, boolean enabled, float x, float y, float z, Matrix4fc worldToLocal) {

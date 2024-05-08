@@ -272,13 +272,15 @@ public class Game {
     private final NMesh mesh;
 
     {
+        final float e = Float.intBitsToFloat(-1);
+        
         float[] vertices = new float[]{
-            0f, 0f, 0f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f, 1f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f,
-            20f, 0f, 0f, 10f, 0f, 0f, 1f, 0f, 0f, 0f, 1f, 1f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f,
-            20f, 0f, -20f, 10f, 10f, 0f, 1f, 0f, 0f, 0f, 1f, 1f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f,
-            0f, 0f, 0f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f, 1f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f,
-            20f, 0f, -20f, 10f, 10f, 0f, 1f, 0f, 0f, 0f, 1f, 1f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f,
-            0f, 0f, -20f, 0f, 10f, 0f, 1f, 0f, 0f, 0f, 1f, 1f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f
+            0f, 0f, 0f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f, 1f, e, e, e, e, 1f, 0f, 0f, 0f,
+            20f, 0f, 0f, 10f, 0f, 0f, 1f, 0f, 0f, 0f, 1f, 1f, e, e, e, e, 1f, 0f, 0f, 0f,
+            20f, 0f, -20f, 10f, 10f, 0f, 1f, 0f, 0f, 0f, 1f, 1f, e, e, e, e, 1f, 0f, 0f, 0f,
+            0f, 0f, 0f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f, 1f, e, e, e, e, 1f, 0f, 0f, 0f,
+            20f, 0f, -20f, 10f, 10f, 0f, 1f, 0f, 0f, 0f, 1f, 1f, e, e, e, e, 1f, 0f, 0f, 0f,
+            0f, 0f, -20f, 0f, 10f, 0f, 1f, 0f, 0f, 0f, 1f, 1f, e, e, e, e, 1f, 0f, 0f, 0f
         };
         int[] indices = new int[]{
             0, 1, 2,
@@ -793,7 +795,7 @@ public class Game {
         NLight.NPointLight point = new NLight.NPointLight("point");
         point.getPosition().set(13f, 11f, -17f);
         //lights.add(point);
-
+        
         this.fox.getAnimator().update(Main.TPF);
         N3DObjectRenderer.queueRender(this.fox);
         N3DObjectRenderer.queueRender(this.waterBottle);

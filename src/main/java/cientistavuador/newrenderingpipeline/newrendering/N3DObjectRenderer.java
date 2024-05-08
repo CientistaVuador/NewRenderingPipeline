@@ -29,6 +29,7 @@ package cientistavuador.newrenderingpipeline.newrendering;
 import cientistavuador.newrenderingpipeline.Main;
 import cientistavuador.newrenderingpipeline.camera.Camera;
 import cientistavuador.newrenderingpipeline.util.BetterUniformSetter;
+import cientistavuador.newrenderingpipeline.util.GPUOcclusion;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -50,6 +51,11 @@ public class N3DObjectRenderer {
     public static boolean PARALLAX_ENABLED = true;
     public static boolean REFLECTIONS_ENABLED = true;
 
+    public static final int OCCLUSION_QUERY_MINIMUM_VERTICES = 1024;
+    public static final int OCCLUSION_QUERY_MINIMUM_SAMPLES = 8;
+
+    public static final Matrix4fc IDENTITY = new Matrix4f();
+
     private static final ConcurrentLinkedQueue<N3DObject> renderQueue = new ConcurrentLinkedQueue<>();
 
     public static void queueRender(N3DObject obj) {
@@ -57,13 +63,13 @@ public class N3DObjectRenderer {
     }
 
     private static class ToRender {
-        
+
         public final N3DObject obj;
         public final Matrix4f transformation;
         public final Matrix4f model;
         public final float distanceSquared;
         public final NGeometry geometry;
-        
+
         public ToRender(
                 N3DObject obj,
                 Matrix4f transformation,
@@ -157,48 +163,87 @@ public class N3DObjectRenderer {
 
         {
             Matrix4f modelMatrix = new Matrix4f();
-            
+
             N3DObject obj;
             while ((obj = renderQueue.poll()) != null) {
                 obj.calculateModelMatrix(modelMatrix, camera);
-                
+
                 if (obj.getAnimator() != null) {
                     obj.transformAnimatedAabb(modelMatrix, transformedMin, transformedMax);
                 } else {
                     obj.transformAabb(modelMatrix, transformedMin, transformedMax);
                 }
-                
+
                 if (!transformedMin.isFinite() || !transformedMax.isFinite()) {
                     continue;
                 }
-                
+
                 if (!projectionView.testAab(
                         transformedMin.x(), transformedMin.y(), transformedMin.z(),
                         transformedMax.x(), transformedMax.y(), transformedMax.z()
                 )) {
                     continue;
                 }
-                
-                objectsToRender.add(obj);
+
+                boolean occluded = false;
+                if (obj.getN3DModel().getVerticesCount() >= OCCLUSION_QUERY_MINIMUM_VERTICES) {
+                    occlusionQuery:
+                    {
+                        float x = transformedMin.x() * 0.5f + transformedMax.x() * 0.5f;
+                        float y = transformedMin.y() * 0.5f + transformedMax.y() * 0.5f;
+                        float z = transformedMin.z() * 0.5f + transformedMax.z() * 0.5f;
+                        float width = transformedMax.x() - transformedMin.x();
+                        float height = transformedMax.y() - transformedMin.y();
+                        float depth = transformedMax.z() - transformedMin.z();
+
+                        if (GPUOcclusion.testCamera(
+                                0f, 0f, 0f, camera.getNearPlane(),
+                                x, y, z,
+                                width, height, depth
+                        )) {
+                            break occlusionQuery;
+                        }
+
+                        if (obj.hasQueryObject()) {
+                            int queryObject = obj.getQueryObject();
+                            int samplesPassed = glGetQueryObjecti(queryObject, GL_QUERY_RESULT);
+                            if (samplesPassed <= OCCLUSION_QUERY_MINIMUM_SAMPLES) {
+                                occluded = true;
+                            }
+                        }
+                        if (!obj.hasQueryObject()) {
+                            obj.createQueryObject();
+                        }
+                        GPUOcclusion.occlusionQuery(
+                                camera.getProjection(), camera.getView(),
+                                x, y, z, width, height, depth,
+                                obj.getQueryObject()
+                        );
+                    }
+                }
+
+                if (!occluded) {
+                    objectsToRender.add(obj);
+                }
             }
         }
 
         List<ToRender> toRenderList = new ArrayList<>();
-        
+
         {
             for (N3DObject obj : objectsToRender) {
                 Matrix4f modelMatrix = new Matrix4f();
                 N3DModel n3dmodel = obj.getN3DModel();
                 NAnimator animator = obj.getAnimator();
-                
+
                 obj.calculateModelMatrix(modelMatrix, camera);
-                
+
                 for (int nodeIndex = 0; nodeIndex < n3dmodel.getNumberOfNodes(); nodeIndex++) {
                     N3DModelNode n = n3dmodel.getNode(nodeIndex);
-                    
+
                     Matrix4f transformation = new Matrix4f(modelMatrix)
                             .mul(n.getTotalTransformation());
-                    
+
                     NGeometry[] geometries = n.getGeometries();
                     for (NGeometry geometry : geometries) {
                         if (animator != null) {
@@ -212,24 +257,24 @@ public class N3DObjectRenderer {
                                     transformedMin, transformedMax
                             );
                         }
-                        
+
                         if (!transformedMin.isFinite() || !transformedMax.isFinite()) {
                             continue;
                         }
-                        
+
                         if (!projectionView.testAab(
                                 transformedMin.x(), transformedMin.y(), transformedMin.z(),
                                 transformedMax.x(), transformedMax.y(), transformedMax.z()
                         )) {
                             continue;
                         }
-                        
+
                         float centerX = (transformedMin.x() * 0.5f) + (transformedMax.x() * 0.5f);
                         float centerY = (transformedMin.y() * 0.5f) + (transformedMax.y() * 0.5f);
                         float centerZ = (transformedMin.z() * 0.5f) + (transformedMax.z() * 0.5f);
 
                         float distanceSquared = (centerX * centerX) + (centerY * centerY) + (centerZ * centerZ);
-                        
+
                         toRenderList.add(new ToRender(
                                 obj,
                                 transformation, modelMatrix,
@@ -285,40 +330,42 @@ public class N3DObjectRenderer {
             }
             glEnable(GL_BLEND);
         }
-        
+
         if (skybox != null) {
             renderSkybox(camera, skybox);
         }
+
+        GPUOcclusion.executeQueries();
 
         if (!blendList.isEmpty()) {
             renderVariant(NProgram.VARIANT_ALPHA_BLENDING, camera, skybox, renderableLights, blendList);
         }
 
     }
-    
+
     private static void renderSkybox(
             Camera camera,
             NCubemap skybox
     ) {
         BetterUniformSetter program = NSkybox.SKYBOX_PROGRAM;
-        
+
         glUseProgram(program.getProgram());
-        
+
         BetterUniformSetter.uniformMatrix4fv(program.locationOf(NSkybox.UNIFORM_PROJECTION),
                 camera.getProjection()
         );
         BetterUniformSetter.uniformMatrix4fv(program.locationOf(NSkybox.UNIFORM_VIEW),
                 camera.getView()
         );
-        
+
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_CUBE_MAP, skybox.cubemap());
         glUniform1i(program.locationOf(NSkybox.UNIFORM_SKYBOX), 0);
-        
+
         glBindVertexArray(NSkybox.VAO);
         glDrawElements(GL_TRIANGLES, NSkybox.AMOUNT_OF_INDICES, GL_UNSIGNED_INT, 0);
         glBindVertexArray(0);
-        
+
         glUseProgram(0);
     }
 
@@ -338,43 +385,43 @@ public class N3DObjectRenderer {
                 camera.getView()
         );
 
-        glUniform1i(variant.locationOf(NProgram.UNIFORM_ANIMATION_ENABLED), 0);
+        NProgram.sendBoneMatrix(variant, IDENTITY, -1);
 
         glUniform1i(variant.locationOf(NProgram.UNIFORM_PARALLAX_ENABLED),
                 (PARALLAX_ENABLED ? 1 : 0)
         );
-        
+
         glUniform1i(variant.locationOf(NProgram.UNIFORM_REFLECTIONS_ENABLED),
                 (REFLECTIONS_ENABLED ? 1 : 0)
         );
         glUniform1i(variant.locationOf(NProgram.UNIFORM_REFLECTIONS_SUPPORTED),
                 (REFLECTIONS_ENABLED ? 1 : 0)
         );
-        
+
         int skyboxCubemap = skybox.cubemap();
-        
+
         glActiveTexture(GL_TEXTURE3);
         glBindTexture(GL_TEXTURE_CUBE_MAP, skyboxCubemap);
-        
+
         glUniform1i(variant.locationOf(NProgram.UNIFORM_REFLECTION_CUBEMAP), 3);
-        
+
         float width = 20f;
         float height = 5f;
         float depth = 20f;
-        
+
         float relativeX = (float) ((0f + (width * 0.5f)) - camera.getPosition().x());
         float relativeY = (float) ((10f + (height * 0.5f)) - camera.getPosition().y());
         float relativeZ = (float) ((-15f + (depth * -0.5f)) - camera.getPosition().z());
-        
+
         NProgram.sendParallaxCubemapInfo(variant,
-                true,
+                false,
                 relativeX, relativeY, relativeZ + 5f,
                 new Matrix4f()
                         .translate(relativeX, relativeY, relativeZ)
                         .scale(width * 0.5f, height * 0.5f, depth * 0.5f)
                         .invert()
         );
-        
+
         for (int i = 0; i < lights.length; i++) {
             NProgram.sendLight(variant, lights[i], i);
         }
@@ -384,7 +431,7 @@ public class N3DObjectRenderer {
         glUniform1i(variant.locationOf(NProgram.UNIFORM_ER_EG_EB_NY), 2);
 
         render(variant, toRender);
-        
+
         glUseProgram(0);
     }
 
@@ -393,11 +440,11 @@ public class N3DObjectRenderer {
 
         NMaterial lastMaterial = null;
         NTextures lastTextures = null;
-        Matrix4f lastTransformation = null;
+        Matrix4fc lastTransformation = null;
         NMesh lastMesh = null;
         NAnimator lastAnimator = null;
         N3DObject lastFresnel = null;
-        
+
         for (ToRender render : list) {
             NMaterial material = render.geometry.getMaterial();
             NTextures textures = material.getTextures();
@@ -405,7 +452,11 @@ public class N3DObjectRenderer {
             NMesh mesh = render.geometry.getMesh();
             NAnimator animator = render.obj.getAnimator();
             N3DObject fresnel = render.obj;
-            
+
+            if (animator != null) {
+                transformation = render.model;
+            }
+
             if (!material.equalsPropertiesOnly(lastMaterial)) {
                 Vector4fc d = material.getDiffuseColor();
                 Vector3fc s = material.getSpecularColor();
@@ -455,39 +506,35 @@ public class N3DObjectRenderer {
                 );
                 lastTransformation = transformation;
             }
+            
+            if (animator != lastAnimator || (animator == null && !mesh.equals(lastMesh) && mesh.getAmountOfBones() != 0)) {
+                for (int boneIndex = 0; boneIndex < mesh.getAmountOfBones(); boneIndex++) {
+                    NMeshBone bone = mesh.getBone(boneIndex);
 
+                    if (animator != null) {
+                        Matrix4fc boneMatrix = animator.getBoneMatrix(bone.getName());
+                        Matrix4fc offset = bone.getOffset();
+                        
+                        if (boneMatrix != null) {
+                            transformedBone
+                                    .set(boneMatrix)
+                                    .mul(offset);
+                        }
+
+                        NProgram.sendBoneMatrix(variant, transformedBone, boneIndex);
+                    } else {
+                        NProgram.sendBoneMatrix(variant, IDENTITY, boneIndex);
+                    }
+                }
+
+                lastAnimator = animator;
+            }
+            
             if (!mesh.equals(lastMesh)) {
                 glBindVertexArray(mesh.getVAO());
                 lastMesh = mesh;
             }
 
-            if (animator != lastAnimator) {
-                if (animator == null) {
-                    glUniform1i(variant.locationOf(NProgram.UNIFORM_ANIMATION_ENABLED), 0);
-                } else {
-                    glUniform1i(variant.locationOf(NProgram.UNIFORM_ANIMATION_ENABLED), 1);
-
-                    for (int boneIndex = 0; boneIndex < mesh.getAmountOfBones(); boneIndex++) {
-                        NMeshBone bone = mesh.getBone(boneIndex);
-
-                        Matrix4fc boneMatrix = animator.getBoneMatrix(bone.getName());
-                        Matrix4fc offset = bone.getOffset();
-
-                        transformedBone.identity();
-
-                        if (boneMatrix != null) {
-                            transformedBone
-                                    .set(render.model)
-                                    .mul(boneMatrix)
-                                    .mul(offset);
-                        }
-
-                        NProgram.sendBoneMatrix(variant, transformedBone, boneIndex);
-                    }
-                }
-                lastAnimator = animator;
-            }
-            
             if (!fresnel.equalsFresnelOutline(lastFresnel)) {
                 NProgram.sendFresnelOutlineInfo(variant,
                         fresnel.isFresnelOutlineEnabled(),

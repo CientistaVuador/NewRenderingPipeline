@@ -38,6 +38,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
+import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
 import org.joml.Vector3f;
 import org.joml.Vector3fc;
@@ -306,6 +307,7 @@ public class NMesh {
         float maxY = Float.NEGATIVE_INFINITY;
         float maxZ = Float.NEGATIVE_INFINITY;
         
+        Matrix4f totalBoneMatrix = new Matrix4f();
         Vector3f transformed = new Vector3f();
         Vector3f totalTransformation = new Vector3f();
         
@@ -339,10 +341,16 @@ public class NMesh {
                         float boneWeight = bonesWeights[j];
                         
                         if (boneId >= 0) {
-                            Matrix4fc boneMatrix = animator.getBoneMatrix(getBone(boneId).getName());
+                            NMeshBone bone = getBone(boneId);
+                            
+                            Matrix4fc boneMatrix = animator.getBoneMatrix(bone.getName());
+                            
+                            totalBoneMatrix
+                                    .set(boneMatrix)
+                                    .mul(bone.getOffset());
                             
                             transformed.set(x, y, z);
-                            boneMatrix.transformProject(transformed);
+                            totalBoneMatrix.transformProject(transformed);
                             transformed.mul(boneWeight);
                             
                             totalTransformation.add(transformed);

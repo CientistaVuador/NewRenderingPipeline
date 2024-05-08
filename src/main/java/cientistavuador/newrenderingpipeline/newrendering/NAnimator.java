@@ -74,6 +74,7 @@ public class NAnimator {
     private double tickCounter = 0f;
     private float animationCounter = 0f;
     private float animationSpeed = 1f;
+    
     private boolean looping = true;
 
     public NAnimator(N3DModel model, String animation) {

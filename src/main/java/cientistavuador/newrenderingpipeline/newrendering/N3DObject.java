@@ -42,39 +42,40 @@ import static org.lwjgl.opengl.GL33C.*;
  * @author Cien
  */
 public class N3DObject {
-    
+
     private static class WrappedQueryObject {
+
         private int object = 0;
     }
-    
+
     private final String name;
     private final N3DModel n3DModel;
-    
+
     private final Vector3d position = new Vector3d(0.0, 0.0, 0.0);
     private final Quaternionf rotation = new Quaternionf();
     private final Vector3f scale = new Vector3f(1f, 1f, 1f);
     private final Matrix4f transformation = new Matrix4f();
-    
+
     private boolean billboardEnabled = false;
-    
+
     private boolean fresnelOutlineEnabled = false;
     private float fresnelOutlineExponent = 3f;
     private final Vector3f fresnelOutlineColor = new Vector3f(1f, 1f, 1f);
-    
+
     private final WrappedQueryObject queryObject = new WrappedQueryObject();
-    
+
     private NAnimator animator = null;
-    
+
     public N3DObject(String name, N3DModel n3DModel) {
         this.name = name;
         this.n3DModel = n3DModel;
-        
+
         registerForCleaning();
     }
-    
+
     private void registerForCleaning() {
         final WrappedQueryObject finalWrapped = this.queryObject;
-        
+
         ObjectCleaner.get().register(this, () -> {
             Main.MAIN_TASKS.add(() -> {
                 int obj = finalWrapped.object;
@@ -85,11 +86,11 @@ public class N3DObject {
             });
         });
     }
-    
+
     public String getName() {
         return name;
     }
-    
+
     public N3DModel getN3DModel() {
         return n3DModel;
     }
@@ -121,71 +122,76 @@ public class N3DObject {
     public boolean isFresnelOutlineEnabled() {
         return fresnelOutlineEnabled;
     }
-    
+
     public void setFresnelOutlineEnabled(boolean fresnelOutlineEnabled) {
         this.fresnelOutlineEnabled = fresnelOutlineEnabled;
     }
-    
+
     public float getFresnelOutlineExponent() {
         return fresnelOutlineExponent;
     }
-    
+
     public void setFresnelOutlineExponent(float fresnelOutlineExponent) {
         this.fresnelOutlineExponent = fresnelOutlineExponent;
     }
-    
+
     public Vector3f getFresnelOutlineColor() {
         return fresnelOutlineColor;
     }
-    
+
     public boolean equalsFresnelOutline(N3DObject other) {
-        return 
-                other != null
+        return other != null
                 && this.fresnelOutlineEnabled == other.fresnelOutlineEnabled
                 && Float.floatToRawIntBits(this.fresnelOutlineExponent) == Float.floatToRawIntBits(other.fresnelOutlineExponent)
-                && this.fresnelOutlineColor.equals(other.fresnelOutlineColor)
-                ;
+                && this.fresnelOutlineColor.equals(other.fresnelOutlineColor);
     }
-    
-    public int getQueryObject() {
+
+    public boolean hasQueryObject() {
+        return this.queryObject.object != 0;
+    }
+
+    public void createQueryObject() {
         if (this.queryObject.object == 0) {
             this.queryObject.object = glGenQueries();
         }
-        return this.queryObject.object;
     }
     
+    public int getQueryObject() {
+        return this.queryObject.object;
+    }
+
     public void calculateModelMatrix(Matrix4f outputModelMatrix, Camera camera) {
         outputModelMatrix
                 .identity()
                 .translate(
-                    (float) (getPosition().x() - camera.getPosition().x()),
-                    (float) (getPosition().y() - camera.getPosition().y()),
-                    (float) (getPosition().z() - camera.getPosition().z())
+                        (float) (getPosition().x() - camera.getPosition().x()),
+                        (float) (getPosition().y() - camera.getPosition().y()),
+                        (float) (getPosition().z() - camera.getPosition().z())
                 )
                 .rotate(getRotation())
                 .scale(getScale());
-        
+
         if (isBillboardEnabled()) {
             outputModelMatrix.mul(camera.getInverseView());
         }
-        
+
         getTransformation().mul(outputModelMatrix, outputModelMatrix);
     }
-    
+
     public void transformAabb(Matrix4fc modelMatrix, Vector3f outMin, Vector3f outMax) {
         modelMatrix.transformAab(
                 this.n3DModel.getAabbMin(), this.n3DModel.getAabbMax(),
                 outMin, outMax
         );
     }
-    
+
     public void transformAnimatedAabb(Matrix4fc modelMatrix, Vector3f outMin, Vector3f outMax) {
         modelMatrix.transformAab(
                 this.n3DModel.getAnimatedAabbMin(), this.n3DModel.getAnimatedAabbMax(),
                 outMin, outMax
         );
     }
-    
+
     public NAnimator getAnimator() {
         return animator;
     }
@@ -193,5 +199,5 @@ public class N3DObject {
     public void setAnimator(NAnimator animator) {
         this.animator = animator;
     }
-    
+
 }

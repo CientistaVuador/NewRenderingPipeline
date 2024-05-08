@@ -26,6 +26,7 @@
  */
 package cientistavuador.newrenderingpipeline.newrendering;
 
+import cientistavuador.newrenderingpipeline.geometry.Geometry;
 import cientistavuador.newrenderingpipeline.util.MeshUtils;
 import cientistavuador.newrenderingpipeline.util.Pair;
 import java.io.IOException;
@@ -35,9 +36,11 @@ import java.nio.IntBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -295,8 +298,9 @@ public class N3DModelImporter {
             images[fallbackOpacityIndex] = getMaterialTexture(aiMaterial, aiTextureType_OPACITY);
 
             final NMaterial material = new NMaterial("material_" + materialIndex);
-            
+
             //todo: configure material
+            
             
             futureMaterials.add(this.service.submit(() -> {
                 int textureWidth = -1;
@@ -511,7 +515,7 @@ public class N3DModelImporter {
             futureGeometries.add(this.service.submit(() -> {
                 float[] vertices = new float[amountOfFaces * 3 * NMesh.VERTEX_SIZE];
                 int verticesIndex = 0;
-
+                
                 List<NMeshBone> meshBones = new ArrayList<>();
                 Map<Integer, List<Pair<Integer, Float>>> boneVertexWeightMap = new HashMap<>();
 
@@ -623,6 +627,11 @@ public class N3DModelImporter {
                         vertices[verticesIndex + NMesh.OFFSET_BONE_IDS_XYZW + 2] = Float.intBitsToFloat(-1);
                         vertices[verticesIndex + NMesh.OFFSET_BONE_IDS_XYZW + 3] = Float.intBitsToFloat(-1);
 
+                        vertices[verticesIndex + NMesh.OFFSET_BONE_WEIGHTS_XYZW + 0] = 1f;
+                        vertices[verticesIndex + NMesh.OFFSET_BONE_WEIGHTS_XYZW + 1] = 0f;
+                        vertices[verticesIndex + NMesh.OFFSET_BONE_WEIGHTS_XYZW + 2] = 0f;
+                        vertices[verticesIndex + NMesh.OFFSET_BONE_WEIGHTS_XYZW + 3] = 0f;
+
                         List<Pair<Integer, Float>> boneVertexWeightList = boneVertexWeightMap.get(index);
                         if (boneVertexWeightList != null) {
                             for (int j = 0; j < NMesh.MAX_AMOUNT_OF_BONE_WEIGHTS; j++) {
@@ -659,7 +668,7 @@ public class N3DModelImporter {
                 if (material == null) {
                     material = NMaterial.NULL_MATERIAL;
                 }
-
+                
                 NGeometry geometry = new NGeometry(meshName, loadedMesh, material);
 
                 return new Pair<>(

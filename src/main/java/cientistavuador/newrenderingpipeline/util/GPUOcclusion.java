@@ -26,12 +26,12 @@
  */
 package cientistavuador.newrenderingpipeline.util;
 
+import cientistavuador.newrenderingpipeline.Main;
 import java.nio.FloatBuffer;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
-import org.joml.Vector3f;
 import static org.lwjgl.opengl.GL33C.*;
 import org.lwjgl.system.MemoryStack;
 
@@ -42,8 +42,6 @@ import org.lwjgl.system.MemoryStack;
 public class GPUOcclusion {
 
     private static final int VAO;
-    private static final int VBO;
-    private static final int EBO;
     private static final int COUNT;
     
     public static final float MARGIN = 0.02f;
@@ -123,8 +121,6 @@ public class GPUOcclusion {
         glBindVertexArray(0);
         
         VAO = vao;
-        VBO = vbo;
-        EBO = ebo;
         COUNT = indices.length;
     }
 
@@ -159,54 +155,58 @@ public class GPUOcclusion {
 
     private static final Queue<Runnable> TASKS = new ConcurrentLinkedQueue<>();
     
-    public static boolean testAabPoint(float minX, float minY, float minZ, float maxX, float maxY, float maxZ, float px, float py, float pz) {
+    public static boolean testAabPoint(
+            float minX, float minY, float minZ,
+            float maxX, float maxY, float maxZ,
+            float px, float py, float pz
+    ) {
         return !(px < minX || px > maxX || py < minY || py > maxY || pz < minZ || pz > maxZ);
     }
     
-    public static boolean testCamera(float x, float y, float z, float nearPlaneMargin, Matrix4fc model) {
-        float minX = -1f * LARGE_CUBE_SCALE;
-        float minY = -1f * LARGE_CUBE_SCALE;
-        float minZ = -1f * LARGE_CUBE_SCALE;
-        float maxX = 1f * LARGE_CUBE_SCALE;
-        float maxY = 1f * LARGE_CUBE_SCALE;
-        float maxZ = 1f * LARGE_CUBE_SCALE;
+    public static boolean testCamera(
+            float camx, float camy, float camz,
+            float nearPlaneMargin,
+            float x, float y, float z,
+            float width, float height, float depth
+    ) {
+        float minX = -1f * LARGE_CUBE_SCALE * width * 0.5f;
+        float minY = -1f * LARGE_CUBE_SCALE * height * 0.5f;
+        float minZ = -1f * LARGE_CUBE_SCALE * depth * 0.5f;
         
-        Vector3f transformed = new Vector3f();
+        minX += x;
+        minY += y;
+        minZ += z;
         
-        model.transformProject(transformed.set(minX, minY, minZ));
+        float maxX = 1f * LARGE_CUBE_SCALE * width * 0.5f;
+        float maxY = 1f * LARGE_CUBE_SCALE * height * 0.5f;
+        float maxZ = 1f * LARGE_CUBE_SCALE * depth * 0.5f;
         
-        minX = transformed.x();
-        minY = transformed.y();
-        minZ = transformed.z();
-        
-        model.transformProject(transformed.set(maxX, maxY, maxZ));
-        
-        maxX = transformed.x();
-        maxY = transformed.y();
-        maxZ = transformed.z();
-        
-        float newMinX = Math.min(minX, maxX) - nearPlaneMargin;
-        float newMinY = Math.min(minY, maxY) - nearPlaneMargin;
-        float newMinZ = Math.min(minZ, maxZ) - nearPlaneMargin;
-        float newMaxX = Math.max(minX, maxX) + nearPlaneMargin;
-        float newMaxY = Math.max(minY, maxY) + nearPlaneMargin;
-        float newMaxZ = Math.max(minZ, maxZ) + nearPlaneMargin;
+        maxX += x;
+        maxY += y;
+        maxZ += z;
         
         return testAabPoint(
-                newMinX, newMinY, newMinZ,
-                newMaxX, newMaxY, newMaxZ,
-                x, y, z
+                minX, minY, minZ,
+                maxX, maxY, maxZ,
+                camx, camy, camz
         );
     }
     
     public static void occlusionQuery(
             Matrix4fc projection,
             Matrix4fc view,
-            Matrix4fc model,
+            float x, float y, float z,
+            float width, float height, float depth,
             final int queryObject
     ) {
+        Matrix4f model = new Matrix4f()
+                .translate(x, y, z)
+                .scale(width * 0.5f, height * 0.5f, depth * 0.5f)
+                ;
         final Matrix4f projectionViewModel = new Matrix4f()
-                .set(projection).mul(view).mul(model);
+                .set(projection)
+                .mul(view)
+                .mul(model);
         TASKS.add(() -> {
             try (MemoryStack stack = MemoryStack.stackPush()) {
                 FloatBuffer matrixData = stack.mallocFloat(4 * 4);
@@ -217,6 +217,9 @@ public class GPUOcclusion {
             glBeginQuery(GL_SAMPLES_PASSED, queryObject);
             glDrawElements(GL_TRIANGLES, COUNT, GL_UNSIGNED_INT, 0);
             glEndQuery(GL_SAMPLES_PASSED);
+            
+            Main.NUMBER_OF_DRAWCALLS++;
+            Main.NUMBER_OF_VERTICES += COUNT;
         });
     }
 

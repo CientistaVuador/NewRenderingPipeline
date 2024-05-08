@@ -33,8 +33,6 @@ import cientistavuador.newrenderingpipeline.util.StringUtils;
 import java.nio.ByteBuffer;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
-import org.joml.Matrix3f;
-import org.joml.Matrix3fc;
 import org.joml.Quaternionf;
 import org.joml.Quaternionfc;
 import org.joml.Vector3d;
