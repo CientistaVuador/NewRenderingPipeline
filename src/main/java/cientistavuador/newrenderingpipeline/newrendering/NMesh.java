@@ -54,7 +54,7 @@ public class NMesh {
 
     private static final AtomicLong meshIds = new AtomicLong();
     
-    public static final int MAX_AMOUNT_OF_BONES = 110;
+    public static final int MAX_AMOUNT_OF_BONES = 64;
     public static final int MAX_AMOUNT_OF_BONE_WEIGHTS = 4;
     
     public static final int VAO_INDEX_POSITION_XYZ = 0;

@@ -26,7 +26,6 @@
  */
 package cientistavuador.newrenderingpipeline.newrendering;
 
-import cientistavuador.newrenderingpipeline.geometry.Geometry;
 import cientistavuador.newrenderingpipeline.util.MeshUtils;
 import cientistavuador.newrenderingpipeline.util.Pair;
 import java.io.IOException;
@@ -151,7 +150,7 @@ public class N3DModelImporter {
 
     private final Map<String, NTexturesIO.LoadedImage> loadedImages = new HashMap<>();
     private final Map<Integer, NMaterial> loadedMaterials = new HashMap<>();
-    private final Map<Integer, NGeometry> loadedGeometries = new HashMap<>();
+    private final Map<Integer, List<NGeometry>> loadedGeometries = new HashMap<>();
 
     private final List<NAnimation> loadedAnimations = new ArrayList<>();
 
@@ -300,8 +299,6 @@ public class N3DModelImporter {
             final NMaterial material = new NMaterial("material_" + materialIndex);
 
             //todo: configure material
-            
-            
             futureMaterials.add(this.service.submit(() -> {
                 int textureWidth = -1;
                 int textureHeight = -1;
@@ -478,13 +475,273 @@ public class N3DModelImporter {
         this.loadedImages.clear();
     }
 
+    private List<Pair<float[], NMeshBone[]>> splitByMaxBones(float[] toSplit, NMeshBone[] totalBones) {
+        List<float[]> splitMeshes = new ArrayList<>();
+
+        int lastSplitIndex = 0;
+        Set<Integer> addedBones = new HashSet<>();
+
+        for (int triangle = 0; triangle < toSplit.length; triangle += NMesh.VERTEX_SIZE * 3) {
+            for (int vertex = 0; vertex < NMesh.VERTEX_SIZE * 3; vertex += NMesh.VERTEX_SIZE) {
+                for (int boneOffset = 0; boneOffset < NMesh.MAX_AMOUNT_OF_BONE_WEIGHTS; boneOffset++) {
+                    int index = triangle + vertex + NMesh.OFFSET_BONE_IDS_XYZW + boneOffset;
+                    int bone = Float.floatToRawIntBits(toSplit[index]);
+                    if (!addedBones.contains(bone)) {
+                        addedBones.add(bone);
+                    }
+                }
+            }
+            if (addedBones.size() > NMesh.MAX_AMOUNT_OF_BONES) {
+                addedBones.clear();
+                splitMeshes.add(Arrays.copyOfRange(toSplit, lastSplitIndex, triangle));
+                lastSplitIndex = triangle;
+                triangle -= NMesh.VERTEX_SIZE * 3;
+            }
+        }
+
+        if ((toSplit.length - lastSplitIndex) != 0) {
+            splitMeshes.add(Arrays.copyOfRange(toSplit, lastSplitIndex, toSplit.length));
+        }
+
+        List<Pair<float[], NMeshBone[]>> outputList = new ArrayList<>();
+
+        for (float[] splitMesh : splitMeshes) {
+            List<NMeshBone> meshBones = new ArrayList<>();
+            Map<Integer, Integer> absoluteToRelativeMap = new HashMap<>();
+
+            for (int triangle = 0; triangle < splitMesh.length; triangle += NMesh.VERTEX_SIZE * 3) {
+                for (int vertex = 0; vertex < NMesh.VERTEX_SIZE * 3; vertex += NMesh.VERTEX_SIZE) {
+                    for (int boneOffset = 0; boneOffset < NMesh.MAX_AMOUNT_OF_BONE_WEIGHTS; boneOffset++) {
+                        int index = triangle + vertex + NMesh.OFFSET_BONE_IDS_XYZW + boneOffset;
+
+                        int bone = Float.floatToRawIntBits(splitMesh[index]);
+
+                        if (bone < 0) {
+                            continue;
+                        }
+
+                        Integer relativeBone = absoluteToRelativeMap.get(bone);
+                        if (relativeBone != null) {
+                            bone = relativeBone;
+                        } else {
+                            int relative = meshBones.size();
+
+                            absoluteToRelativeMap.put(bone, relative);
+                            meshBones.add(totalBones[bone]);
+                            bone = relative;
+                        }
+
+                        splitMesh[index] = Float.intBitsToFloat(bone);
+                    }
+                }
+            }
+            
+            outputList.add(new Pair<>(splitMesh, meshBones.toArray(NMeshBone[]::new)));
+        }
+
+        return outputList;
+    }
+
+    private Pair<Integer, List<NGeometry>> loadMesh(AIMesh mesh, int meshIndex) {
+        AIVector3D.Buffer positions = mesh.mVertices();
+        AIVector3D.Buffer uvs = mesh.mTextureCoords(0);
+        AIVector3D.Buffer normals = mesh.mNormals();
+        AIVector3D.Buffer tangents = mesh.mTangents();
+
+        int amountOfFaces = mesh.mNumFaces();
+        AIFace.Buffer faces = mesh.mFaces();
+
+        int amountOfBones = mesh.mNumBones();
+        PointerBuffer bones = mesh.mBones();
+
+        String meshName = mesh.mName().dataString();
+
+        float[] vertices = new float[amountOfFaces * 3 * NMesh.VERTEX_SIZE];
+        int verticesIndex = 0;
+
+        List<NMeshBone> meshBones = new ArrayList<>();
+        Map<Integer, List<Pair<Integer, Float>>> boneVertexWeightMap = new HashMap<>();
+
+        if (bones != null) {
+            for (int boneIndex = 0; boneIndex < amountOfBones; boneIndex++) {
+                AIBone bone = AIBone.create(bones.get(boneIndex));
+                String boneName = bone.mName().dataString();
+                AIMatrix4x4 o = bone.mOffsetMatrix();
+                Matrix4f offsetMatrix = new Matrix4f(
+                        o.a1(), o.b1(), o.c1(), o.d1(),
+                        o.a2(), o.b2(), o.c2(), o.d2(),
+                        o.a3(), o.b3(), o.c3(), o.d3(),
+                        o.a4(), o.b4(), o.c4(), o.d4()
+                );
+
+                meshBones.add(new NMeshBone(boneName, offsetMatrix));
+
+                int numWeights = bone.mNumWeights();
+                AIVertexWeight.Buffer weights = bone.mWeights();
+                if (numWeights != 0 && weights != null) {
+                    for (int weightIndex = 0; weightIndex < numWeights; weightIndex++) {
+                        AIVertexWeight weight = weights.get(weightIndex);
+
+                        int vertexIndex = weight.mVertexId();
+
+                        List<Pair<Integer, Float>> weightList = boneVertexWeightMap.get(vertexIndex);
+                        if (weightList == null) {
+                            weightList = new ArrayList<>();
+                            boneVertexWeightMap.put(vertexIndex, weightList);
+                        }
+
+                        weightList.add(new Pair<>(boneIndex, weight.mWeight()));
+                    }
+                }
+            }
+        }
+
+        for (int faceIndex = 0; faceIndex < amountOfFaces; faceIndex++) {
+            AIFace face = faces.get(faceIndex);
+            if (face.mNumIndices() != 3) {
+                continue;
+            }
+            for (int vertex = 0; vertex < 3; vertex++) {
+                int index = face.mIndices().get(vertex);
+
+                float posX = 0f;
+                float posY = 0f;
+                float posZ = 0f;
+
+                if (positions != null) {
+                    AIVector3D pos = positions.get(index);
+                    posX = pos.x();
+                    posY = pos.y();
+                    posZ = pos.z();
+                }
+
+                float texX = 0f;
+                float texY = 0f;
+
+                if (uvs != null) {
+                    AIVector3D uv = uvs.get(index);
+                    texX = uv.x();
+                    texY = uv.y();
+                }
+
+                float norX = 0f;
+                float norY = 0f;
+                float norZ = 0f;
+
+                if (normals != null) {
+                    AIVector3D normal = normals.get(index);
+                    norX = normal.x();
+                    norY = normal.y();
+                    norZ = normal.z();
+                }
+
+                float tanX = 0f;
+                float tanY = 0f;
+                float tanZ = 0f;
+
+                if (tangents != null) {
+                    AIVector3D tangent = tangents.get(index);
+                    tanX = tangent.x();
+                    tanY = tangent.y();
+                    tanZ = tangent.z();
+                }
+
+                float ao = 1f;
+
+                vertices[verticesIndex + NMesh.OFFSET_POSITION_XYZ + 0] = posX;
+                vertices[verticesIndex + NMesh.OFFSET_POSITION_XYZ + 1] = posY;
+                vertices[verticesIndex + NMesh.OFFSET_POSITION_XYZ + 2] = posZ;
+
+                vertices[verticesIndex + NMesh.OFFSET_TEXTURE_XY + 0] = texX;
+                vertices[verticesIndex + NMesh.OFFSET_TEXTURE_XY + 1] = texY;
+
+                vertices[verticesIndex + NMesh.OFFSET_NORMAL_XYZ + 0] = norX;
+                vertices[verticesIndex + NMesh.OFFSET_NORMAL_XYZ + 1] = norY;
+                vertices[verticesIndex + NMesh.OFFSET_NORMAL_XYZ + 2] = norZ;
+
+                vertices[verticesIndex + NMesh.OFFSET_TANGENT_XYZ + 0] = tanX;
+                vertices[verticesIndex + NMesh.OFFSET_TANGENT_XYZ + 1] = tanY;
+                vertices[verticesIndex + NMesh.OFFSET_TANGENT_XYZ + 2] = tanZ;
+
+                vertices[verticesIndex + NMesh.OFFSET_AMBIENT_OCCLUSION_X + 0] = ao;
+
+                vertices[verticesIndex + NMesh.OFFSET_BONE_IDS_XYZW + 0] = Float.intBitsToFloat(-1);
+                vertices[verticesIndex + NMesh.OFFSET_BONE_IDS_XYZW + 1] = Float.intBitsToFloat(-1);
+                vertices[verticesIndex + NMesh.OFFSET_BONE_IDS_XYZW + 2] = Float.intBitsToFloat(-1);
+                vertices[verticesIndex + NMesh.OFFSET_BONE_IDS_XYZW + 3] = Float.intBitsToFloat(-1);
+
+                vertices[verticesIndex + NMesh.OFFSET_BONE_WEIGHTS_XYZW + 0] = 1f;
+                vertices[verticesIndex + NMesh.OFFSET_BONE_WEIGHTS_XYZW + 1] = 0f;
+                vertices[verticesIndex + NMesh.OFFSET_BONE_WEIGHTS_XYZW + 2] = 0f;
+                vertices[verticesIndex + NMesh.OFFSET_BONE_WEIGHTS_XYZW + 3] = 0f;
+
+                List<Pair<Integer, Float>> boneVertexWeightList = boneVertexWeightMap.get(index);
+                if (boneVertexWeightList != null) {
+                    for (int j = 0; j < NMesh.MAX_AMOUNT_OF_BONE_WEIGHTS; j++) {
+                        if (j >= boneVertexWeightList.size()) {
+                            break;
+                        }
+                        Pair<Integer, Float> pair = boneVertexWeightList.get(j);
+
+                        int bone = pair.getA();
+                        float weight = pair.getB();
+
+                        vertices[verticesIndex + NMesh.OFFSET_BONE_IDS_XYZW + j] = Float.intBitsToFloat(bone);
+                        vertices[verticesIndex + NMesh.OFFSET_BONE_WEIGHTS_XYZW + j] = weight;
+                    }
+                }
+
+                verticesIndex += NMesh.VERTEX_SIZE;
+            }
+        }
+
+        NMeshBone[] bonesArray = meshBones.toArray(NMeshBone[]::new);
+        vertices = Arrays.copyOf(vertices, verticesIndex);
+
+        List<Pair<float[], NMeshBone[]>> splitMeshes = splitByMaxBones(vertices, bonesArray);
+        List<NGeometry> outputGeometries = new ArrayList<>();
+
+        NMaterial material = this.loadedMaterials.get(mesh.mMaterialIndex());
+        if (material == null) {
+            material = NMaterial.NULL_MATERIAL;
+        }
+
+        for (int i = 0; i < splitMeshes.size(); i++) {
+            Pair<float[], NMeshBone[]> splitMesh = splitMeshes.get(i);
+
+            Pair<float[], int[]> newMesh = MeshUtils.generateIndices(splitMesh.getA(), NMesh.VERTEX_SIZE);
+
+            float[] finalVertices = newMesh.getA();
+            int[] finalIndices = newMesh.getB();
+
+            String name = meshName;
+            if (splitMeshes.size() > 1) {
+                name += "_" + i;
+            }
+
+            NMesh loadedMesh = new NMesh(
+                    name,
+                    finalVertices, finalIndices,
+                    splitMesh.getB()
+            );
+            loadedMesh.generateBVH();
+
+            outputGeometries.add(new NGeometry(meshName, loadedMesh, material));
+        }
+
+        return new Pair<>(
+                meshIndex,
+                outputGeometries
+        );
+    }
+    
     private void loadMeshes() {
         PointerBuffer meshes = this.scene.mMeshes();
         if (meshes == null) {
             return;
         }
 
-        List<Future<Pair<Integer, NGeometry>>> futureGeometries = new ArrayList<>();
+        List<Future<Pair<Integer, List<NGeometry>>>> futureGeometries = new ArrayList<>();
 
         int amountOfMeshes = this.scene.mNumMeshes();
         for (int i = 0; i < amountOfMeshes; i++) {
@@ -495,210 +752,36 @@ public class N3DModelImporter {
                 continue;
             }
 
-            AIVector3D.Buffer positions = mesh.mVertices();
-            AIVector3D.Buffer uvs = mesh.mTextureCoords(0);
-            AIVector3D.Buffer normals = mesh.mNormals();
-            AIVector3D.Buffer tangents = mesh.mTangents();
-
-            int amountOfFaces = mesh.mNumFaces();
-            AIFace.Buffer faces = mesh.mFaces();
-
-            int amountOfBones = mesh.mNumBones();
-            PointerBuffer bones = mesh.mBones();
-
-            String meshName = mesh.mName().dataString();
-
-            if (faces == null) {
+            if (mesh.mFaces() == null) {
                 continue;
             }
 
-            futureGeometries.add(this.service.submit(() -> {
-                float[] vertices = new float[amountOfFaces * 3 * NMesh.VERTEX_SIZE];
-                int verticesIndex = 0;
-                
-                List<NMeshBone> meshBones = new ArrayList<>();
-                Map<Integer, List<Pair<Integer, Float>>> boneVertexWeightMap = new HashMap<>();
-
-                if (bones != null) {
-                    for (int boneIndex = 0; boneIndex < amountOfBones; boneIndex++) {
-                        AIBone bone = AIBone.create(bones.get(boneIndex));
-                        String boneName = bone.mName().dataString();
-                        AIMatrix4x4 o = bone.mOffsetMatrix();
-                        Matrix4f offsetMatrix = new Matrix4f(
-                                o.a1(), o.b1(), o.c1(), o.d1(),
-                                o.a2(), o.b2(), o.c2(), o.d2(),
-                                o.a3(), o.b3(), o.c3(), o.d3(),
-                                o.a4(), o.b4(), o.c4(), o.d4()
-                        );
-
-                        meshBones.add(new NMeshBone(boneName, offsetMatrix));
-
-                        int numWeights = bone.mNumWeights();
-                        AIVertexWeight.Buffer weights = bone.mWeights();
-                        if (numWeights != 0 && weights != null) {
-                            for (int weightIndex = 0; weightIndex < numWeights; weightIndex++) {
-                                AIVertexWeight weight = weights.get(weightIndex);
-
-                                int vertexIndex = weight.mVertexId();
-
-                                List<Pair<Integer, Float>> weightList = boneVertexWeightMap.get(vertexIndex);
-                                if (weightList == null) {
-                                    weightList = new ArrayList<>();
-                                    boneVertexWeightMap.put(vertexIndex, weightList);
-                                }
-
-                                weightList.add(new Pair<>(boneIndex, weight.mWeight()));
-                            }
-                        }
-                    }
-                }
-
-                for (int faceIndex = 0; faceIndex < amountOfFaces; faceIndex++) {
-                    AIFace face = faces.get(faceIndex);
-                    if (face.mNumIndices() != 3) {
-                        continue;
-                    }
-                    for (int vertex = 0; vertex < 3; vertex++) {
-                        int index = face.mIndices().get(vertex);
-
-                        float posX = 0f;
-                        float posY = 0f;
-                        float posZ = 0f;
-
-                        if (positions != null) {
-                            AIVector3D pos = positions.get(index);
-                            posX = pos.x();
-                            posY = pos.y();
-                            posZ = pos.z();
-                        }
-
-                        float texX = 0f;
-                        float texY = 0f;
-
-                        if (uvs != null) {
-                            AIVector3D uv = uvs.get(index);
-                            texX = uv.x();
-                            texY = uv.y();
-                        }
-
-                        float norX = 0f;
-                        float norY = 0f;
-                        float norZ = 0f;
-
-                        if (normals != null) {
-                            AIVector3D normal = normals.get(index);
-                            norX = normal.x();
-                            norY = normal.y();
-                            norZ = normal.z();
-                        }
-
-                        float tanX = 0f;
-                        float tanY = 0f;
-                        float tanZ = 0f;
-
-                        if (tangents != null) {
-                            AIVector3D tangent = tangents.get(index);
-                            tanX = tangent.x();
-                            tanY = tangent.y();
-                            tanZ = tangent.z();
-                        }
-
-                        float ao = 1f;
-
-                        vertices[verticesIndex + NMesh.OFFSET_POSITION_XYZ + 0] = posX;
-                        vertices[verticesIndex + NMesh.OFFSET_POSITION_XYZ + 1] = posY;
-                        vertices[verticesIndex + NMesh.OFFSET_POSITION_XYZ + 2] = posZ;
-
-                        vertices[verticesIndex + NMesh.OFFSET_TEXTURE_XY + 0] = texX;
-                        vertices[verticesIndex + NMesh.OFFSET_TEXTURE_XY + 1] = texY;
-
-                        vertices[verticesIndex + NMesh.OFFSET_NORMAL_XYZ + 0] = norX;
-                        vertices[verticesIndex + NMesh.OFFSET_NORMAL_XYZ + 1] = norY;
-                        vertices[verticesIndex + NMesh.OFFSET_NORMAL_XYZ + 2] = norZ;
-
-                        vertices[verticesIndex + NMesh.OFFSET_TANGENT_XYZ + 0] = tanX;
-                        vertices[verticesIndex + NMesh.OFFSET_TANGENT_XYZ + 1] = tanY;
-                        vertices[verticesIndex + NMesh.OFFSET_TANGENT_XYZ + 2] = tanZ;
-
-                        vertices[verticesIndex + NMesh.OFFSET_AMBIENT_OCCLUSION_X + 0] = ao;
-
-                        vertices[verticesIndex + NMesh.OFFSET_BONE_IDS_XYZW + 0] = Float.intBitsToFloat(-1);
-                        vertices[verticesIndex + NMesh.OFFSET_BONE_IDS_XYZW + 1] = Float.intBitsToFloat(-1);
-                        vertices[verticesIndex + NMesh.OFFSET_BONE_IDS_XYZW + 2] = Float.intBitsToFloat(-1);
-                        vertices[verticesIndex + NMesh.OFFSET_BONE_IDS_XYZW + 3] = Float.intBitsToFloat(-1);
-
-                        vertices[verticesIndex + NMesh.OFFSET_BONE_WEIGHTS_XYZW + 0] = 1f;
-                        vertices[verticesIndex + NMesh.OFFSET_BONE_WEIGHTS_XYZW + 1] = 0f;
-                        vertices[verticesIndex + NMesh.OFFSET_BONE_WEIGHTS_XYZW + 2] = 0f;
-                        vertices[verticesIndex + NMesh.OFFSET_BONE_WEIGHTS_XYZW + 3] = 0f;
-
-                        List<Pair<Integer, Float>> boneVertexWeightList = boneVertexWeightMap.get(index);
-                        if (boneVertexWeightList != null) {
-                            for (int j = 0; j < NMesh.MAX_AMOUNT_OF_BONE_WEIGHTS; j++) {
-                                if (j >= boneVertexWeightList.size()) {
-                                    break;
-                                }
-                                Pair<Integer, Float> pair = boneVertexWeightList.get(j);
-
-                                int bone = pair.getA();
-                                float weight = pair.getB();
-
-                                vertices[verticesIndex + NMesh.OFFSET_BONE_IDS_XYZW + j] = Float.intBitsToFloat(bone);
-                                vertices[verticesIndex + NMesh.OFFSET_BONE_WEIGHTS_XYZW + j] = weight;
-                            }
-                        }
-
-                        verticesIndex += NMesh.VERTEX_SIZE;
-                    }
-                }
-
-                Pair<float[], int[]> newMesh = MeshUtils.generateIndices(vertices, NMesh.VERTEX_SIZE);
-
-                float[] finalVertices = newMesh.getA();
-                int[] finalIndices = newMesh.getB();
-
-                NMesh loadedMesh = new NMesh(
-                        meshName,
-                        finalVertices, finalIndices,
-                        meshBones.toArray(NMeshBone[]::new)
-                );
-                loadedMesh.generateBVH();
-
-                NMaterial material = this.loadedMaterials.get(mesh.mMaterialIndex());
-                if (material == null) {
-                    material = NMaterial.NULL_MATERIAL;
-                }
-                
-                NGeometry geometry = new NGeometry(meshName, loadedMesh, material);
-
-                return new Pair<>(
-                        meshIndex,
-                        geometry
-                );
-            }));
+            futureGeometries.add(this.service.submit(() -> loadMesh(mesh, meshIndex)));
         }
 
         Map<String, NMesh> loadedMeshes = new HashMap<>();
 
-        for (Future<Pair<Integer, NGeometry>> futurePair : futureGeometries) {
+        for (Future<Pair<Integer, List<NGeometry>>> futurePair : futureGeometries) {
             try {
-                Pair<Integer, NGeometry> pair = futurePair.get();
+                Pair<Integer, List<NGeometry>> pair = futurePair.get();
 
                 int geometryIndex = pair.getA();
-                NGeometry geometry = pair.getB();
+                List<NGeometry> geometries = pair.getB();
 
-                NMesh mesh = geometry.getMesh();
+                for (NGeometry geometry : geometries) {
+                    NMesh mesh = geometry.getMesh();
 
-                String sha256 = mesh.getSha256();
-                NMesh alreadyLoaded = loadedMeshes.get(sha256);
+                    String sha256 = mesh.getSha256();
+                    NMesh alreadyLoaded = loadedMeshes.get(sha256);
 
-                if (alreadyLoaded != null) {
-                    geometry = new NGeometry(geometry.getName(), alreadyLoaded, geometry.getMaterial());
-                } else {
-                    loadedMeshes.put(sha256, mesh);
+                    if (alreadyLoaded != null) {
+                        geometry = new NGeometry(geometry.getName(), alreadyLoaded, geometry.getMaterial());
+                    } else {
+                        loadedMeshes.put(sha256, mesh);
+                    }
                 }
 
-                this.loadedGeometries.put(geometryIndex, geometry);
+                this.loadedGeometries.put(geometryIndex, geometries);
             } catch (InterruptedException | ExecutionException ex) {
                 throw new RuntimeException(ex);
             }
@@ -832,9 +915,9 @@ public class N3DModelImporter {
         IntBuffer geometriesIndex = node.mMeshes();
         if (geometriesIndex != null) {
             for (int i = 0; i < amountOfGeometries; i++) {
-                NGeometry geometry = this.loadedGeometries.get(geometriesIndex.get(i));
-                if (geometry != null) {
-                    geometries.add(geometry);
+                List<NGeometry> geometriesList = this.loadedGeometries.get(geometriesIndex.get(i));
+                if (geometriesList != null) {
+                    geometries.addAll(geometriesList);
                 }
             }
         }

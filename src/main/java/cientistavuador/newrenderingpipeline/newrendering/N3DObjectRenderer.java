@@ -492,6 +492,7 @@ public class N3DObjectRenderer {
                         variant.locationOf(NProgram.UNIFORM_PARALLAX_SUPPORTED),
                         textures.isHeightMapSupported() ? 1 : 0
                 );
+                
                 lastTextures = textures;
             }
 
@@ -507,10 +508,10 @@ public class N3DObjectRenderer {
                 lastTransformation = transformation;
             }
             
-            if (animator != lastAnimator || (animator == null && !mesh.equals(lastMesh) && mesh.getAmountOfBones() != 0)) {
+            if (animator != lastAnimator || (animator == null && mesh.getAmountOfBones() != 0) || !mesh.equals(lastMesh)) {
                 for (int boneIndex = 0; boneIndex < mesh.getAmountOfBones(); boneIndex++) {
                     NMeshBone bone = mesh.getBone(boneIndex);
-
+                    
                     if (animator != null) {
                         Matrix4fc boneMatrix = animator.getBoneMatrix(bone.getName());
                         Matrix4fc offset = bone.getOffset();
@@ -520,7 +521,7 @@ public class N3DObjectRenderer {
                                     .set(boneMatrix)
                                     .mul(offset);
                         }
-
+                        
                         NProgram.sendBoneMatrix(variant, transformedBone, boneIndex);
                     } else {
                         NProgram.sendBoneMatrix(variant, IDENTITY, boneIndex);
@@ -541,6 +542,7 @@ public class N3DObjectRenderer {
                         fresnel.getFresnelOutlineExponent(),
                         fresnel.getFresnelOutlineColor().x(), fresnel.getFresnelOutlineColor().y(), fresnel.getFresnelOutlineColor().z()
                 );
+                lastFresnel = fresnel;
             }
 
             glDrawElements(GL_TRIANGLES, mesh.getIndices().length, GL_UNSIGNED_INT, 0);
