@@ -571,6 +571,9 @@ public class BakedLighting {
         Vector3f b = new Vector3f();
         Vector3f c = new Vector3f();
 
+        Vector3f position = new Vector3f();
+        Vector3f normal = new Vector3f();
+
         this.status.setProgressBarStep(this.lightmapperQuads.length);
 
         for (int i = 0; i < this.lightmapperQuads.length; i++) {
@@ -612,6 +615,12 @@ public class BakedLighting {
                 raster:
                 for (int y = minY; y <= maxY; y++) {
                     for (int x = minX; x <= maxX; x++) {
+                        if (y % 2 == 0 && x % 2 == 0) {
+                            continue;
+                        }
+                        if (y % 2 != 0 && y % 2 != 0) {
+                            continue;
+                        }
                         for (int s = 0; s < mode.numSamples(); s++) {
                             float sampleX = mode.sampleX(s);
                             float sampleY = mode.sampleY(s);
@@ -629,6 +638,34 @@ public class BakedLighting {
                             }
 
                             if (wx < 0f || wy < 0f || wz < 0f) {
+                                continue;
+                            }
+
+                            int i0 = this.indices[(triangle * 3) + 0];
+                            int i1 = this.indices[(triangle * 3) + 1];
+                            int i2 = this.indices[(triangle * 3) + 2];
+
+                            position.set(
+                                    lerp(weights, i0, i1, i2, MeshData.XYZ_OFFSET + 0),
+                                    lerp(weights, i0, i1, i2, MeshData.XYZ_OFFSET + 1),
+                                    lerp(weights, i0, i1, i2, MeshData.XYZ_OFFSET + 2)
+                            );
+
+                            this.geometry.getModel().transformProject(position);
+
+                            MeshUtils.calculateTriangleNormal(
+                                    this.vertices,
+                                    MeshData.SIZE,
+                                    MeshData.XYZ_OFFSET,
+                                    i0, i1, i2,
+                                    normal
+                            );
+                            
+                            this.geometry.getNormalModel().transform(normal).normalize();
+                            
+                            position.add(normal.mul(this.scene.getRayOffset()));
+
+                            if (Geometry.testSphere(position.x(), position.y(), position.z(), this.scene.getRayOffset() * 0.90f, this.geometries)) {
                                 continue;
                             }
 
@@ -823,9 +860,8 @@ public class BakedLighting {
                     this.geometry
                             .getNormalModel()
                             .transform(state.triangleNormal)
-                            .normalize()
-                            ;
-                    
+                            .normalize();
+
                     float upX = 0f;
                     float upY = 1f;
                     float upZ = 0f;

@@ -45,7 +45,30 @@ import org.joml.Vector3fc;
  * @author Cien
  */
 public class Geometry {
-
+    
+    public static boolean testSphere(float x, float y, float z, float radius, List<Geometry> geometries) {
+        if (geometries.isEmpty()) {
+            return false;
+        }
+        
+        Vector3f transformedPosition = new Vector3f();
+        
+        //warning: radius is not transformed
+        
+        for (Geometry g:geometries) {
+            g.getInverseModel().transformProject(transformedPosition.set(x, y, z));
+            
+            if (g.getMesh().getBVH().testSphere(
+                    transformedPosition.x(), transformedPosition.y(), transformedPosition.z(),
+                    radius
+            )) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+    
     public static boolean fastTestRay(Vector3fc origin, Vector3fc direction, float maxLength, List<Geometry> geometries) {
         if (geometries.isEmpty()) {
             return false;
