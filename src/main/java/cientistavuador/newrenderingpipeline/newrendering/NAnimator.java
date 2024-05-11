@@ -211,11 +211,11 @@ public class NAnimator {
             int currentPositionKey = this.currentPositionKeys[i];
             int currentRotationKey = this.currentRotationKeys[i];
             int currentScalingKey = this.currentScalingKeys[i];
-
+            
             float currentPositionTime = boneAnimation.getPositionTime(currentPositionKey);
             float currentRotationTime = boneAnimation.getRotationTime(currentRotationKey);
             float currentScalingTime = boneAnimation.getScalingTime(currentScalingKey);
-
+            
             boolean hasNextPositionKey = (currentPositionKey + 1) < boneAnimation.getNumberOfPositions();
             boolean hasNextRotationKey = (currentRotationKey + 1) < boneAnimation.getNumberOfRotations();
             boolean hasNextScalingKey = (currentScalingKey + 1) < boneAnimation.getNumberOfScalings();
@@ -318,7 +318,7 @@ public class NAnimator {
                     .translate(this.currentPosition)
                     .rotate(this.currentRotation)
                     .scale(this.currentScaling);
-
+            
             this.currentPositionKeys[i] = currentPositionKey;
             this.currentRotationKeys[i] = currentRotationKey;
             this.currentScalingKeys[i] = currentScalingKey;

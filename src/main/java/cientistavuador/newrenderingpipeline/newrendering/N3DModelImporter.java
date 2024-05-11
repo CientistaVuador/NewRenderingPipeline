@@ -45,6 +45,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import org.joml.Matrix4f;
+import org.joml.Matrix4fc;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.assimp.*;
 import static org.lwjgl.assimp.Assimp.*;
@@ -57,9 +58,10 @@ import org.lwjgl.system.MemoryUtil;
  */
 public class N3DModelImporter {
 
-    public static double DEFAULT_TICKS_PER_SECOND = 1000.0;
+    public static double DEFAULT_TICKS_PER_SECOND = 1.0;
 
-    public static final int DEFAULT_FLAGS = aiProcess_CalcTangentSpace
+    public static final int DEFAULT_FLAGS
+            = aiProcess_CalcTangentSpace
             | aiProcess_Triangulate
             | aiProcess_TransformUVCoords
             | aiProcess_FindDegenerates
@@ -72,7 +74,6 @@ public class N3DModelImporter {
             | aiProcess_FindInstances
             | aiProcess_SortByPType
             | aiProcess_EmbedTextures;
-    //| aiProcess_SplitByBoneCount;
 
     public static final AIPropertyStore DEFAULT_PROPERTIES;
 
@@ -148,14 +149,187 @@ public class N3DModelImporter {
 
     private final AIScene scene;
 
+    private final List<NAnimation> loadedAnimations = new ArrayList<>();
+    private final Map<Integer, NMeshBone> missingMeshBones = new HashMap<>();
+
     private final Map<String, NTexturesIO.LoadedImage> loadedImages = new HashMap<>();
     private final Map<Integer, NMaterial> loadedMaterials = new HashMap<>();
     private final Map<Integer, List<NGeometry>> loadedGeometries = new HashMap<>();
 
-    private final List<NAnimation> loadedAnimations = new ArrayList<>();
-
     private N3DModelImporter(AIScene scene) {
         this.scene = scene;
+    }
+
+    private void loadAnimations() {
+        PointerBuffer sceneAnimations = this.scene.mAnimations();
+        if (sceneAnimations == null) {
+            return;
+        }
+
+        int numberOfAnimations = this.scene.mNumAnimations();
+        for (int i = 0; i < numberOfAnimations; i++) {
+            AIAnimation sceneAnimation = AIAnimation.createSafe(sceneAnimations.get(i));
+            if (sceneAnimation == null) {
+                continue;
+            }
+
+            List<NBoneAnimation> boneAnimations = new ArrayList<>();
+
+            String name = sceneAnimation.mName().dataString();
+
+            double tps = sceneAnimation.mTicksPerSecond();
+            if (tps == 0.0) {
+                tps = DEFAULT_TICKS_PER_SECOND;
+            }
+            tps = 1.0 / tps;
+
+            float duration = (float) (sceneAnimation.mDuration() * tps);
+
+            int numberOfChannels = sceneAnimation.mNumChannels();
+            PointerBuffer channels = sceneAnimation.mChannels();
+            if (channels != null) {
+                for (int j = 0; j < numberOfChannels; j++) {
+                    AINodeAnim channel = AINodeAnim.createSafe(channels.get(j));
+                    if (channel != null) {
+                        String boneName = channel.mNodeName().dataString();
+
+                        AIVectorKey.Buffer positionsBuffer = channel.mPositionKeys();
+                        AIQuatKey.Buffer rotationsBuffer = channel.mRotationKeys();
+                        AIVectorKey.Buffer scalingsBuffer = channel.mScalingKeys();
+
+                        int numPosition = channel.mNumPositionKeys();
+                        int numRotation = channel.mNumRotationKeys();
+                        int numScaling = channel.mNumScalingKeys();
+
+                        float[] positionTimes = new float[numPosition];
+                        float[] rotationTimes = new float[numRotation];
+                        float[] scalingTimes = new float[numScaling];
+
+                        float[] positions = new float[numPosition * 3];
+                        float[] rotations = new float[numRotation * 4];
+                        float[] scaling = new float[numScaling * 3];
+
+                        if (positionsBuffer != null) {
+                            for (int k = 0; k < numPosition; k++) {
+                                AIVectorKey key = positionsBuffer.get(k);
+
+                                positionTimes[k] = (float) (key.mTime() * tps);
+
+                                AIVector3D pos = key.mValue();
+
+                                positions[(k * 3) + 0] = pos.x();
+                                positions[(k * 3) + 1] = pos.y();
+                                positions[(k * 3) + 2] = pos.z();
+                            }
+                        }
+
+                        if (rotationsBuffer != null) {
+                            for (int k = 0; k < numRotation; k++) {
+                                AIQuatKey key = rotationsBuffer.get(k);
+
+                                rotationTimes[k] = (float) (key.mTime() * tps);
+
+                                AIQuaternion rotation = key.mValue();
+
+                                rotations[(k * 4) + 0] = rotation.x();
+                                rotations[(k * 4) + 1] = rotation.y();
+                                rotations[(k * 4) + 2] = rotation.z();
+                                rotations[(k * 4) + 3] = rotation.w();
+                            }
+                        }
+
+                        if (scalingsBuffer != null) {
+                            for (int k = 0; k < numScaling; k++) {
+                                AIVectorKey key = scalingsBuffer.get(k);
+
+                                scalingTimes[k] = (float) (key.mTime() * tps);
+
+                                AIVector3D pos = key.mValue();
+
+                                scaling[(k * 3) + 0] = pos.x();
+                                scaling[(k * 3) + 1] = pos.y();
+                                scaling[(k * 3) + 2] = pos.z();
+                            }
+                        }
+
+                        boneAnimations.add(new NBoneAnimation(
+                                boneName,
+                                positionTimes, positions,
+                                rotationTimes, rotations,
+                                scalingTimes, scaling
+                        ));
+                    }
+                }
+            }
+
+            this.loadedAnimations.add(new NAnimation(name, duration, boneAnimations.toArray(NBoneAnimation[]::new)));
+        }
+    }
+
+    private String buildMissingBone(Set<String> totalBones, AINode currentNode, Matrix4f offset) {
+        if (currentNode == null) {
+            return null;
+        }
+
+        String nodeName = currentNode.mName().dataString();
+
+        if (totalBones.contains(nodeName)) {
+            return nodeName;
+        }
+
+        AIMatrix4x4 t = currentNode.mTransformation();
+        Matrix4fc transformation = new Matrix4f(
+                t.a1(), t.b1(), t.c1(), t.d1(),
+                t.a2(), t.b2(), t.c2(), t.d2(),
+                t.a3(), t.b3(), t.c3(), t.d3(),
+                t.a4(), t.b4(), t.c4(), t.d4()
+        );
+        transformation.mul(offset, offset);
+
+        return buildMissingBone(totalBones, currentNode.mParent(), offset);
+    }
+
+    private void recursiveFindMissingMeshBones(Set<String> totalBones, AINode currentNode) {
+        if (currentNode == null) {
+            return;
+        }
+
+        int amountOfMeshes = currentNode.mNumMeshes();
+        IntBuffer meshes = currentNode.mMeshes();
+        if (meshes != null) {
+            Matrix4f offset = new Matrix4f();
+            String missingBone = buildMissingBone(totalBones, currentNode, offset);
+
+            if (missingBone != null) {
+                NMeshBone bone = new NMeshBone(missingBone, offset);
+                for (int i = 0; i < amountOfMeshes; i++) {
+                    this.missingMeshBones.put(meshes.get(i), bone);
+                }
+            }
+        }
+
+        int amountOfChildren = currentNode.mNumChildren();
+        PointerBuffer children = currentNode.mChildren();
+        if (children != null) {
+            for (int i = 0; i < amountOfChildren; i++) {
+                recursiveFindMissingMeshBones(totalBones, AINode.createSafe(children.get(i)));
+            }
+        }
+    }
+
+    private void findMissingMeshBones() {
+        Set<String> totalBones = new HashSet<>();
+
+        for (NAnimation animation : this.loadedAnimations) {
+            for (int i = 0; i < animation.getNumberOfBoneAnimations(); i++) {
+                String boneName = animation.getBoneAnimation(i).getBoneName();
+                if (!totalBones.contains(boneName)) {
+                    totalBones.add(boneName);
+                }
+            }
+        }
+
+        recursiveFindMissingMeshBones(totalBones, this.scene.mRootNode());
     }
 
     private void loadImages() {
@@ -535,7 +709,7 @@ public class N3DModelImporter {
                     }
                 }
             }
-            
+
             outputList.add(new Pair<>(splitMesh, meshBones.toArray(NMeshBone[]::new)));
         }
 
@@ -561,6 +735,8 @@ public class N3DModelImporter {
 
         List<NMeshBone> meshBones = new ArrayList<>();
         Map<Integer, List<Pair<Integer, Float>>> boneVertexWeightMap = new HashMap<>();
+
+        NMeshBone missingBone = this.missingMeshBones.get(meshIndex);
 
         if (bones != null) {
             for (int boneIndex = 0; boneIndex < amountOfBones; boneIndex++) {
@@ -594,6 +770,8 @@ public class N3DModelImporter {
                     }
                 }
             }
+        } else if (missingBone != null) {
+            meshBones.add(missingBone);
         }
 
         for (int faceIndex = 0; faceIndex < amountOfFaces; faceIndex++) {
@@ -689,6 +867,9 @@ public class N3DModelImporter {
                         vertices[verticesIndex + NMesh.OFFSET_BONE_IDS_XYZW + j] = Float.intBitsToFloat(bone);
                         vertices[verticesIndex + NMesh.OFFSET_BONE_WEIGHTS_XYZW + j] = weight;
                     }
+                } else if (missingBone != null) {
+                    vertices[verticesIndex + NMesh.OFFSET_BONE_IDS_XYZW + 0] = Float.intBitsToFloat(0);
+                    vertices[verticesIndex + NMesh.OFFSET_BONE_WEIGHTS_XYZW + 0] = 1f;
                 }
 
                 verticesIndex += NMesh.VERTEX_SIZE;
@@ -734,7 +915,7 @@ public class N3DModelImporter {
                 outputGeometries
         );
     }
-    
+
     private void loadMeshes() {
         PointerBuffer meshes = this.scene.mMeshes();
         if (meshes == null) {
@@ -792,112 +973,6 @@ public class N3DModelImporter {
         this.loadedMaterials.clear();
     }
 
-    private void loadAnimations() {
-        PointerBuffer sceneAnimations = this.scene.mAnimations();
-        if (sceneAnimations == null) {
-            return;
-        }
-
-        int numberOfAnimations = this.scene.mNumAnimations();
-        for (int i = 0; i < numberOfAnimations; i++) {
-            AIAnimation sceneAnimation = AIAnimation.createSafe(sceneAnimations.get(i));
-            if (sceneAnimation == null) {
-                continue;
-            }
-
-            List<NBoneAnimation> boneAnimations = new ArrayList<>();
-
-            String name = sceneAnimation.mName().dataString();
-
-            double tps = sceneAnimation.mTicksPerSecond();
-            if (tps == 0.0) {
-                tps = DEFAULT_TICKS_PER_SECOND;
-            }
-            tps = 1.0 / tps;
-
-            float duration = (float) (sceneAnimation.mDuration() * tps);
-
-            int numberOfChannels = sceneAnimation.mNumChannels();
-            PointerBuffer channels = sceneAnimation.mChannels();
-            if (channels != null) {
-                for (int j = 0; j < numberOfChannels; j++) {
-                    AINodeAnim channel = AINodeAnim.createSafe(channels.get(j));
-                    if (channel != null) {
-                        String boneName = channel.mNodeName().dataString();
-
-                        AIVectorKey.Buffer positionsBuffer = channel.mPositionKeys();
-                        AIQuatKey.Buffer rotationsBuffer = channel.mRotationKeys();
-                        AIVectorKey.Buffer scalingsBuffer = channel.mScalingKeys();
-
-                        int numPosition = channel.mNumPositionKeys();
-                        int numRotation = channel.mNumRotationKeys();
-                        int numScaling = channel.mNumScalingKeys();
-
-                        float[] positionTimes = new float[numPosition];
-                        float[] rotationTimes = new float[numRotation];
-                        float[] scalingTimes = new float[numScaling];
-
-                        float[] positions = new float[numPosition * 3];
-                        float[] rotations = new float[numRotation * 4];
-                        float[] scaling = new float[numScaling * 3];
-
-                        if (positionsBuffer != null) {
-                            for (int k = 0; k < numPosition; k++) {
-                                AIVectorKey key = positionsBuffer.get(k);
-
-                                positionTimes[k] = (float) (key.mTime() * tps);
-
-                                AIVector3D pos = key.mValue();
-
-                                positions[(k * 3) + 0] = pos.x();
-                                positions[(k * 3) + 1] = pos.y();
-                                positions[(k * 3) + 2] = pos.z();
-                            }
-                        }
-
-                        if (rotationsBuffer != null) {
-                            for (int k = 0; k < numRotation; k++) {
-                                AIQuatKey key = rotationsBuffer.get(k);
-
-                                rotationTimes[k] = (float) (key.mTime() * tps);
-
-                                AIQuaternion rotation = key.mValue();
-
-                                rotations[(k * 4) + 0] = rotation.x();
-                                rotations[(k * 4) + 1] = rotation.y();
-                                rotations[(k * 4) + 2] = rotation.z();
-                                rotations[(k * 4) + 3] = rotation.w();
-                            }
-                        }
-
-                        if (scalingsBuffer != null) {
-                            for (int k = 0; k < numScaling; k++) {
-                                AIVectorKey key = scalingsBuffer.get(k);
-
-                                scalingTimes[k] = (float) (key.mTime() * tps);
-
-                                AIVector3D pos = key.mValue();
-
-                                scaling[(k * 3) + 0] = pos.x();
-                                scaling[(k * 3) + 1] = pos.y();
-                                scaling[(k * 3) + 2] = pos.z();
-                            }
-                        }
-
-                        boneAnimations.add(new NBoneAnimation(
-                                boneName,
-                                positionTimes, positions,
-                                rotationTimes, rotations,
-                                scalingTimes, scaling
-                        ));
-                    }
-                }
-            }
-
-            this.loadedAnimations.add(new NAnimation(name, duration, boneAnimations.toArray(NBoneAnimation[]::new)));
-        }
-    }
-
     private N3DModelNode recursiveNodeGeneration(AINode node) {
         AIMatrix4x4 t = node.mTransformation();
 
@@ -946,16 +1021,17 @@ public class N3DModelImporter {
     private N3DModelNode generateRootNode() {
         return recursiveNodeGeneration(this.scene.mRootNode());
     }
-
+    
     private N3DModel process() {
         try {
+            loadAnimations();
+            findMissingMeshBones();
+
             loadImages();
             loadMaterials();
             clearImages();
             loadMeshes();
             clearMaterials();
-
-            loadAnimations();
 
             N3DModel finalModel = new N3DModel(
                     this.scene.mName().dataString(),
@@ -963,10 +1039,10 @@ public class N3DModelImporter {
                     this.loadedAnimations.toArray(NAnimation[]::new)
             );
 
-            if (finalModel.getAnimations().length > 0) {
+            if (finalModel.getNumberOfAnimations() > 0) {
                 finalModel.generateAnimatedAabb();
             }
-
+            
             return finalModel;
         } finally {
             this.service.shutdownNow();

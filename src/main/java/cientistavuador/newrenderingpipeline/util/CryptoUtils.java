@@ -35,8 +35,8 @@ import java.security.NoSuchAlgorithmException;
  * @author Cien
  */
 public class CryptoUtils {
-
-    public static String sha256(ByteBuffer buffer) {
+    
+    public static byte[] sha256Bytes(ByteBuffer buffer) {
         byte[] copiedData = new byte[buffer.remaining()];
         buffer.get(copiedData, buffer.position(), buffer.remaining());
         
@@ -46,6 +46,12 @@ public class CryptoUtils {
         } catch (NoSuchAlgorithmException ex) {
             throw new RuntimeException(ex);
         }
+        
+        return sha256Bytes;
+    }
+    
+    public static String sha256(ByteBuffer buffer) {
+        byte[] sha256Bytes = sha256Bytes(buffer);
         
         StringBuilder b = new StringBuilder();
         for (int i = 0; i < sha256Bytes.length; i++) {

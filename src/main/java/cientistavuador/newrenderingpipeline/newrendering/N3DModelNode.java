@@ -71,12 +71,20 @@ public class N3DModelNode {
         return transformation;
     }
 
-    public NGeometry[] getGeometries() {
-        return geometries;
+    public int getNumberOfGeometries() {
+        return this.geometries.length;
+    }
+    
+    public NGeometry getGeometry(int index) {
+        return this.geometries[index];
     }
 
-    public N3DModelNode[] getChildren() {
-        return children;
+    public int getNumberOfChildren() {
+        return this.children.length;
+    }
+    
+    public N3DModelNode getChild(int index) {
+        return this.children[index];
     }
     
     private void calculateTotalTransformation() {

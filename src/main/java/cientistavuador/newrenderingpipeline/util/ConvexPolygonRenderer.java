@@ -85,7 +85,7 @@ public class ConvexPolygonRenderer {
             layout (location = 0) out vec4 fragColor;
             
             void main() {
-                fragColor = outColor * texture2D(polyTexture, outUV);
+                fragColor = outColor * texture(polyTexture, outUV);
             }
             """
     );

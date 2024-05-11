@@ -31,12 +31,14 @@ import cientistavuador.newrenderingpipeline.util.StringUtils;
 import cientistavuador.newrenderingpipeline.util.MeshUtils;
 import cientistavuador.newrenderingpipeline.util.ObjectCleaner;
 import cientistavuador.newrenderingpipeline.util.raycast.BVH;
+import java.awt.Color;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Random;
 import java.util.concurrent.atomic.AtomicLong;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
@@ -53,10 +55,10 @@ import org.lwjgl.opengl.KHRDebug;
 public class NMesh {
 
     private static final AtomicLong meshIds = new AtomicLong();
-    
+
     public static final int MAX_AMOUNT_OF_BONES = 64;
     public static final int MAX_AMOUNT_OF_BONE_WEIGHTS = 4;
-    
+
     public static final int VAO_INDEX_POSITION_XYZ = 0;
     public static final int VAO_INDEX_TEXTURE_XY = 1;
     public static final int VAO_INDEX_NORMAL_XYZ = 2;
@@ -101,14 +103,16 @@ public class NMesh {
     private final WrappedBuffer wrappedEbo = new WrappedBuffer();
 
     private final String sha256;
-    
+
     private BVH bvh = null;
-    
+
     private final Vector3f animatedAabbMin = new Vector3f();
     private final Vector3f animatedAabbMax = new Vector3f();
     private final Vector3f animatedAabbCenter = new Vector3f();
     private boolean animatedAabbGenerated = false;
-    
+
+    private final Vector3f meshColor = new Vector3f();
+
     public NMesh(String name, float[] vertices, int[] indices, NMeshBone[] bones) {
         Objects.requireNonNull(vertices, "Vertices is null");
         Objects.requireNonNull(indices, "Indices is null");
@@ -127,13 +131,13 @@ public class NMesh {
             bones = new NMeshBone[0];
         }
         if (bones.length > MAX_AMOUNT_OF_BONES) {
-            throw new IllegalArgumentException("Max amount of bones per mesh is "+MAX_AMOUNT_OF_BONES);
+            throw new IllegalArgumentException("Max amount of bones per mesh is " + MAX_AMOUNT_OF_BONES);
         }
         for (int i = 0; i < bones.length; i++) {
             this.bonesMap.put(bones[i].getName(), i);
         }
         this.bones = bones;
-        
+
         boolean lightmap = true;
         for (int i = 0; i < this.indices.length; i++) {
             if (this.indices[i] != i) {
@@ -148,7 +152,7 @@ public class NMesh {
                 NMesh.OFFSET_POSITION_XYZ,
                 this.aabbMin, this.aabbMax, this.aabbCenter
         );
-        
+
         this.animatedAabbMin.set(this.aabbMin);
         this.animatedAabbMax.set(this.aabbMax);
         this.animatedAabbCenter.set(this.aabbCenter);
@@ -197,6 +201,23 @@ public class NMesh {
         } else {
             this.name = name;
         }
+        
+        calculateMeshColor();
+    }
+    
+    private void calculateMeshColor() {
+        Random r = new Random();
+        
+        float hue = r.nextFloat();
+        float saturation = r.nextFloat(0.50f) + 0.50f;
+        float brightness = r.nextFloat(0.25f) + 0.75f;
+        
+        int argb = Color.HSBtoRGB(hue, saturation, brightness);
+        float red = ((argb >> 16) & 0xFF) / 255f;
+        float green = ((argb >> 8) & 0xFF) / 255f;
+        float blue = ((argb >> 0) & 0xFF) / 255f;
+        
+        this.meshColor.set(red, green, blue);
     }
 
     private void registerForCleaning() {
@@ -237,15 +258,15 @@ public class NMesh {
     public int[] getIndices() {
         return this.indices;
     }
-    
+
     public int getAmountOfBones() {
         return this.bones.length;
     }
-    
+
     public NMeshBone getBone(int index) {
         return this.bones[index];
     }
-    
+
     public int indexOfBone(String name) {
         Integer index = this.bonesMap.get(name);
         if (index == null) {
@@ -253,7 +274,7 @@ public class NMesh {
         }
         return index;
     }
-    
+
     public NMeshBone getBone(String name) {
         int index = indexOfBone(name);
         if (index < 0) {
@@ -261,7 +282,7 @@ public class NMesh {
         }
         return getBone(index);
     }
-
+    
     public boolean isLightmapped() {
         return lightmapped;
     }
@@ -281,11 +302,11 @@ public class NMesh {
     public String getSha256() {
         return sha256;
     }
-    
+
     public void generateBVH() {
         this.bvh = BVH.create(this, this.vertices, this.indices, NMesh.VERTEX_SIZE, NMesh.OFFSET_POSITION_XYZ);
     }
-    
+
     public BVH getBVH() {
         return this.bvh;
     }
@@ -293,81 +314,83 @@ public class NMesh {
     public void setBVH(BVH bvh) {
         this.bvh = bvh;
     }
-    
+
     public void generateAnimatedAabb(N3DModel originalModel) {
-        if (originalModel.getAnimations().length == 0) {
+        if (originalModel.getNumberOfAnimations() == 0) {
             return;
         }
-        
+
         float minX = Float.POSITIVE_INFINITY;
         float minY = Float.POSITIVE_INFINITY;
         float minZ = Float.POSITIVE_INFINITY;
-        
+
         float maxX = Float.NEGATIVE_INFINITY;
         float maxY = Float.NEGATIVE_INFINITY;
         float maxZ = Float.NEGATIVE_INFINITY;
-        
+
         Matrix4f totalBoneMatrix = new Matrix4f();
         Vector3f transformed = new Vector3f();
         Vector3f totalTransformation = new Vector3f();
-        
+
         int[] bonesIds = new int[MAX_AMOUNT_OF_BONE_WEIGHTS];
         float[] bonesWeights = new float[MAX_AMOUNT_OF_BONE_WEIGHTS];
-        
-        for (NAnimation animation:originalModel.getAnimations()) {
+
+        for (int animationIndex = 0; animationIndex < originalModel.getNumberOfAnimations(); animationIndex++) {
+            NAnimation animation = originalModel.getAnimation(animationIndex);
+            
             NAnimator animator = new NAnimator(originalModel, animation.getName());
             animator.setLooping(false);
             while (!animator.isFinished()) {
                 animator.update(NAnimator.UPDATE_RATE);
-                
+
                 for (int i = 0; i < this.vertices.length; i += NMesh.VERTEX_SIZE) {
                     float x = this.vertices[i + NMesh.OFFSET_POSITION_XYZ + 0];
                     float y = this.vertices[i + NMesh.OFFSET_POSITION_XYZ + 1];
                     float z = this.vertices[i + NMesh.OFFSET_POSITION_XYZ + 2];
-                    
+
                     bonesIds[0] = Float.floatToRawIntBits(this.vertices[i + NMesh.OFFSET_BONE_IDS_XYZW + 0]);
                     bonesIds[1] = Float.floatToRawIntBits(this.vertices[i + NMesh.OFFSET_BONE_IDS_XYZW + 1]);
                     bonesIds[2] = Float.floatToRawIntBits(this.vertices[i + NMesh.OFFSET_BONE_IDS_XYZW + 2]);
                     bonesIds[3] = Float.floatToRawIntBits(this.vertices[i + NMesh.OFFSET_BONE_IDS_XYZW + 3]);
-                    
+
                     bonesWeights[0] = this.vertices[i + NMesh.OFFSET_BONE_WEIGHTS_XYZW + 0];
                     bonesWeights[1] = this.vertices[i + NMesh.OFFSET_BONE_WEIGHTS_XYZW + 1];
                     bonesWeights[2] = this.vertices[i + NMesh.OFFSET_BONE_WEIGHTS_XYZW + 2];
                     bonesWeights[3] = this.vertices[i + NMesh.OFFSET_BONE_WEIGHTS_XYZW + 3];
-                    
+
                     totalTransformation.zero();
                     for (int j = 0; j < bonesIds.length; j++) {
                         int boneId = bonesIds[j];
                         float boneWeight = bonesWeights[j];
-                        
+
                         if (boneId >= 0) {
                             NMeshBone bone = getBone(boneId);
-                            
+
                             Matrix4fc boneMatrix = animator.getBoneMatrix(bone.getName());
-                            
+
                             totalBoneMatrix
                                     .set(boneMatrix)
                                     .mul(bone.getOffset());
-                            
+
                             transformed.set(x, y, z);
                             totalBoneMatrix.transformProject(transformed);
                             transformed.mul(boneWeight);
-                            
+
                             totalTransformation.add(transformed);
                         }
                     }
-                    
+
                     minX = Math.min(minX, totalTransformation.x());
                     minY = Math.min(minY, totalTransformation.y());
                     minZ = Math.min(minZ, totalTransformation.z());
-                    
+
                     maxX = Math.max(maxX, totalTransformation.x());
                     maxY = Math.max(maxY, totalTransformation.y());
                     maxZ = Math.max(maxZ, totalTransformation.z());
                 }
             }
         }
-        
+
         this.animatedAabbMin.set(minX, minY, minZ);
         this.animatedAabbMax.set(maxX, maxY, maxZ);
         this.animatedAabbCenter.set(
@@ -375,10 +398,10 @@ public class NMesh {
                 (minY * 0.5f) + (maxY * 0.5f),
                 (minZ * 0.5f) + (maxZ * 0.5f)
         );
-        
+
         this.animatedAabbGenerated = true;
     }
-    
+
     public Vector3fc getAnimatedAabbMin() {
         return animatedAabbMin;
     }
@@ -390,11 +413,15 @@ public class NMesh {
     public Vector3fc getAnimatedAabbCenter() {
         return animatedAabbCenter;
     }
-    
+
     public boolean isAnimatedAabbGenerated() {
         return animatedAabbGenerated;
     }
 
+    public Vector3fc getMeshColor() {
+        return meshColor;
+    }
+    
     private void validateVAO() {
         if (this.wrappedVao.vao != 0) {
             return;
@@ -445,15 +472,15 @@ public class NMesh {
 
         if (GL.getCapabilities().GL_KHR_debug) {
             KHRDebug.glObjectLabel(GL_VERTEX_ARRAY, vao,
-                    StringUtils.truncateStringTo255Bytes("vao_"+meshId+"_"+this.name)
+                    StringUtils.truncateStringTo255Bytes("vao_" + meshId + "_" + this.name)
             );
-            
+
             KHRDebug.glObjectLabel(KHRDebug.GL_BUFFER, vbo,
-                    StringUtils.truncateStringTo255Bytes("vbo_"+meshId+"_"+this.name)
+                    StringUtils.truncateStringTo255Bytes("vbo_" + meshId + "_" + this.name)
             );
-            
+
             KHRDebug.glObjectLabel(KHRDebug.GL_BUFFER, ebo,
-                    StringUtils.truncateStringTo255Bytes("ebo_"+meshId+"_"+this.name)
+                    StringUtils.truncateStringTo255Bytes("ebo_" + meshId + "_" + this.name)
             );
         }
     }
@@ -491,14 +518,14 @@ public class NMesh {
             this.wrappedEbo.buffer = 0;
         }
     }
-    
+
     @Override
     public int hashCode() {
         int hash = 5;
         hash = 29 * hash + Objects.hashCode(this.sha256);
         return hash;
     }
-    
+
     @Override
     public boolean equals(Object obj) {
         if (this == obj) {
@@ -513,5 +540,5 @@ public class NMesh {
         final NMesh other = (NMesh) obj;
         return Objects.equals(this.sha256, other.sha256);
     }
-    
+
 }

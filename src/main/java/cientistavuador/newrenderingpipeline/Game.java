@@ -256,12 +256,12 @@ public class Game {
     {
         try {
             textures = NTexturesIO.loadFromJar(
-                    null,//"cientistavuador/newrenderingpipeline/resources/image/diffuse.jpg",
+                    "cientistavuador/newrenderingpipeline/resources/image/diffuse.jpg",
                     null,//"cientistavuador/newrenderingpipeline/resources/image/ao.jpg",
                     null,//"cientistavuador/newrenderingpipeline/resources/image/height.jpg",
                     "cientistavuador/newrenderingpipeline/resources/image/invertedexponent.jpg",
-                    null,//"cientistavuador/newrenderingpipeline/resources/image/normal.jpg",
-                    "cientistavuador/newrenderingpipeline/resources/image/reflectiveness.jpg",
+                    "cientistavuador/newrenderingpipeline/resources/image/normal.jpg",
+                    null,//"cientistavuador/newrenderingpipeline/resources/image/reflectiveness.jpg",
                     null
             );
         } catch (IOException ex) {
@@ -273,7 +273,7 @@ public class Game {
 
     {
         final float e = Float.intBitsToFloat(-1);
-        
+
         float[] vertices = new float[]{
             0f, 0f, 0f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f, 1f, e, e, e, e, 1f, 0f, 0f, 0f,
             20f, 0f, 0f, 10f, 0f, 0f, 1f, 0f, 0f, 0f, 1f, 1f, e, e, e, e, 1f, 0f, 0f, 0f,
@@ -377,21 +377,20 @@ public class Game {
 
         System.out.println(spacing + "node name: " + node.getName() + ", depth: " + depth + " ->");
 
-        NGeometry[] geometries = node.getGeometries();
-        System.out.println(spacing + "amount of geometries: " + geometries.length);
+        System.out.println(spacing + "amount of geometries: " + node.getNumberOfGeometries());
 
-        if (geometries.length != 0) {
+        if (node.getNumberOfGeometries() != 0) {
             System.out.println(spacing + "list of geometries:");
-            for (NGeometry g : geometries) {
+            for (int i = 0; i < node.getNumberOfGeometries(); i++) {
+                NGeometry g = node.getGeometry(i);
                 System.out.println(spacing + "geometry name: " + g.getName() + ", vertices: " + (g.getMesh().getVertices().length / NMesh.VERTEX_SIZE) + ", indices: " + g.getMesh().getIndices().length);
             }
         }
-
-        N3DModelNode[] children = node.getChildren();
-
-        System.out.println(spacing + "amount of children: " + children.length);
-        if (children.length != 0) {
-            for (N3DModelNode child : children) {
+        
+        System.out.println(spacing + "amount of children: " + node.getNumberOfChildren());
+        if (node.getNumberOfChildren() != 0) {
+            for (int i = 0; i < node.getNumberOfChildren(); i++) {
+                N3DModelNode child = node.getChild(i);
                 print(child, depth + 1);
             }
         }
@@ -404,10 +403,10 @@ public class Game {
     private N3DObject waterBottle = null;
     private N3DObject fox = null;
     private NCubemap cubemap = null;
-    
+
     public void start() {
         cubemap = NCubemapIO.loadFromJar("cientistavuador/newrenderingpipeline/resources/image/generic_cubemap2.png", true, false);
-        
+
         try {
             N3DModel model = N3DModelImporter.importFromJarFile("cientistavuador/newrenderingpipeline/cc0_zacxophone_triceratops.glb");
             testModel = new N3DObject("test model", model);
@@ -417,7 +416,7 @@ public class Game {
         } catch (IOException ex) {
             throw new UncheckedIOException(ex);
         }
-        
+
         try {
             N3DModel model = N3DModelImporter.importFromJarFile("cientistavuador/newrenderingpipeline/my_metallic_balls.glb");
             myBalls = new N3DObject("test model", model);
@@ -446,7 +445,7 @@ public class Game {
         } catch (IOException ex) {
             throw new UncheckedIOException(ex);
         }
-        
+
         this.groundObj.getPosition().set(0f, 10f, -15f);
 
         this.physicsSpace.setMaxSubSteps(8);
@@ -540,7 +539,7 @@ public class Game {
         sun.setGroupName("sun");
         sun.setDirection(1f, -0.75f, 1f);
         this.scene.getLights().add(sun);
-
+        
         List<float[]> meshVertices = new ArrayList<>();
         List<int[]> meshIndices = new ArrayList<>();
         List<Matrix4fc> meshModels = new ArrayList<>();
@@ -795,13 +794,14 @@ public class Game {
         NLight.NPointLight point = new NLight.NPointLight("point");
         point.getPosition().set(13f, 11f, -17f);
         //lights.add(point);
-        
+
         this.fox.getAnimator().update(Main.TPF);
+        this.testModel.getAnimator().update(Main.TPF);
+        
         N3DObjectRenderer.queueRender(this.fox);
         N3DObjectRenderer.queueRender(this.waterBottle);
         N3DObjectRenderer.queueRender(this.myBalls);
         N3DObjectRenderer.queueRender(this.groundObj);
-        this.testModel.getAnimator().update(Main.TPF);
         N3DObjectRenderer.queueRender(this.testModel);
         
         N3DObjectRenderer.render(this.camera, lights, cubemap);

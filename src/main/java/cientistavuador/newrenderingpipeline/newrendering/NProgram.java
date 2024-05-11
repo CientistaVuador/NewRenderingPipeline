@@ -251,7 +251,8 @@ public class NProgram {
             """;
 
     private static final String FRAGMENT_SHADER
-            = """
+            = 
+            """
             #if defined(VARIANT_LIGHTMAPPED_ALPHA_TESTING) || defined(VARIANT_LIGHTMAPPED_ALPHA_BLENDING)
             #define IS_LIGHTMAPPED
             #endif
@@ -713,7 +714,7 @@ public class NProgram {
             glUniform3f(uniforms.locationOf("fresnelOutline.color"), r, g, b);
         }
     }
-
+    
     public static void init() {
 
     }

@@ -57,6 +57,7 @@ public class N3DModel {
     private final N3DModelNode[] nodes;
     private final Map<String, Integer> nodesMap = new HashMap<>();
     private final String[] bones;
+    private final NMesh[] meshes;
     
     private final Vector3f animatedAabbMin = new Vector3f();
     private final Vector3f animatedAabbMax = new Vector3f();
@@ -94,6 +95,7 @@ public class N3DModel {
         
         List<N3DModelNode> nodesList = new ArrayList<>();
         Set<String> boneList = new HashSet<>();
+        Set<NMesh> meshList = new HashSet<>();
         
         Queue<N3DModelNode> current = new ArrayDeque<>();
         Queue<N3DModelNode> next = new ArrayDeque<>();
@@ -108,10 +110,15 @@ public class N3DModel {
                 nodesList.add(currentNode);
                 
                 Matrix4fc totalTransformation = currentNode.getTotalTransformation();
-                NGeometry[] geometries = currentNode.getGeometries();
                 
-                for (NGeometry g : geometries) {
+                for (int geometryIndex = 0; geometryIndex < currentNode.getNumberOfGeometries(); geometryIndex++) {
+                    NGeometry g = currentNode.getGeometry(geometryIndex);
+                    
                     NMesh mesh = g.getMesh();
+                    
+                    if (!meshList.contains(mesh)) {
+                        meshList.add(mesh);
+                    }
                     
                     int bonesLength = mesh.getAmountOfBones();
                     for (int i = 0; i < bonesLength; i++) {
@@ -130,7 +137,7 @@ public class N3DModel {
                                 vertices[(i * NMesh.VERTEX_SIZE) + NMesh.OFFSET_POSITION_XYZ + 1],
                                 vertices[(i * NMesh.VERTEX_SIZE) + NMesh.OFFSET_POSITION_XYZ + 2]
                         );
-
+                        
                         totalTransformation.transformProject(transformed);
                         
                         minX = Math.min(minX, transformed.x());
@@ -146,7 +153,9 @@ public class N3DModel {
                     indicesCounter += mesh.getIndices().length;
                 }
                 
-                next.addAll(Arrays.asList(currentNode.getChildren()));
+                for (int i = 0; i < currentNode.getNumberOfChildren(); i++) {
+                    next.add(currentNode.getChild(i));
+                }
             }
             
             Queue<N3DModelNode> a = current;
@@ -172,6 +181,7 @@ public class N3DModel {
             this.nodesMap.put(this.nodes[i].getName(), i);
         }
         this.bones = boneList.toArray(String[]::new);
+        this.meshes = meshList.toArray(NMesh[]::new);
         
         this.verticesCount = verticesCounter;
         this.indicesCount = indicesCounter;
@@ -183,10 +193,6 @@ public class N3DModel {
 
     public N3DModelNode getRootNode() {
         return rootNode;
-    }
-
-    public NAnimation[] getAnimations() {
-        return animations;
     }
     
     public int getNumberOfAnimations() {
@@ -240,6 +246,14 @@ public class N3DModel {
     public String getBone(int index) {
         return this.bones[index];
     }
+    
+    public int getNumberOfMeshes() {
+        return this.meshes.length;
+    }
+    
+    public NMesh getMesh(int index) {
+        return this.meshes[index];
+    }
 
     public void generateAnimatedAabb() {
         float minX = Float.POSITIVE_INFINITY;
@@ -251,8 +265,9 @@ public class N3DModel {
         float maxZ = Float.NEGATIVE_INFINITY;
         
         for (N3DModelNode node:this.nodes) {
-            for (NGeometry g:node.getGeometries()) {
-                NMesh mesh = g.getMesh();
+            for (int i = 0; i < node.getNumberOfGeometries(); i++) {
+                NGeometry geometry = node.getGeometry(i);
+                NMesh mesh = geometry.getMesh();
                 mesh.generateAnimatedAabb(this);
                 
                 Vector3fc meshMin = mesh.getAnimatedAabbMin();

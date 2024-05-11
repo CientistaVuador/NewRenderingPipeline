@@ -164,14 +164,17 @@ public class GPUOcclusion {
     }
     
     public static boolean testCamera(
-            float camx, float camy, float camz,
-            float nearPlaneMargin,
+            float camx, float camy, float camz, float nearPlaneMargin,
             float x, float y, float z,
             float width, float height, float depth
     ) {
         float minX = -1f * LARGE_CUBE_SCALE * width * 0.5f;
         float minY = -1f * LARGE_CUBE_SCALE * height * 0.5f;
         float minZ = -1f * LARGE_CUBE_SCALE * depth * 0.5f;
+        
+        minX -= nearPlaneMargin;
+        minY -= nearPlaneMargin;
+        minZ -= nearPlaneMargin;
         
         minX += x;
         minY += y;
@@ -180,6 +183,10 @@ public class GPUOcclusion {
         float maxX = 1f * LARGE_CUBE_SCALE * width * 0.5f;
         float maxY = 1f * LARGE_CUBE_SCALE * height * 0.5f;
         float maxZ = 1f * LARGE_CUBE_SCALE * depth * 0.5f;
+        
+        maxX += nearPlaneMargin;
+        maxY += nearPlaneMargin;
+        maxZ += nearPlaneMargin;
         
         maxX += x;
         maxY += y;

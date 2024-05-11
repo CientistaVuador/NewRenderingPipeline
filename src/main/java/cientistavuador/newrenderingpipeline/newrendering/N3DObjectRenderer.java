@@ -197,7 +197,7 @@ public class N3DObjectRenderer {
                         float depth = transformedMax.z() - transformedMin.z();
 
                         if (GPUOcclusion.testCamera(
-                                0f, 0f, 0f, camera.getNearPlane(),
+                                0f, 0f, 0f, camera.getNearPlane() * 1.05f,
                                 x, y, z,
                                 width, height, depth
                         )) {
@@ -243,9 +243,9 @@ public class N3DObjectRenderer {
 
                     Matrix4f transformation = new Matrix4f(modelMatrix)
                             .mul(n.getTotalTransformation());
-
-                    NGeometry[] geometries = n.getGeometries();
-                    for (NGeometry geometry : geometries) {
+                    
+                    for (int i = 0; i < n.getNumberOfGeometries(); i++) {
+                        NGeometry geometry = n.getGeometry(i);
                         if (animator != null) {
                             modelMatrix.transformAab(
                                     geometry.getMesh().getAnimatedAabbMin(), geometry.getMesh().getAnimatedAabbMax(),
@@ -397,7 +397,7 @@ public class N3DObjectRenderer {
         glUniform1i(variant.locationOf(NProgram.UNIFORM_REFLECTIONS_SUPPORTED),
                 (REFLECTIONS_ENABLED ? 1 : 0)
         );
-
+        
         int skyboxCubemap = skybox.cubemap();
 
         glActiveTexture(GL_TEXTURE3);
@@ -492,7 +492,7 @@ public class N3DObjectRenderer {
                         variant.locationOf(NProgram.UNIFORM_PARALLAX_SUPPORTED),
                         textures.isHeightMapSupported() ? 1 : 0
                 );
-                
+
                 lastTextures = textures;
             }
 
@@ -507,15 +507,15 @@ public class N3DObjectRenderer {
                 );
                 lastTransformation = transformation;
             }
-            
+
             if (animator != lastAnimator || (animator == null && mesh.getAmountOfBones() != 0) || !mesh.equals(lastMesh)) {
                 for (int boneIndex = 0; boneIndex < mesh.getAmountOfBones(); boneIndex++) {
                     NMeshBone bone = mesh.getBone(boneIndex);
-                    
+
                     if (animator != null) {
                         Matrix4fc boneMatrix = animator.getBoneMatrix(bone.getName());
                         Matrix4fc offset = bone.getOffset();
-                        
+
                         if (boneMatrix != null) {
                             transformedBone
                                     .set(boneMatrix)
