@@ -68,6 +68,7 @@ public class N3DObjectRenderer {
         public final Matrix4f transformation;
         public final Matrix4f model;
         public final float distanceSquared;
+        public final N3DModelNode node;
         public final NGeometry geometry;
 
         public ToRender(
@@ -75,12 +76,14 @@ public class N3DObjectRenderer {
                 Matrix4f transformation,
                 Matrix4f model,
                 float distanceSquared,
+                N3DModelNode node,
                 NGeometry geometry
         ) {
             this.obj = obj;
             this.transformation = transformation;
             this.model = model;
             this.distanceSquared = distanceSquared;
+            this.node = node;
             this.geometry = geometry;
         }
     }
@@ -242,13 +245,13 @@ public class N3DObjectRenderer {
                     N3DModelNode n = n3dmodel.getNode(nodeIndex);
 
                     Matrix4f transformation = new Matrix4f(modelMatrix)
-                            .mul(n.getTotalTransformation());
-                    
+                            .mul(n.getToRootSpace());
+
                     for (int i = 0; i < n.getNumberOfGeometries(); i++) {
                         NGeometry geometry = n.getGeometry(i);
                         if (animator != null) {
                             modelMatrix.transformAab(
-                                    geometry.getMesh().getAnimatedAabbMin(), geometry.getMesh().getAnimatedAabbMax(),
+                                    geometry.getAnimatedAabbMin(), geometry.getAnimatedAabbMax(),
                                     transformedMin, transformedMax
                             );
                         } else {
@@ -279,6 +282,7 @@ public class N3DObjectRenderer {
                                 obj,
                                 transformation, modelMatrix,
                                 distanceSquared,
+                                n,
                                 geometry
                         ));
                     }
@@ -397,7 +401,7 @@ public class N3DObjectRenderer {
         glUniform1i(variant.locationOf(NProgram.UNIFORM_REFLECTIONS_SUPPORTED),
                 (REFLECTIONS_ENABLED ? 1 : 0)
         );
-        
+
         int skyboxCubemap = skybox.cubemap();
 
         glActiveTexture(GL_TEXTURE3);
@@ -446,6 +450,8 @@ public class N3DObjectRenderer {
         N3DObject lastFresnel = null;
 
         for (ToRender render : list) {
+            N3DModel n3dmodel = render.obj.getN3DModel();
+
             NMaterial material = render.geometry.getMaterial();
             NTextures textures = material.getTextures();
             Matrix4f transformation = render.transformation;
@@ -510,18 +516,17 @@ public class N3DObjectRenderer {
 
             if (animator != lastAnimator || (animator == null && mesh.getAmountOfBones() != 0) || !mesh.equals(lastMesh)) {
                 for (int boneIndex = 0; boneIndex < mesh.getAmountOfBones(); boneIndex++) {
-                    NMeshBone bone = mesh.getBone(boneIndex);
+                    String bone = mesh.getBone(boneIndex);
 
                     if (animator != null) {
-                        Matrix4fc boneMatrix = animator.getBoneMatrix(bone.getName());
-                        Matrix4fc offset = bone.getOffset();
-
-                        if (boneMatrix != null) {
-                            transformedBone
-                                    .set(boneMatrix)
-                                    .mul(offset);
-                        }
+                        Matrix4fc boneMatrix = animator.getBoneMatrix(bone);
+                        N3DModelNode boneNode = n3dmodel.getNode(bone);
                         
+                        transformedBone
+                                .set(boneMatrix)
+                                .mul(boneNode.getToNodeSpace())
+                                .mul(render.node.getToRootSpace());
+
                         NProgram.sendBoneMatrix(variant, transformedBone, boneIndex);
                     } else {
                         NProgram.sendBoneMatrix(variant, IDENTITY, boneIndex);
@@ -530,7 +535,7 @@ public class N3DObjectRenderer {
 
                 lastAnimator = animator;
             }
-            
+
             if (!mesh.equals(lastMesh)) {
                 glBindVertexArray(mesh.getVAO());
                 lastMesh = mesh;

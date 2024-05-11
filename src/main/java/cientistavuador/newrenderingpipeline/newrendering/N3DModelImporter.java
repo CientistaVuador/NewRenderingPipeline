@@ -150,7 +150,7 @@ public class N3DModelImporter {
     private final AIScene scene;
 
     private final List<NAnimation> loadedAnimations = new ArrayList<>();
-    private final Map<Integer, NMeshBone> missingMeshBones = new HashMap<>();
+    private final Map<Integer, String> missingMeshBones = new HashMap<>();
 
     private final Map<String, NTexturesIO.LoadedImage> loadedImages = new HashMap<>();
     private final Map<Integer, NMaterial> loadedMaterials = new HashMap<>();
@@ -266,7 +266,7 @@ public class N3DModelImporter {
         }
     }
 
-    private String buildMissingBone(Set<String> totalBones, AINode currentNode, Matrix4f offset) {
+    private String buildMissingBone(Set<String> totalBones, AINode currentNode) {
         if (currentNode == null) {
             return null;
         }
@@ -276,17 +276,8 @@ public class N3DModelImporter {
         if (totalBones.contains(nodeName)) {
             return nodeName;
         }
-
-        AIMatrix4x4 t = currentNode.mTransformation();
-        Matrix4fc transformation = new Matrix4f(
-                t.a1(), t.b1(), t.c1(), t.d1(),
-                t.a2(), t.b2(), t.c2(), t.d2(),
-                t.a3(), t.b3(), t.c3(), t.d3(),
-                t.a4(), t.b4(), t.c4(), t.d4()
-        );
-        transformation.mul(offset, offset);
-
-        return buildMissingBone(totalBones, currentNode.mParent(), offset);
+        
+        return buildMissingBone(totalBones, currentNode.mParent());
     }
 
     private void recursiveFindMissingMeshBones(Set<String> totalBones, AINode currentNode) {
@@ -297,13 +288,11 @@ public class N3DModelImporter {
         int amountOfMeshes = currentNode.mNumMeshes();
         IntBuffer meshes = currentNode.mMeshes();
         if (meshes != null) {
-            Matrix4f offset = new Matrix4f();
-            String missingBone = buildMissingBone(totalBones, currentNode, offset);
+            String missingBone = buildMissingBone(totalBones, currentNode);
 
             if (missingBone != null) {
-                NMeshBone bone = new NMeshBone(missingBone, offset);
                 for (int i = 0; i < amountOfMeshes; i++) {
-                    this.missingMeshBones.put(meshes.get(i), bone);
+                    this.missingMeshBones.put(meshes.get(i), missingBone);
                 }
             }
         }
@@ -649,7 +638,7 @@ public class N3DModelImporter {
         this.loadedImages.clear();
     }
 
-    private List<Pair<float[], NMeshBone[]>> splitByMaxBones(float[] toSplit, NMeshBone[] totalBones) {
+    private List<Pair<float[], String[]>> splitByMaxBones(float[] toSplit, String[] totalBones) {
         List<float[]> splitMeshes = new ArrayList<>();
 
         int lastSplitIndex = 0;
@@ -677,10 +666,10 @@ public class N3DModelImporter {
             splitMeshes.add(Arrays.copyOfRange(toSplit, lastSplitIndex, toSplit.length));
         }
 
-        List<Pair<float[], NMeshBone[]>> outputList = new ArrayList<>();
+        List<Pair<float[], String[]>> outputList = new ArrayList<>();
 
         for (float[] splitMesh : splitMeshes) {
-            List<NMeshBone> meshBones = new ArrayList<>();
+            List<String> meshBones = new ArrayList<>();
             Map<Integer, Integer> absoluteToRelativeMap = new HashMap<>();
 
             for (int triangle = 0; triangle < splitMesh.length; triangle += NMesh.VERTEX_SIZE * 3) {
@@ -710,7 +699,7 @@ public class N3DModelImporter {
                 }
             }
 
-            outputList.add(new Pair<>(splitMesh, meshBones.toArray(NMeshBone[]::new)));
+            outputList.add(new Pair<>(splitMesh, meshBones.toArray(String[]::new)));
         }
 
         return outputList;
@@ -733,24 +722,17 @@ public class N3DModelImporter {
         float[] vertices = new float[amountOfFaces * 3 * NMesh.VERTEX_SIZE];
         int verticesIndex = 0;
 
-        List<NMeshBone> meshBones = new ArrayList<>();
+        List<String> meshBones = new ArrayList<>();
         Map<Integer, List<Pair<Integer, Float>>> boneVertexWeightMap = new HashMap<>();
 
-        NMeshBone missingBone = this.missingMeshBones.get(meshIndex);
+        String missingBone = this.missingMeshBones.get(meshIndex);
 
         if (bones != null) {
             for (int boneIndex = 0; boneIndex < amountOfBones; boneIndex++) {
                 AIBone bone = AIBone.create(bones.get(boneIndex));
                 String boneName = bone.mName().dataString();
-                AIMatrix4x4 o = bone.mOffsetMatrix();
-                Matrix4f offsetMatrix = new Matrix4f(
-                        o.a1(), o.b1(), o.c1(), o.d1(),
-                        o.a2(), o.b2(), o.c2(), o.d2(),
-                        o.a3(), o.b3(), o.c3(), o.d3(),
-                        o.a4(), o.b4(), o.c4(), o.d4()
-                );
-
-                meshBones.add(new NMeshBone(boneName, offsetMatrix));
+                
+                meshBones.add(boneName);
 
                 int numWeights = bone.mNumWeights();
                 AIVertexWeight.Buffer weights = bone.mWeights();
@@ -876,10 +858,10 @@ public class N3DModelImporter {
             }
         }
 
-        NMeshBone[] bonesArray = meshBones.toArray(NMeshBone[]::new);
+        String[] bonesArray = meshBones.toArray(String[]::new);
         vertices = Arrays.copyOf(vertices, verticesIndex);
 
-        List<Pair<float[], NMeshBone[]>> splitMeshes = splitByMaxBones(vertices, bonesArray);
+        List<Pair<float[], String[]>> splitMeshes = splitByMaxBones(vertices, bonesArray);
         List<NGeometry> outputGeometries = new ArrayList<>();
 
         NMaterial material = this.loadedMaterials.get(mesh.mMaterialIndex());
@@ -888,7 +870,7 @@ public class N3DModelImporter {
         }
 
         for (int i = 0; i < splitMeshes.size(); i++) {
-            Pair<float[], NMeshBone[]> splitMesh = splitMeshes.get(i);
+            Pair<float[], String[]> splitMesh = splitMeshes.get(i);
 
             Pair<float[], int[]> newMesh = MeshUtils.generateIndices(splitMesh.getA(), NMesh.VERTEX_SIZE);
 

@@ -44,8 +44,9 @@ public class N3DModelNode {
     private final NGeometry[] geometries;
     private final N3DModelNode[] children;
     
-    private Matrix4f totalTransformation = null;
-
+    private final Matrix4f toRootSpace = new Matrix4f();
+    private final Matrix4f toNodeSpace = new Matrix4f();
+    
     public N3DModelNode(String name, Matrix4fc transformation, NGeometry[] geometries, N3DModelNode[] children) {
         this.name = name;
         this.transformation.set(transformation);
@@ -87,26 +88,28 @@ public class N3DModelNode {
         return this.children[index];
     }
     
-    private void calculateTotalTransformation() {
-        List<Matrix4fc> transformations = new ArrayList<>();
-        
-        N3DModelNode currentNode = this;
-        do {
-            transformations.add(currentNode.getTransformation());
-        } while ((currentNode = currentNode.getParent()) != null);
-        
-        this.totalTransformation = new Matrix4f();
-        for (int i = (transformations.size() - 1); i >= 0; i--) {
-            this.totalTransformation.mul(transformations.get(i));
+    private void recursiveNodeToRoot(N3DModelNode node) {
+        if (node == null) {
+            return;
         }
-    }
-
-    public Matrix4fc getTotalTransformation() {
-        if (this.totalTransformation == null) {
-            calculateTotalTransformation();
-        }
-        return this.totalTransformation;
+        
+        node.getTransformation().mul(this.toRootSpace, this.toRootSpace);
+        
+        recursiveNodeToRoot(node.getParent());
     }
     
+    public void recalculateMatrices() {
+        this.toRootSpace.identity();
+        recursiveNodeToRoot(this);
+        this.toNodeSpace.set(this.toRootSpace).invert();
+    }
+
+    public Matrix4fc getToRootSpace() {
+        return toRootSpace;
+    }
+
+    public Matrix4fc getToNodeSpace() {
+        return toNodeSpace;
+    }
     
 }

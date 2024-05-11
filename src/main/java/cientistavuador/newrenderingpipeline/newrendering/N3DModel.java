@@ -28,7 +28,6 @@ package cientistavuador.newrenderingpipeline.newrendering;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -107,9 +106,10 @@ public class N3DModel {
 
             N3DModelNode currentNode;
             while ((currentNode = current.poll()) != null) {
+                currentNode.recalculateMatrices();
                 nodesList.add(currentNode);
                 
-                Matrix4fc totalTransformation = currentNode.getTotalTransformation();
+                Matrix4fc totalTransformation = currentNode.getToRootSpace();
                 
                 for (int geometryIndex = 0; geometryIndex < currentNode.getNumberOfGeometries(); geometryIndex++) {
                     NGeometry g = currentNode.getGeometry(geometryIndex);
@@ -122,7 +122,7 @@ public class N3DModel {
                     
                     int bonesLength = mesh.getAmountOfBones();
                     for (int i = 0; i < bonesLength; i++) {
-                        String boneName = mesh.getBone(i).getName();
+                        String boneName = mesh.getBone(i);
                         if (!boneList.contains(boneName)) {
                             boneList.add(boneName);
                         }
@@ -163,6 +163,15 @@ public class N3DModel {
             current = b;
             next = a;
         } while (!current.isEmpty());
+        
+        for (NAnimation animation:this.animations) {
+            for (int i = 0; i < animation.getNumberOfBoneAnimations(); i++) {
+                String boneName = animation.getBoneAnimation(i).getBoneName();
+                if (!boneList.contains(boneName)) {
+                    boneList.add(boneName);
+                }
+            }
+        }
         
         this.aabbMin.set(minX, minY, minZ);
         this.aabbMax.set(maxX, maxY, maxZ);
@@ -267,19 +276,18 @@ public class N3DModel {
         for (N3DModelNode node:this.nodes) {
             for (int i = 0; i < node.getNumberOfGeometries(); i++) {
                 NGeometry geometry = node.getGeometry(i);
-                NMesh mesh = geometry.getMesh();
-                mesh.generateAnimatedAabb(this);
+                geometry.generateAnimatedAabb(this);
                 
-                Vector3fc meshMin = mesh.getAnimatedAabbMin();
-                Vector3fc meshMax = mesh.getAnimatedAabbMax();
+                Vector3fc geoMin = geometry.getAnimatedAabbMin();
+                Vector3fc geoMax = geometry.getAnimatedAabbMax();
                 
-                minX = Math.min(minX, meshMin.x());
-                minY = Math.min(minY, meshMin.y());
-                minZ = Math.min(minZ, meshMin.z());
+                minX = Math.min(minX, geoMin.x());
+                minY = Math.min(minY, geoMin.y());
+                minZ = Math.min(minZ, geoMin.z());
                 
-                maxX = Math.max(maxX, meshMax.x());
-                maxY = Math.max(maxY, meshMax.y());
-                maxZ = Math.max(maxZ, meshMax.z());
+                maxX = Math.max(maxX, geoMax.x());
+                maxY = Math.max(maxY, geoMax.y());
+                maxZ = Math.max(maxZ, geoMax.z());
             }
         }
         

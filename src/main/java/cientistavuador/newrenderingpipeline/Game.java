@@ -38,7 +38,6 @@ import cientistavuador.newrenderingpipeline.newrendering.N3DModelImporter;
 import cientistavuador.newrenderingpipeline.newrendering.N3DModelNode;
 import cientistavuador.newrenderingpipeline.newrendering.N3DObject;
 import cientistavuador.newrenderingpipeline.newrendering.N3DObjectRenderer;
-import cientistavuador.newrenderingpipeline.newrendering.NAnimation;
 import cientistavuador.newrenderingpipeline.newrendering.NAnimator;
 import cientistavuador.newrenderingpipeline.newrendering.NCubemap;
 import cientistavuador.newrenderingpipeline.newrendering.NCubemapIO;

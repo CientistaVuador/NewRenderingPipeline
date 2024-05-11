@@ -35,13 +35,9 @@ import java.awt.Color;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicLong;
-import org.joml.Matrix4f;
-import org.joml.Matrix4fc;
 import org.joml.Vector3f;
 import org.joml.Vector3fc;
 import org.lwjgl.opengl.GL;
@@ -76,18 +72,7 @@ public class NMesh {
     public static final int OFFSET_BONE_WEIGHTS_XYZW = OFFSET_BONE_IDS_XYZW + 4;
 
     public static final int VERTEX_SIZE = OFFSET_BONE_WEIGHTS_XYZW + 4;
-
-    private final String name;
-    private final float[] vertices;
-    private final int[] indices;
-    private final NMeshBone[] bones;
-    private final Map<String, Integer> bonesMap = new HashMap<>();
-
-    private final boolean lightmapped;
-    private final Vector3f aabbMin = new Vector3f();
-    private final Vector3f aabbMax = new Vector3f();
-    private final Vector3f aabbCenter = new Vector3f();
-
+    
     private static class WrappedVertexArrays {
 
         public int vao = 0;
@@ -97,23 +82,27 @@ public class NMesh {
 
         public int buffer = 0;
     }
-
+    
+    private final String name;
+    private final float[] vertices;
+    private final int[] indices;
+    private final String[] bones;
+    
+    private final boolean lightmapped;
+    private final Vector3f aabbMin = new Vector3f();
+    private final Vector3f aabbMax = new Vector3f();
+    private final Vector3f aabbCenter = new Vector3f();
+    
     private final WrappedVertexArrays wrappedVao = new WrappedVertexArrays();
     private final WrappedBuffer wrappedVbo = new WrappedBuffer();
     private final WrappedBuffer wrappedEbo = new WrappedBuffer();
 
+    private final Vector3f meshColor = new Vector3f(1f, 0f, 1f);
     private final String sha256;
-
+    
     private BVH bvh = null;
 
-    private final Vector3f animatedAabbMin = new Vector3f();
-    private final Vector3f animatedAabbMax = new Vector3f();
-    private final Vector3f animatedAabbCenter = new Vector3f();
-    private boolean animatedAabbGenerated = false;
-
-    private final Vector3f meshColor = new Vector3f();
-
-    public NMesh(String name, float[] vertices, int[] indices, NMeshBone[] bones) {
+    public NMesh(String name, float[] vertices, int[] indices, String[] bones) {
         Objects.requireNonNull(vertices, "Vertices is null");
         Objects.requireNonNull(indices, "Indices is null");
 
@@ -128,13 +117,10 @@ public class NMesh {
         this.vertices = vertices;
         this.indices = indices;
         if (bones == null) {
-            bones = new NMeshBone[0];
+            bones = new String[0];
         }
         if (bones.length > MAX_AMOUNT_OF_BONES) {
             throw new IllegalArgumentException("Max amount of bones per mesh is " + MAX_AMOUNT_OF_BONES);
-        }
-        for (int i = 0; i < bones.length; i++) {
-            this.bonesMap.put(bones[i].getName(), i);
         }
         this.bones = bones;
 
@@ -152,11 +138,7 @@ public class NMesh {
                 NMesh.OFFSET_POSITION_XYZ,
                 this.aabbMin, this.aabbMax, this.aabbCenter
         );
-
-        this.animatedAabbMin.set(this.aabbMin);
-        this.animatedAabbMax.set(this.aabbMax);
-        this.animatedAabbCenter.set(this.aabbCenter);
-
+        
         registerForCleaning();
 
         String hash;
@@ -263,24 +245,8 @@ public class NMesh {
         return this.bones.length;
     }
 
-    public NMeshBone getBone(int index) {
+    public String getBone(int index) {
         return this.bones[index];
-    }
-
-    public int indexOfBone(String name) {
-        Integer index = this.bonesMap.get(name);
-        if (index == null) {
-            return -1;
-        }
-        return index;
-    }
-
-    public NMeshBone getBone(String name) {
-        int index = indexOfBone(name);
-        if (index < 0) {
-            return null;
-        }
-        return getBone(index);
     }
     
     public boolean isLightmapped() {
@@ -314,110 +280,7 @@ public class NMesh {
     public void setBVH(BVH bvh) {
         this.bvh = bvh;
     }
-
-    public void generateAnimatedAabb(N3DModel originalModel) {
-        if (originalModel.getNumberOfAnimations() == 0) {
-            return;
-        }
-
-        float minX = Float.POSITIVE_INFINITY;
-        float minY = Float.POSITIVE_INFINITY;
-        float minZ = Float.POSITIVE_INFINITY;
-
-        float maxX = Float.NEGATIVE_INFINITY;
-        float maxY = Float.NEGATIVE_INFINITY;
-        float maxZ = Float.NEGATIVE_INFINITY;
-
-        Matrix4f totalBoneMatrix = new Matrix4f();
-        Vector3f transformed = new Vector3f();
-        Vector3f totalTransformation = new Vector3f();
-
-        int[] bonesIds = new int[MAX_AMOUNT_OF_BONE_WEIGHTS];
-        float[] bonesWeights = new float[MAX_AMOUNT_OF_BONE_WEIGHTS];
-
-        for (int animationIndex = 0; animationIndex < originalModel.getNumberOfAnimations(); animationIndex++) {
-            NAnimation animation = originalModel.getAnimation(animationIndex);
-            
-            NAnimator animator = new NAnimator(originalModel, animation.getName());
-            animator.setLooping(false);
-            while (!animator.isFinished()) {
-                animator.update(NAnimator.UPDATE_RATE);
-
-                for (int i = 0; i < this.vertices.length; i += NMesh.VERTEX_SIZE) {
-                    float x = this.vertices[i + NMesh.OFFSET_POSITION_XYZ + 0];
-                    float y = this.vertices[i + NMesh.OFFSET_POSITION_XYZ + 1];
-                    float z = this.vertices[i + NMesh.OFFSET_POSITION_XYZ + 2];
-
-                    bonesIds[0] = Float.floatToRawIntBits(this.vertices[i + NMesh.OFFSET_BONE_IDS_XYZW + 0]);
-                    bonesIds[1] = Float.floatToRawIntBits(this.vertices[i + NMesh.OFFSET_BONE_IDS_XYZW + 1]);
-                    bonesIds[2] = Float.floatToRawIntBits(this.vertices[i + NMesh.OFFSET_BONE_IDS_XYZW + 2]);
-                    bonesIds[3] = Float.floatToRawIntBits(this.vertices[i + NMesh.OFFSET_BONE_IDS_XYZW + 3]);
-
-                    bonesWeights[0] = this.vertices[i + NMesh.OFFSET_BONE_WEIGHTS_XYZW + 0];
-                    bonesWeights[1] = this.vertices[i + NMesh.OFFSET_BONE_WEIGHTS_XYZW + 1];
-                    bonesWeights[2] = this.vertices[i + NMesh.OFFSET_BONE_WEIGHTS_XYZW + 2];
-                    bonesWeights[3] = this.vertices[i + NMesh.OFFSET_BONE_WEIGHTS_XYZW + 3];
-
-                    totalTransformation.zero();
-                    for (int j = 0; j < bonesIds.length; j++) {
-                        int boneId = bonesIds[j];
-                        float boneWeight = bonesWeights[j];
-
-                        if (boneId >= 0) {
-                            NMeshBone bone = getBone(boneId);
-
-                            Matrix4fc boneMatrix = animator.getBoneMatrix(bone.getName());
-
-                            totalBoneMatrix
-                                    .set(boneMatrix)
-                                    .mul(bone.getOffset());
-
-                            transformed.set(x, y, z);
-                            totalBoneMatrix.transformProject(transformed);
-                            transformed.mul(boneWeight);
-
-                            totalTransformation.add(transformed);
-                        }
-                    }
-
-                    minX = Math.min(minX, totalTransformation.x());
-                    minY = Math.min(minY, totalTransformation.y());
-                    minZ = Math.min(minZ, totalTransformation.z());
-
-                    maxX = Math.max(maxX, totalTransformation.x());
-                    maxY = Math.max(maxY, totalTransformation.y());
-                    maxZ = Math.max(maxZ, totalTransformation.z());
-                }
-            }
-        }
-
-        this.animatedAabbMin.set(minX, minY, minZ);
-        this.animatedAabbMax.set(maxX, maxY, maxZ);
-        this.animatedAabbCenter.set(
-                (minX * 0.5f) + (maxX * 0.5f),
-                (minY * 0.5f) + (maxY * 0.5f),
-                (minZ * 0.5f) + (maxZ * 0.5f)
-        );
-
-        this.animatedAabbGenerated = true;
-    }
-
-    public Vector3fc getAnimatedAabbMin() {
-        return animatedAabbMin;
-    }
-
-    public Vector3fc getAnimatedAabbMax() {
-        return animatedAabbMax;
-    }
-
-    public Vector3fc getAnimatedAabbCenter() {
-        return animatedAabbCenter;
-    }
-
-    public boolean isAnimatedAabbGenerated() {
-        return animatedAabbGenerated;
-    }
-
+    
     public Vector3fc getMeshColor() {
         return meshColor;
     }

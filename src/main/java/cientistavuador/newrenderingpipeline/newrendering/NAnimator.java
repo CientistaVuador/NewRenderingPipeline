@@ -42,7 +42,7 @@ import org.joml.Vector3f;
  */
 public class NAnimator {
     
-    public static final Matrix4fc IDENTITY_MATRIX = new Matrix4f();
+    public static final Matrix4fc IDENTITY = new Matrix4f();
     
     public static final float UPDATE_RATE = 1f / 60f;
 
@@ -329,17 +329,18 @@ public class NAnimator {
         if (node == null) {
             return;
         }
-
-        Matrix4fc localMatrix;
-
+        
+        Matrix4fc boneMatrix = null;
         Integer boneIndex = this.boneMap.get(node.getName());
         if (boneIndex != null) {
-            localMatrix = this.localBoneMatrices[boneIndex];
-        } else {
-            localMatrix = node.getTransformation();
+            boneMatrix = this.localBoneMatrices[boneIndex];
         }
         
-        localMatrix.mul(matrix, matrix);
+        if (boneMatrix != null) {
+            boneMatrix.mul(matrix, matrix);
+        } else {
+            node.getTransformation().mul(matrix, matrix);
+        }
         
         recursiveTransform(node.getParent(), matrix);
     }
