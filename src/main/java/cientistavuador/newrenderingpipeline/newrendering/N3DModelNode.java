@@ -26,8 +26,6 @@
  */
 package cientistavuador.newrenderingpipeline.newrendering;
 
-import java.util.ArrayList;
-import java.util.List;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
 

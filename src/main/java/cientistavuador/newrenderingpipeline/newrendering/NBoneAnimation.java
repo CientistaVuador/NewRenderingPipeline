@@ -35,17 +35,18 @@ import org.joml.Vector3f;
  */
 public class NBoneAnimation {
     
+    public static final int POSITION_COMPONENTS = 3;
+    public static final int ROTATION_COMPONENTS = 4;
+    public static final int SCALING_COMPONENTS = 3;
+    
     private final String boneName;
     
-    private final int numberOfPositions;
     private final float[] positionTimes;
     private final float[] positions;
     
-    private final int numberOfRotations;
     private final float[] rotationTimes;
     private final float[] rotations;
     
-    private final int numberOfScalings;
     private final float[] scalingTimes;
     private final float[] scalings;
     
@@ -57,22 +58,19 @@ public class NBoneAnimation {
     ) {
         this.boneName = boneName;
         
-        this.numberOfPositions = positionTimes.length;
-        if (positions.length != this.numberOfPositions * 3) {
+        if (positions.length != positionTimes.length * POSITION_COMPONENTS) {
             throw new IllegalArgumentException("Invalid amount of positions");
         }
         this.positionTimes = positionTimes.clone();
         this.positions = positions.clone();
         
-        this.numberOfRotations = rotationTimes.length;
-        if (rotations.length != this.numberOfRotations * 4) {
+        if (rotations.length != rotationTimes.length * ROTATION_COMPONENTS) {
             throw new IllegalArgumentException("Invalid amount of rotations");
         }
         this.rotationTimes = rotationTimes.clone();
         this.rotations = rotations.clone();
         
-        this.numberOfScalings = scalingTimes.length;
-        if (scalings.length != this.numberOfScalings * 3) {
+        if (scalings.length != scalingTimes.length * SCALING_COMPONENTS) {
             throw new IllegalArgumentException("Invalid amount of scalings");
         }
         this.scalingTimes = scalingTimes.clone();
@@ -84,48 +82,48 @@ public class NBoneAnimation {
     }
 
     public int getNumberOfPositions() {
-        return numberOfPositions;
+        return this.positionTimes.length;
     }
 
     public int getNumberOfRotations() {
-        return numberOfRotations;
+        return this.rotationTimes.length;
     }
 
     public int getNumberOfScalings() {
-        return numberOfScalings;
+        return this.scalingTimes.length;
     }
     
     public void getPosition(int index, Vector3f outPosition) {
         if (index < 0 || (index * 3) > this.positions.length) {
-            throw new IndexOutOfBoundsException("Position index "+index+" out of bounds for length "+this.numberOfPositions);
+            throw new IndexOutOfBoundsException("Position index "+index+" out of bounds for length "+this.positionTimes.length);
         }
         outPosition.set(
-                this.positions[(index * 3) + 0],
-                this.positions[(index * 3) + 1],
-                this.positions[(index * 3) + 2]
+                this.positions[(index * POSITION_COMPONENTS) + 0],
+                this.positions[(index * POSITION_COMPONENTS) + 1],
+                this.positions[(index * POSITION_COMPONENTS) + 2]
         );
     }
     
     public void getRotation(int index, Quaternionf outRotation) {
         if (index < 0 || (index * 4) > this.rotations.length) {
-            throw new IndexOutOfBoundsException("Rotation index "+index+" out of bounds for length "+this.numberOfRotations);
+            throw new IndexOutOfBoundsException("Rotation index "+index+" out of bounds for length "+this.rotationTimes.length);
         }
         outRotation.set(
-                this.rotations[(index * 4) + 0],
-                this.rotations[(index * 4) + 1],
-                this.rotations[(index * 4) + 2],
-                this.rotations[(index * 4) + 3]
+                this.rotations[(index * ROTATION_COMPONENTS) + 0],
+                this.rotations[(index * ROTATION_COMPONENTS) + 1],
+                this.rotations[(index * ROTATION_COMPONENTS) + 2],
+                this.rotations[(index * ROTATION_COMPONENTS) + 3]
         );
     }
     
     public void getScaling(int index, Vector3f outScale) {
         if (index < 0 || (index * 3) > this.scalings.length) {
-            throw new IndexOutOfBoundsException("Scaling index "+index+" out of bounds for length "+this.numberOfScalings);
+            throw new IndexOutOfBoundsException("Scaling index "+index+" out of bounds for length "+this.scalingTimes.length);
         }
         outScale.set(
-                this.scalings[(index * 3) + 0],
-                this.scalings[(index * 3) + 1],
-                this.scalings[(index * 3) + 2]
+                this.scalings[(index * SCALING_COMPONENTS) + 0],
+                this.scalings[(index * SCALING_COMPONENTS) + 1],
+                this.scalings[(index * SCALING_COMPONENTS) + 2]
         );
     }
     
@@ -139,6 +137,30 @@ public class NBoneAnimation {
     
     public float getScalingTime(int index) {
         return this.scalingTimes[index];
+    }
+
+    public float[] getPositionTimes() {
+        return positionTimes;
+    }
+
+    public float[] getRotationTimes() {
+        return rotationTimes;
+    }
+
+    public float[] getScalingTimes() {
+        return scalingTimes;
+    }
+
+    public float[] getPositions() {
+        return positions;
+    }
+
+    public float[] getRotations() {
+        return rotations;
+    }
+
+    public float[] getScalings() {
+        return scalings;
     }
     
 }

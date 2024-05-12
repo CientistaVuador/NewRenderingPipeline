@@ -220,6 +220,12 @@ public class N3DModel {
         return getAnimation(index);
     }
 
+    public NAnimation[] getAnimations() {
+        return animations;
+    }
+    
+    
+
     public Vector3fc getAabbMin() {
         return aabbMin;
     }
