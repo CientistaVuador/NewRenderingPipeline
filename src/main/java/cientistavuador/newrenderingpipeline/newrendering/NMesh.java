@@ -27,6 +27,7 @@
 package cientistavuador.newrenderingpipeline.newrendering;
 
 import cientistavuador.newrenderingpipeline.Main;
+import cientistavuador.newrenderingpipeline.util.CryptoUtils;
 import cientistavuador.newrenderingpipeline.util.StringUtils;
 import cientistavuador.newrenderingpipeline.util.MeshUtils;
 import cientistavuador.newrenderingpipeline.util.ObjectCleaner;
@@ -72,7 +73,7 @@ public class NMesh {
     public static final int OFFSET_BONE_WEIGHTS_XYZW = OFFSET_BONE_IDS_XYZW + 4;
 
     public static final int VERTEX_SIZE = OFFSET_BONE_WEIGHTS_XYZW + 4;
-    
+
     private static class WrappedVertexArrays {
 
         public int vao = 0;
@@ -82,27 +83,35 @@ public class NMesh {
 
         public int buffer = 0;
     }
-    
+
     private final String name;
     private final float[] vertices;
     private final int[] indices;
     private final String[] bones;
-    
+
     private final boolean lightmapped;
+
     private final Vector3f aabbMin = new Vector3f();
     private final Vector3f aabbMax = new Vector3f();
     private final Vector3f aabbCenter = new Vector3f();
-    
+
     private final WrappedVertexArrays wrappedVao = new WrappedVertexArrays();
     private final WrappedBuffer wrappedVbo = new WrappedBuffer();
     private final WrappedBuffer wrappedEbo = new WrappedBuffer();
 
     private final Vector3f meshColor = new Vector3f(1f, 0f, 1f);
     private final String sha256;
-    
+
     private BVH bvh = null;
 
-    public NMesh(String name, float[] vertices, int[] indices, String[] bones) {
+    public NMesh(
+            String name,
+            float[] vertices, int[] indices,
+            String[] bones,
+            Vector3fc min, Vector3fc max,
+            String sha256,
+            BVH bvh
+    ) {
         Objects.requireNonNull(vertices, "Vertices is null");
         Objects.requireNonNull(indices, "Indices is null");
 
@@ -116,6 +125,7 @@ public class NMesh {
 
         this.vertices = vertices;
         this.indices = indices;
+        
         if (bones == null) {
             bones = new String[0];
         }
@@ -133,72 +143,69 @@ public class NMesh {
         }
         this.lightmapped = lightmap;
 
-        MeshUtils.aabb(this.vertices,
-                NMesh.VERTEX_SIZE,
-                NMesh.OFFSET_POSITION_XYZ,
-                this.aabbMin, this.aabbMax, this.aabbCenter
-        );
-        
-        registerForCleaning();
-
-        String hash;
-        {
-            ByteBuffer buffer = ByteBuffer.wrap(new byte[(vertices.length * Float.BYTES) + (indices.length * Integer.BYTES)]);
-
-            for (float f : vertices) {
-                buffer.putFloat(f);
-            }
-
-            for (int i : indices) {
-                buffer.putInt(i);
-            }
-
-            buffer.flip();
-
-            byte[] data = buffer.array();
-
-            byte[] sha256Bytes;
-            try {
-                sha256Bytes = MessageDigest.getInstance("SHA256").digest(data);
-            } catch (NoSuchAlgorithmException ex) {
-                throw new RuntimeException(ex);
-            }
-
-            StringBuilder b = new StringBuilder();
-            for (int i = 0; i < sha256Bytes.length; i++) {
-                String hex = Integer.toHexString(sha256Bytes[i] & 0xFF);
-                if (hex.length() <= 1) {
-                    b.append('0');
-                }
-                b.append(hex);
-            }
-
-            hash = b.toString();
+        if (min == null || max == null) {
+            MeshUtils.aabb(this.vertices,
+                    NMesh.VERTEX_SIZE,
+                    NMesh.OFFSET_POSITION_XYZ,
+                    this.aabbMin, this.aabbMax, this.aabbCenter
+            );
+        } else {
+            this.aabbMin.set(min);
+            this.aabbMax.set(max);
+            this.aabbCenter.set(this.aabbMin).add(this.aabbMax).mul(0.5f);
         }
-
-        this.sha256 = hash;
-
+        
+        if (sha256 == null) {
+            ByteBuffer data = ByteBuffer.allocate(
+                    this.vertices.length * Float.BYTES
+                    + this.indices.length * Integer.BYTES
+            );
+            
+            for (float f:this.vertices) {
+                data.putFloat(f);
+            }
+            
+            for (int i:this.indices) {
+                data.putInt(i);
+            }
+            
+            this.sha256 = CryptoUtils.sha256(data.flip());
+        } else {
+            this.sha256 = sha256;
+        }
+        
         if (name == null) {
             this.name = this.sha256;
         } else {
             this.name = name;
         }
         
+        this.bvh = bvh;
+        
         calculateMeshColor();
+        registerForCleaning();
+    }
+
+    public NMesh(String name, float[] vertices, int[] indices, String[] bones) {
+        this(name, vertices, indices, bones, null, null, null, null);
     }
     
+    public NMesh(String name, float[] vertices, int[] indices) {
+        this(name, vertices, indices, null);
+    }
+
     private void calculateMeshColor() {
         Random r = new Random();
-        
+
         float hue = r.nextFloat();
         float saturation = r.nextFloat(0.50f) + 0.50f;
         float brightness = r.nextFloat(0.25f) + 0.75f;
-        
+
         int argb = Color.HSBtoRGB(hue, saturation, brightness);
         float red = ((argb >> 16) & 0xFF) / 255f;
         float green = ((argb >> 8) & 0xFF) / 255f;
         float blue = ((argb >> 0) & 0xFF) / 255f;
-        
+
         this.meshColor.set(red, green, blue);
     }
 
@@ -248,7 +255,7 @@ public class NMesh {
     public String getBone(int index) {
         return this.bones[index];
     }
-    
+
     public boolean isLightmapped() {
         return lightmapped;
     }
@@ -280,11 +287,11 @@ public class NMesh {
     public void setBVH(BVH bvh) {
         this.bvh = bvh;
     }
-    
+
     public Vector3fc getMeshColor() {
         return meshColor;
     }
-    
+
     private void validateVAO() {
         if (this.wrappedVao.vao != 0) {
             return;

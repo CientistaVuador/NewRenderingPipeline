@@ -27,6 +27,7 @@
 package cientistavuador.newrenderingpipeline.newrendering;
 
 import static cientistavuador.newrenderingpipeline.newrendering.NMesh.MAX_AMOUNT_OF_BONE_WEIGHTS;
+import java.util.Objects;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
 import org.joml.Vector3f;
@@ -86,6 +87,7 @@ public class NGeometry {
     
     public void generateAnimatedAabb(N3DModel originalModel) {
         if (originalModel.getNumberOfAnimations() == 0) {
+            this.animatedAabbGenerated = true;
             return;
         }
         
@@ -206,6 +208,32 @@ public class NGeometry {
 
     public boolean isAnimatedAabbGenerated() {
         return animatedAabbGenerated;
+    }
+
+    @Override
+    public int hashCode() {
+        int hash = 7;
+        hash = 29 * hash + Objects.hashCode(this.mesh);
+        hash = 29 * hash + Objects.hashCode(this.material);
+        return hash;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final NGeometry other = (NGeometry) obj;
+        if (!Objects.equals(this.mesh, other.mesh)) {
+            return false;
+        }
+        return Objects.equals(this.material, other.material);
     }
     
 }

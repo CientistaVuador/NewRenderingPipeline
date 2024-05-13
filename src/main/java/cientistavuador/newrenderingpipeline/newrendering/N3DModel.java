@@ -55,8 +55,12 @@ public class N3DModel {
     
     private final N3DModelNode[] nodes;
     private final Map<String, Integer> nodesMap = new HashMap<>();
+    
     private final String[] bones;
     private final NMesh[] meshes;
+    private final NTextures[] textures;
+    private final NMaterial[] materials;
+    private final NGeometry[] geometries;
     
     private final Vector3f animatedAabbMin = new Vector3f();
     private final Vector3f animatedAabbMax = new Vector3f();
@@ -95,6 +99,9 @@ public class N3DModel {
         List<N3DModelNode> nodesList = new ArrayList<>();
         Set<String> boneList = new HashSet<>();
         Set<NMesh> meshList = new HashSet<>();
+        Set<NTextures> texturesList = new HashSet<>();
+        Set<NMaterial> materialsList = new HashSet<>();
+        Set<NGeometry> geometriesList = new HashSet<>();
         
         Queue<N3DModelNode> current = new ArrayDeque<>();
         Queue<N3DModelNode> next = new ArrayDeque<>();
@@ -113,11 +120,24 @@ public class N3DModel {
                 
                 for (int geometryIndex = 0; geometryIndex < currentNode.getNumberOfGeometries(); geometryIndex++) {
                     NGeometry g = currentNode.getGeometry(geometryIndex);
-                    
                     NMesh mesh = g.getMesh();
+                    NMaterial material = g.getMaterial();
+                    NTextures materialTextures = material.getTextures();
+                    
+                    if (!geometriesList.contains(g)) {
+                        geometriesList.add(g);
+                    }
                     
                     if (!meshList.contains(mesh)) {
                         meshList.add(mesh);
+                    }
+                    
+                    if (material != NMaterial.NULL_MATERIAL && !materialsList.contains(material)) {
+                        materialsList.add(material);
+                    }
+                    
+                    if (materialTextures != NTextures.NULL_TEXTURE && !texturesList.contains(materialTextures)) {
+                        texturesList.add(materialTextures);
                     }
                     
                     int bonesLength = mesh.getAmountOfBones();
@@ -191,6 +211,9 @@ public class N3DModel {
         }
         this.bones = boneList.toArray(String[]::new);
         this.meshes = meshList.toArray(NMesh[]::new);
+        this.textures = texturesList.toArray(NTextures[]::new);
+        this.materials = materialsList.toArray(NMaterial[]::new);
+        this.geometries = geometriesList.toArray(NGeometry[]::new);
         
         this.verticesCount = verticesCounter;
         this.indicesCount = indicesCounter;
@@ -268,6 +291,30 @@ public class N3DModel {
     
     public NMesh getMesh(int index) {
         return this.meshes[index];
+    }
+    
+    public int getNumberOfTextures() {
+        return this.textures.length;
+    }
+    
+    public NTextures getTextures(int index) {
+        return this.textures[index];
+    }
+    
+    public int getNumberOfMaterials() {
+        return this.materials.length;
+    }
+    
+    public NMaterial getMaterial(int index) {
+        return this.materials[index];
+    }
+    
+    public int getNumberOfGeometries() {
+        return this.geometries.length;
+    }
+    
+    public NGeometry getGeometry(int index) {
+        return this.geometries[index];
     }
 
     public void generateAnimatedAabb() {
