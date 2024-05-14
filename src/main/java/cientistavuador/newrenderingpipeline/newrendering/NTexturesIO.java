@@ -485,18 +485,7 @@ public class NTexturesIO {
                 }
             }
         }
-
-        ByteBuffer totalData = ByteBuffer.allocate(Integer.BYTES + Integer.BYTES + rgba.length + hrmnx.length + eregebny.length
-        )
-                .putInt(width)
-                .putInt(height)
-                .put(rgba)
-                .put(hrmnx)
-                .put(eregebny)
-                .flip();
-
-        String sha256 = CryptoUtils.sha256(totalData);
-
+        
         return new NTextures(
                 name,
                 width, height,
@@ -505,7 +494,7 @@ public class NTexturesIO {
                 eregebny,
                 mode,
                 heightMapSupported,
-                sha256
+                null
         );
     }
 

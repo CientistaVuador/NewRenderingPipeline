@@ -38,8 +38,8 @@ import static org.lwjgl.opengl.GL33C.*;
  */
 public class NProgram {
 
-    public static final float DIFFUSE_STRENGTH = 0.90f;
-    public static final float SPECULAR_STRENGTH = 0.10f;
+    public static final float DIFFUSE_STRENGTH = 0.95f;
+    public static final float SPECULAR_STRENGTH = 0.05f;
 
     public static final float LIGHT_ATTENUATION = 0.75f;
 

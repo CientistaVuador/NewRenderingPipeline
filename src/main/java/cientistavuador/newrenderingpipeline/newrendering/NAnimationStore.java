@@ -84,13 +84,9 @@ public class NAnimationStore {
         writeString(animation.getName(), out);
         out.writeFloat(animation.getDuration());
         
-        List<NBoneAnimation> boneAnimations = new ArrayList<>();
+        out.writeInt(animation.getNumberOfBoneAnimations());
         for (int i = 0; i < animation.getNumberOfBoneAnimations(); i++) {
-            boneAnimations.add(animation.getBoneAnimation(i));
-        }
-        
-        out.writeInt(boneAnimations.size());
-        for (NBoneAnimation boneAnimation:boneAnimations) {
+            NBoneAnimation boneAnimation = animation.getBoneAnimation(i);
             writeBoneAnimation(boneAnimation, out);
         }
         

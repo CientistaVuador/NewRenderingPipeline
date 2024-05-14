@@ -27,6 +27,7 @@
 package cientistavuador.newrenderingpipeline.newrendering;
 
 import cientistavuador.newrenderingpipeline.Main;
+import cientistavuador.newrenderingpipeline.util.CryptoUtils;
 import cientistavuador.newrenderingpipeline.util.ObjectCleaner;
 import cientistavuador.newrenderingpipeline.util.StringUtils;
 import java.nio.ByteBuffer;
@@ -46,7 +47,7 @@ import org.lwjgl.opengl.GL42C;
  * @author Cien
  */
 public class NTextures {
-    
+
     private static final AtomicLong textureIds = new AtomicLong();
 
     public static final NTextures NULL_TEXTURE;
@@ -109,7 +110,7 @@ public class NTextures {
     private final int width;
     private final int height;
     private final byte[] redGreenBlueAlpha;
-    private final byte[] heightInvertedExponentReflectivenessNormalX;
+    private final byte[] heightRoughnessMetallicNormalX;
     private final byte[] emissiveRedGreenBlueNormalY;
     private final NBlendingMode blendingMode;
     private final boolean heightMapSupported;
@@ -123,7 +124,7 @@ public class NTextures {
             String name,
             int width, int height,
             byte[] redGreenBlueAlpha,
-            byte[] heightInvertedExponentReflectivenessNormalX,
+            byte[] heightRoughnessMetallicNormalX,
             byte[] emissiveRedGreenBlueNormalY,
             NBlendingMode blendingMode,
             boolean heightMapSupported,
@@ -137,7 +138,7 @@ public class NTextures {
         }
 
         Objects.requireNonNull(redGreenBlueAlpha, "redGreenBlueAlpha is null");
-        Objects.requireNonNull(heightInvertedExponentReflectivenessNormalX, "heightInvertedExponentReflectivenessNormalX is null");
+        Objects.requireNonNull(heightRoughnessMetallicNormalX, "heightRoughnessMetallicNormalX is null");
         Objects.requireNonNull(emissiveRedGreenBlueNormalY, "emissiveRedGreenBlueNormalY is null");
         Objects.requireNonNull(blendingMode, "blendingMode is null");
 
@@ -147,8 +148,8 @@ public class NTextures {
             throw new IllegalArgumentException("redGreenBlueAlpha has a invalid amount of bytes, found: " + redGreenBlueAlpha.length + ", required: " + pixels);
         }
 
-        if (heightInvertedExponentReflectivenessNormalX.length != pixels) {
-            throw new IllegalArgumentException("heightInvertedExponentReflectivenessNormalX has a invalid amount of bytes, found: " + heightInvertedExponentReflectivenessNormalX.length + ", required: " + pixels);
+        if (heightRoughnessMetallicNormalX.length != pixels) {
+            throw new IllegalArgumentException("heightRoughnessMetallicNormalX has a invalid amount of bytes, found: " + heightRoughnessMetallicNormalX.length + ", required: " + pixels);
         }
 
         if (emissiveRedGreenBlueNormalY.length != pixels) {
@@ -158,10 +159,28 @@ public class NTextures {
         this.width = width;
         this.height = height;
         this.redGreenBlueAlpha = redGreenBlueAlpha;
-        this.heightInvertedExponentReflectivenessNormalX = heightInvertedExponentReflectivenessNormalX;
+        this.heightRoughnessMetallicNormalX = heightRoughnessMetallicNormalX;
         this.emissiveRedGreenBlueNormalY = emissiveRedGreenBlueNormalY;
         this.blendingMode = blendingMode;
         this.heightMapSupported = heightMapSupported;
+
+        if (sha256 == null) {
+            ByteBuffer totalData = ByteBuffer.allocate(
+                    Integer.BYTES
+                    + Integer.BYTES
+                    + this.redGreenBlueAlpha.length
+                    + this.heightRoughnessMetallicNormalX.length
+                    + this.emissiveRedGreenBlueNormalY.length
+            )
+                    .putInt(width)
+                    .putInt(height)
+                    .put(this.redGreenBlueAlpha)
+                    .put(this.heightRoughnessMetallicNormalX)
+                    .put(this.emissiveRedGreenBlueNormalY)
+                    .flip();
+
+            sha256 = CryptoUtils.sha256(totalData);
+        }
         this.sha256 = sha256;
 
         registerForCleaning();
@@ -216,8 +235,8 @@ public class NTextures {
         return redGreenBlueAlpha;
     }
 
-    public byte[] getHeightInvertedExponentReflectivenessNormalX() {
-        return heightInvertedExponentReflectivenessNormalX;
+    public byte[] getHeightRoughnessMetallicNormalX() {
+        return heightRoughnessMetallicNormalX;
     }
 
     public byte[] getEmissiveRedGreenBlueNormalY() {
@@ -251,7 +270,7 @@ public class NTextures {
 
             int texture = glGenTextures();
             glBindTexture(GL_TEXTURE_2D, texture);
-            
+
             if (Main.isSupported(4, 2)) {
                 GL42C.glTexStorage2D(
                         GL_TEXTURE_2D,
@@ -282,19 +301,19 @@ public class NTextures {
                         textureBuffer
                 );
             }
-            
+
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-            
+
             if (NBlendingMode.ALPHA_TESTING.equals(this.blendingMode)) {
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
             } else {
                 glGenerateMipmap(GL_TEXTURE_2D);
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
             }
-            
+
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-            
+
             if (GL.getCapabilities().GL_EXT_texture_filter_anisotropic) {
                 glTexParameterf(
                         GL_TEXTURE_2D,
@@ -302,7 +321,7 @@ public class NTextures {
                         glGetFloat(EXTTextureFilterAnisotropic.GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT)
                 );
             }
-            
+
             glBindTexture(GL_TEXTURE_2D, 0);
 
             if (GL.getCapabilities().GL_KHR_debug) {
@@ -334,14 +353,14 @@ public class NTextures {
 
         long textureId = NTextures.textureIds.getAndIncrement();
         glActiveTexture(GL_TEXTURE0);
-        
+
         this.r_g_b_a.texture = loadTexture(internalFormatSRGB,
                 this.redGreenBlueAlpha,
                 "r_g_b_a",
                 textureId
         );
         this.ht_rg_mt_nx.texture = loadTexture(internalFormatRGB,
-                this.heightInvertedExponentReflectivenessNormalX,
+                this.heightRoughnessMetallicNormalX,
                 "ht_rg_mt_nx",
                 textureId
         );

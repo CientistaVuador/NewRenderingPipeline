@@ -41,27 +41,43 @@ public class NGeometry {
 
     private final String name;
     private final NMesh mesh;
-    
+
     private final Vector3f animatedAabbMin = new Vector3f();
     private final Vector3f animatedAabbMax = new Vector3f();
     private final Vector3f animatedAabbCenter = new Vector3f();
     private boolean animatedAabbGenerated = false;
-    
+
     private NMaterial material = NMaterial.NULL_MATERIAL;
-    
-    public NGeometry(String name, NMesh mesh, NMaterial material) {
+
+    public NGeometry(
+            String name,
+            NMesh mesh,
+            NMaterial material,
+            Vector3fc animatedMin, Vector3fc animatedMax
+    ) {
         this.name = name;
         this.mesh = mesh;
         if (material == null) {
             material = NMaterial.NULL_MATERIAL;
         }
         this.material = material;
-        
-        this.animatedAabbMin.set(mesh.getAabbMin());
-        this.animatedAabbMax.set(mesh.getAabbMax());
-        this.animatedAabbCenter.set(mesh.getAabbCenter());
+
+        if (animatedMin == null || animatedMax == null) {
+            this.animatedAabbMin.set(mesh.getAabbMin());
+            this.animatedAabbMax.set(mesh.getAabbMax());
+            this.animatedAabbCenter.set(mesh.getAabbCenter());
+        } else {
+            this.animatedAabbMin.set(animatedMin);
+            this.animatedAabbMax.set(animatedMax);
+            this.animatedAabbCenter.set(animatedMin).add(animatedMax).mul(0.5f);
+            this.animatedAabbGenerated = true;
+        }
     }
-    
+
+    public NGeometry(String name, NMesh mesh, NMaterial material) {
+        this(name, mesh, material, null, null);
+    }
+
     public NGeometry(String name, NMesh mesh) {
         this(name, mesh, null);
     }
@@ -69,7 +85,7 @@ public class NGeometry {
     public String getName() {
         return name;
     }
-    
+
     public NMesh getMesh() {
         return mesh;
     }
@@ -77,22 +93,22 @@ public class NGeometry {
     public NMaterial getMaterial() {
         return material;
     }
-    
+
     public void setMaterial(NMaterial material) {
         if (material == null) {
             material = NMaterial.NULL_MATERIAL;
         }
         this.material = material;
     }
-    
+
     public void generateAnimatedAabb(N3DModel originalModel) {
         if (originalModel.getNumberOfAnimations() == 0) {
             this.animatedAabbGenerated = true;
             return;
         }
-        
+
         N3DModelNode node = null;
-        
+
         findNode:
         for (int i = 0; i < originalModel.getNumberOfNodes(); i++) {
             N3DModelNode other = originalModel.getNode(i);
@@ -103,13 +119,13 @@ public class NGeometry {
                 }
             }
         }
-        
+
         if (node == null) {
             throw new IllegalArgumentException("This model does not contain this geometry!");
         }
-        
+
         float[] vertices = this.mesh.getVertices();
-        
+
         float minX = Float.POSITIVE_INFINITY;
         float minY = Float.POSITIVE_INFINITY;
         float minZ = Float.POSITIVE_INFINITY;
@@ -127,7 +143,7 @@ public class NGeometry {
 
         for (int animationIndex = 0; animationIndex < originalModel.getNumberOfAnimations(); animationIndex++) {
             NAnimation animation = originalModel.getAnimation(animationIndex);
-            
+
             NAnimator animator = new NAnimator(originalModel, animation.getName());
             animator.setLooping(false);
             while (!animator.isFinished()) {
@@ -155,14 +171,13 @@ public class NGeometry {
 
                         if (boneId >= 0) {
                             String bone = this.mesh.getBone(boneId);
-                            
+
                             Matrix4fc boneMatrix = animator.getBoneMatrix(bone);
-                            
+
                             totalBoneMatrix
                                     .set(boneMatrix)
                                     .mul(originalModel.getNode(bone).getToNodeSpace())
-                                    .mul(node.getToRootSpace())
-                                    ;
+                                    .mul(node.getToRootSpace());
 
                             transformed.set(x, y, z);
                             totalBoneMatrix.transformProject(transformed);
@@ -235,5 +250,5 @@ public class NGeometry {
         }
         return Objects.equals(this.material, other.material);
     }
-    
+
 }

@@ -95,7 +95,7 @@ public class NTexturesStore {
         
         writeProperties(out, textures);
         writeImage("r_g_b_a.png", out, textures.getRedGreenBlueAlpha(), w, h);
-        writeImage("ht_rg_mt_nx.png", out, textures.getHeightInvertedExponentReflectivenessNormalX(), w, h);
+        writeImage("ht_rg_mt_nx.png", out, textures.getHeightRoughnessMetallicNormalX(), w, h);
         writeImage("er_eg_eb_ny.png", out, textures.getEmissiveRedGreenBlueNormalY(), w, h);
         
         out.finish();
