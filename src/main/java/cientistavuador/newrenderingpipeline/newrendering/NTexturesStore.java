@@ -46,6 +46,8 @@ import javax.imageio.ImageIO;
  */
 public class NTexturesStore {
     
+    public static final String MAGIC_FILE_IDENTIFIER = "b615aed4-f79b-405b-92e8-9c8ab83a177a";
+    
     private static void writeProperties(ZipOutputStream out, NTextures textures) throws IOException {
         ZipEntry entry = new ZipEntry("properties.xml");
         out.putNextEntry(entry);
@@ -89,6 +91,9 @@ public class NTexturesStore {
     
     public static void writeTextures(NTextures textures, OutputStream output) throws IOException {
         ZipOutputStream out = new ZipOutputStream(output, StandardCharsets.UTF_8);
+        
+        out.putNextEntry(new ZipEntry(MAGIC_FILE_IDENTIFIER));
+        out.closeEntry();
         
         int w = textures.getWidth();
         int h = textures.getHeight();
@@ -154,6 +159,10 @@ public class NTexturesStore {
         ZipInputStream in = new ZipInputStream(input, StandardCharsets.UTF_8);
         
         Map<String, byte[]> files = readFiles(in);
+        
+        if (files.get(MAGIC_FILE_IDENTIFIER) == null) {
+            throw new IllegalArgumentException("Invalid textures file!");
+        }
         
         TextureProperties properties = readProperties(files);
         byte[] rgba = readImage("r_g_b_a.png", files);

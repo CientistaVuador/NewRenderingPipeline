@@ -29,6 +29,7 @@ package cientistavuador.newrenderingpipeline;
 import cientistavuador.newrenderingpipeline.camera.FreeCamera;
 import cientistavuador.newrenderingpipeline.physics.PlayerController;
 import cientistavuador.newrenderingpipeline.debug.AabRender;
+import cientistavuador.newrenderingpipeline.debug.DebugCounter;
 import cientistavuador.newrenderingpipeline.debug.LineRender;
 import cientistavuador.newrenderingpipeline.geometry.Geometries;
 import cientistavuador.newrenderingpipeline.geometry.GeometriesLoader;
@@ -36,6 +37,7 @@ import cientistavuador.newrenderingpipeline.geometry.Geometry;
 import cientistavuador.newrenderingpipeline.newrendering.N3DModel;
 import cientistavuador.newrenderingpipeline.newrendering.N3DModelImporter;
 import cientistavuador.newrenderingpipeline.newrendering.N3DModelNode;
+import cientistavuador.newrenderingpipeline.newrendering.N3DModelStore;
 import cientistavuador.newrenderingpipeline.newrendering.N3DObject;
 import cientistavuador.newrenderingpipeline.newrendering.N3DObjectRenderer;
 import cientistavuador.newrenderingpipeline.newrendering.NAnimator;
@@ -72,6 +74,7 @@ import com.jme3.bullet.collision.shapes.SphereCollisionShape;
 import com.jme3.bullet.objects.PhysicsRigidBody;
 import com.jme3.bullet.objects.infos.RigidBodyMotionState;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -385,7 +388,7 @@ public class Game {
                 System.out.println(spacing + "geometry name: " + g.getName() + ", vertices: " + (g.getMesh().getVertices().length / NMesh.VERTEX_SIZE) + ", indices: " + g.getMesh().getIndices().length);
             }
         }
-        
+
         System.out.println(spacing + "amount of children: " + node.getNumberOfChildren());
         if (node.getNumberOfChildren() != 0) {
             for (int i = 0; i < node.getNumberOfChildren(); i++) {
@@ -408,16 +411,29 @@ public class Game {
 
         try {
             N3DModel model = N3DModelImporter.importFromJarFile("cientistavuador/newrenderingpipeline/cc0_zacxophone_triceratops.glb");
+
+            FileOutputStream out = new FileOutputStream("model.n3dm");
+            N3DModelStore.writeModel(model, out);
+            out.close();
+
+            FileInputStream in = new FileInputStream("model.n3dm");
+            model = N3DModelStore.readModel(in);
+            in.close();
+
             testModel = new N3DObject("test model", model);
-            testModel.setAnimator(new NAnimator(model, "Armature|Armature|Fall"));
+
             testModel.getPosition().set(8f, 10.75f, -25f);
             testModel.getRotation().rotateY((float) Math.toRadians(-90f + -45f));
+
+            testModel.setAnimator(new NAnimator(model, "Armature|Armature|Fall"));
+
         } catch (IOException ex) {
             throw new UncheckedIOException(ex);
         }
 
         try {
             N3DModel model = N3DModelImporter.importFromJarFile("cientistavuador/newrenderingpipeline/my_metallic_balls.glb");
+
             myBalls = new N3DObject("test model", model);
             myBalls.getPosition().set(0f, 20f, -15f);
         } catch (IOException ex) {
@@ -425,10 +441,11 @@ public class Game {
         }
 
         try {
-            N3DModel waterBottle3DModel = N3DModelImporter.importFromJarFile("cientistavuador/newrenderingpipeline/cc0_WaterBottle.glb");
+            N3DModel waterBottle3DModel = N3DModelImporter.importFromJarFile("cientistavuador/newrenderingpipeline/nrp.glb");
+
             waterBottle = new N3DObject("water bottle", waterBottle3DModel);
             waterBottle.getPosition().set(0f, 25f, -15f);
-            waterBottle.getScale().set(5f);
+            waterBottle.getScale().set(1f);
         } catch (IOException ex) {
             throw new UncheckedIOException(ex);
         }
@@ -438,7 +455,7 @@ public class Game {
             fox = new N3DObject("fox", fox3DModel);
             fox.getPosition().set(0f, 10f, -20f);
             fox.getScale().set(0.02f);
-            
+
             NAnimator foxAnimator = new NAnimator(fox3DModel, "Run");
             fox.setAnimator(foxAnimator);
         } catch (IOException ex) {
@@ -538,7 +555,7 @@ public class Game {
         sun.setGroupName("sun");
         sun.setDirection(1f, -0.75f, 1f);
         this.scene.getLights().add(sun);
-        
+
         List<float[]> meshVertices = new ArrayList<>();
         List<int[]> meshIndices = new ArrayList<>();
         List<Matrix4fc> meshModels = new ArrayList<>();
@@ -796,13 +813,13 @@ public class Game {
 
         this.fox.getAnimator().update(Main.TPF);
         this.testModel.getAnimator().update(Main.TPF);
-        
+
         N3DObjectRenderer.queueRender(this.fox);
         N3DObjectRenderer.queueRender(this.waterBottle);
         N3DObjectRenderer.queueRender(this.myBalls);
         N3DObjectRenderer.queueRender(this.groundObj);
         N3DObjectRenderer.queueRender(this.testModel);
-        
+
         N3DObjectRenderer.render(this.camera, lights, cubemap);
 
         AabRender.renderQueue(camera);
@@ -1092,6 +1109,9 @@ public class Game {
         }
         if (key == GLFW_KEY_H && action == GLFW_PRESS) {
             N3DObjectRenderer.REFLECTIONS_ENABLED = !N3DObjectRenderer.REFLECTIONS_ENABLED;
+        }
+        if (key == GLFW_KEY_P && action == GLFW_PRESS) {
+            N3DObjectRenderer.PARALLAX_ENABLED = !N3DObjectRenderer.PARALLAX_ENABLED;
         }
     }
 

@@ -241,13 +241,13 @@ public class BVH implements Aab {
     private final Vector3f min = new Vector3f();
     private final Vector3f max = new Vector3f();
 
-    private BVH parent;
-    private BVH left;
-    private BVH right;
-    private int amountOfTriangles = 0;
-    private int[] triangles = null;
+    protected BVH parent;
+    protected BVH left;
+    protected BVH right;
+    protected int amountOfTriangles = 0;
+    protected int[] triangles = null;
 
-    private BVH(Object userObject, float[] vertices, int[] indices, int vertexSize, int xyzOffset, float minX, float minY, float minZ, float maxX, float maxY, float maxZ) {
+    protected BVH(Object userObject, float[] vertices, int[] indices, int vertexSize, int xyzOffset, float minX, float minY, float minZ, float maxX, float maxY, float maxZ) {
         this.userObject = userObject;
         this.vertices = vertices;
         this.indices = indices;

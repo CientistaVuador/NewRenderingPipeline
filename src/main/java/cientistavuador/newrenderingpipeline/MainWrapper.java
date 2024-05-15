@@ -27,6 +27,8 @@
 package cientistavuador.newrenderingpipeline;
 
 import cientistavuador.newrenderingpipeline.natives.Natives;
+import cientistavuador.newrenderingpipeline.newrendering.N3DModel;
+import cientistavuador.newrenderingpipeline.newrendering.N3DModelImporter;
 import cientistavuador.newrenderingpipeline.sound.SoundSystem;
 import cientistavuador.newrenderingpipeline.util.postprocess.MarginAutomata;
 import com.formdev.flatlaf.FlatDarkLaf;

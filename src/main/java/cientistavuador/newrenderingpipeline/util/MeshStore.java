@@ -31,6 +31,7 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.ByteBuffer;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
@@ -115,7 +116,7 @@ public class MeshStore {
         int amountOfVertices = this.vertices.length / this.vertexSize;
         for (int component = 0; component < this.vertexSize; component++) {
             for (int vertex = 0; vertex < amountOfVertices; vertex++) {
-                this.dataOutput.writeFloat(this.vertices[(vertex * this.vertexSize) + component]);
+                this.dataOutput.writeInt(Float.floatToRawIntBits(this.vertices[(vertex * this.vertexSize) + component]));
             }
         }
     }
@@ -170,18 +171,27 @@ public class MeshStore {
     }
     
     private void readVertices() throws IOException {
+        byte[] floatData = new byte[this.vertices.length * 4];
+        this.dataInput.readFully(floatData);
+        
+        ByteBuffer buffer = ByteBuffer.wrap(floatData);
+        
         int amountOfVertices = this.vertices.length / this.vertexSize;
         for (int component = 0; component < this.vertexSize; component++) {
             for (int vertex = 0; vertex < amountOfVertices; vertex++) {
-                this.vertices[(vertex * this.vertexSize) + component] = this.dataInput.readFloat();
+                this.vertices[(vertex * this.vertexSize) + component] = buffer.getFloat();
             }
         }
     }
     
     private void readIndices() throws IOException {
+        byte[] bytes = new byte[4 * this.indices.length];
+        this.dataInput.readFully(bytes);
+        
+        int byteIndex = 0;
         for (int component = 0; component < 4; component++) {
             for (int i = 0; i < this.indices.length; i++) {
-                int deltaByte = ((int)this.dataInput.readByte()) & 0xFF;
+                int deltaByte = bytes[byteIndex++] & 0xFF;
                 this.indices[i] = this.indices[i] | (deltaByte << (component * 8));
             }
         }

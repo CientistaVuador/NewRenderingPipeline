@@ -34,8 +34,6 @@ import cientistavuador.newrenderingpipeline.util.ObjectCleaner;
 import cientistavuador.newrenderingpipeline.util.raycast.BVH;
 import java.awt.Color;
 import java.nio.ByteBuffer;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicLong;
@@ -109,8 +107,7 @@ public class NMesh {
             float[] vertices, int[] indices,
             String[] bones,
             Vector3fc min, Vector3fc max,
-            String sha256,
-            BVH bvh
+            String sha256
     ) {
         Objects.requireNonNull(vertices, "Vertices is null");
         Objects.requireNonNull(indices, "Indices is null");
@@ -180,14 +177,12 @@ public class NMesh {
             this.name = name;
         }
         
-        this.bvh = bvh;
-        
         calculateMeshColor();
         registerForCleaning();
     }
 
     public NMesh(String name, float[] vertices, int[] indices, String[] bones) {
-        this(name, vertices, indices, bones, null, null, null, null);
+        this(name, vertices, indices, bones, null, null, null);
     }
     
     public NMesh(String name, float[] vertices, int[] indices) {
@@ -277,6 +272,9 @@ public class NMesh {
     }
 
     public void generateBVH() {
+        if (this.bvh != null) {
+            return;
+        }
         this.bvh = BVH.create(this, this.vertices, this.indices, NMesh.VERTEX_SIZE, NMesh.OFFSET_POSITION_XYZ);
     }
 

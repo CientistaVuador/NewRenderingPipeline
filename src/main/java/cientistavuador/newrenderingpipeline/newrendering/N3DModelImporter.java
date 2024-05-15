@@ -45,7 +45,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import org.joml.Matrix4f;
-import org.joml.Matrix4fc;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.assimp.*;
 import static org.lwjgl.assimp.Assimp.*;
@@ -84,7 +83,7 @@ public class N3DModelImporter {
         Assimp.aiSetImportPropertyInteger(DEFAULT_PROPERTIES, AI_CONFIG_PP_SBBC_MAX_BONES, NMesh.MAX_AMOUNT_OF_BONES);
     }
 
-    public static N3DModel importFromFile(String file) throws IOException {
+    public static N3DModel importFromFile(String file) {
         Objects.requireNonNull(file, "File is null.");
         AIScene modelScene = Assimp.aiImportFileExWithProperties(
                 file,
