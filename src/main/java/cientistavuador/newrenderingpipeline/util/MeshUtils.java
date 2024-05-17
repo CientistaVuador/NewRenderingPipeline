@@ -29,6 +29,7 @@ package cientistavuador.newrenderingpipeline.util;
 import cientistavuador.newrenderingpipeline.Main;
 import cientistavuador.newrenderingpipeline.resources.mesh.MeshData;
 import cientistavuador.newrenderingpipeline.util.bakedlighting.LightmapUVs;
+import cientistavuador.newrenderingpipeline.util.bakedlighting.VertexLightingIDs;
 import com.jme3.bullet.collision.shapes.BoxCollisionShape;
 import com.jme3.bullet.collision.shapes.CapsuleCollisionShape;
 import com.jme3.bullet.collision.shapes.CollisionShape;
@@ -692,6 +693,10 @@ public class MeshUtils {
 
             outCenter.set(centerX, centerY, centerZ);
         }
+    }
+    
+    public static int generateVertexLightingIds(float[] vertices, int vertexSize, int xyzOffset, int outVertexLightingIdOffset) {
+        return VertexLightingIDs.generate(vertices, vertexSize, xyzOffset, outVertexLightingIdOffset);
     }
 
     private MeshUtils() {

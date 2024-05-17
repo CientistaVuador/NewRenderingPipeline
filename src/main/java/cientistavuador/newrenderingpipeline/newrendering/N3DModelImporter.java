@@ -28,6 +28,9 @@ package cientistavuador.newrenderingpipeline.newrendering;
 
 import cientistavuador.newrenderingpipeline.util.MeshUtils;
 import cientistavuador.newrenderingpipeline.util.Pair;
+import cientistavuador.newrenderingpipeline.util.bakedlighting.LightmapQuad;
+import cientistavuador.newrenderingpipeline.util.bakedlighting.LightmapQuads;
+import cientistavuador.newrenderingpipeline.util.bakedlighting.VertexLightingIDs;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -805,8 +808,6 @@ public class N3DModelImporter {
                     tanZ = tangent.z();
                 }
 
-                float ao = 1f;
-
                 vertices[verticesIndex + NMesh.OFFSET_POSITION_XYZ + 0] = posX;
                 vertices[verticesIndex + NMesh.OFFSET_POSITION_XYZ + 1] = posY;
                 vertices[verticesIndex + NMesh.OFFSET_POSITION_XYZ + 2] = posZ;
@@ -821,9 +822,7 @@ public class N3DModelImporter {
                 vertices[verticesIndex + NMesh.OFFSET_TANGENT_XYZ + 0] = tanX;
                 vertices[verticesIndex + NMesh.OFFSET_TANGENT_XYZ + 1] = tanY;
                 vertices[verticesIndex + NMesh.OFFSET_TANGENT_XYZ + 2] = tanZ;
-
-                vertices[verticesIndex + NMesh.OFFSET_AMBIENT_OCCLUSION_X + 0] = ao;
-
+                
                 vertices[verticesIndex + NMesh.OFFSET_BONE_IDS_XYZW + 0] = Float.intBitsToFloat(-1);
                 vertices[verticesIndex + NMesh.OFFSET_BONE_IDS_XYZW + 1] = Float.intBitsToFloat(-1);
                 vertices[verticesIndex + NMesh.OFFSET_BONE_IDS_XYZW + 2] = Float.intBitsToFloat(-1);
@@ -870,8 +869,20 @@ public class N3DModelImporter {
 
         for (int i = 0; i < splitMeshes.size(); i++) {
             Pair<float[], String[]> splitMesh = splitMeshes.get(i);
-
-            Pair<float[], int[]> newMesh = MeshUtils.generateIndices(splitMesh.getA(), NMesh.VERTEX_SIZE);
+            
+            float[] splitMeshVertices = splitMesh.getA();
+            
+            int numberOfVertexLightingIDs = MeshUtils.generateVertexLightingIds(
+                    splitMeshVertices, NMesh.VERTEX_SIZE,
+                    NMesh.OFFSET_POSITION_XYZ, NMesh.OFFSET_VERTEX_LIGHTING_ID
+            );
+            
+            LightmapQuad[] quads = LightmapQuads.generate(
+                    splitMeshVertices, NMesh.VERTEX_SIZE,
+                    NMesh.OFFSET_POSITION_XYZ, NMesh.OFFSET_LIGHTMAP_XY, NMesh.OFFSET_LIGHTMAP_QUAD_ID
+            );
+            
+            Pair<float[], int[]> newMesh = MeshUtils.generateIndices(splitMeshVertices, NMesh.VERTEX_SIZE);
 
             float[] finalVertices = newMesh.getA();
             int[] finalIndices = newMesh.getB();

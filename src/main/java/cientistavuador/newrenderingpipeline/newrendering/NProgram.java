@@ -180,12 +180,15 @@ public class NProgram {
     public static final BetterUniformSetter VARIANT_LIGHTMAPPED_ALPHA_BLENDING;
 
     private static final String VERTEX_SHADER
-            = """
+            = 
+            """
             layout (location = VAO_INDEX_POSITION_XYZ) in vec3 vertexPosition;
             layout (location = VAO_INDEX_TEXTURE_XY) in vec2 vertexTexture;
             layout (location = VAO_INDEX_NORMAL_XYZ) in vec3 vertexNormal;
             layout (location = VAO_INDEX_TANGENT_XYZ) in vec3 vertexTangent;
-            layout (location = VAO_INDEX_AMBIENT_OCCLUSION_X) in float vertexAmbientOcclusion;
+            layout (location = VAO_INDEX_LIGHTMAP_XY) in vec2 vertexLightmap;
+            layout (location = VAO_INDEX_LIGHTMAP_QUAD_ID) in int vertexLightmapQuadId;
+            layout (location = VAO_INDEX_VERTEX_LIGHTING_ID) in int vertexLightingId;
             layout (location = VAO_INDEX_BONE_IDS_XYZW) in ivec4 vertexBoneIds;
             layout (location = VAO_INDEX_BONE_WEIGHTS_XYZW) in vec4 vertexBoneWeights;
             
@@ -236,9 +239,9 @@ public class NProgram {
                 vec4 worldPosition = model * localPosition;
                 
                 outVertex.worldPosition = worldPosition.xyz;
-                outVertex.worldTexture = vertexTexture;
+                outVertex.worldTexture = vertexTexture + vec2(float(vertexLightingId)) + vertexLightmap + vec2(float(vertexLightmapQuadId));
                 outVertex.worldNormal = normal;
-                outVertex.worldAmbientOcclusion = vertexAmbientOcclusion;
+                outVertex.worldAmbientOcclusion = 1.0;
                 outVertex.TBN = mat3(tangent, cross(normal, tangent), normal);
                 outVertex.tangentPosition = transpose(outVertex.TBN) * outVertex.worldPosition;
                 
@@ -604,7 +607,9 @@ public class NProgram {
         new ProgramCompiler.ShaderConstant("VAO_INDEX_TEXTURE_XY", NMesh.VAO_INDEX_TEXTURE_XY),
         new ProgramCompiler.ShaderConstant("VAO_INDEX_NORMAL_XYZ", NMesh.VAO_INDEX_NORMAL_XYZ),
         new ProgramCompiler.ShaderConstant("VAO_INDEX_TANGENT_XYZ", NMesh.VAO_INDEX_TANGENT_XYZ),
-        new ProgramCompiler.ShaderConstant("VAO_INDEX_AMBIENT_OCCLUSION_X", NMesh.VAO_INDEX_AMBIENT_OCCLUSION_X),
+        new ProgramCompiler.ShaderConstant("VAO_INDEX_LIGHTMAP_XY", NMesh.VAO_INDEX_LIGHTMAP_XY),
+        new ProgramCompiler.ShaderConstant("VAO_INDEX_LIGHTMAP_QUAD_ID", NMesh.VAO_INDEX_LIGHTMAP_QUAD_ID),
+        new ProgramCompiler.ShaderConstant("VAO_INDEX_VERTEX_LIGHTING_ID", NMesh.VAO_INDEX_VERTEX_LIGHTING_ID),
         new ProgramCompiler.ShaderConstant("VAO_INDEX_BONE_IDS_XYZW", NMesh.VAO_INDEX_BONE_IDS_XYZW),
         new ProgramCompiler.ShaderConstant("VAO_INDEX_BONE_WEIGHTS_XYZW", NMesh.VAO_INDEX_BONE_WEIGHTS_XYZW),
         new ProgramCompiler.ShaderConstant("PI", Math.PI),
@@ -714,7 +719,7 @@ public class NProgram {
             glUniform3f(uniforms.locationOf("fresnelOutline.color"), r, g, b);
         }
     }
-    
+
     public static void init() {
 
     }

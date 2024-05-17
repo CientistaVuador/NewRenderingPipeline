@@ -58,22 +58,26 @@ public class NMesh {
     public static final int VAO_INDEX_TEXTURE_XY = 1;
     public static final int VAO_INDEX_NORMAL_XYZ = 2;
     public static final int VAO_INDEX_TANGENT_XYZ = 3;
-    public static final int VAO_INDEX_AMBIENT_OCCLUSION_X = 4;
-    public static final int VAO_INDEX_BONE_IDS_XYZW = 5;
-    public static final int VAO_INDEX_BONE_WEIGHTS_XYZW = 6;
+    public static final int VAO_INDEX_LIGHTMAP_XY = 4;
+    public static final int VAO_INDEX_LIGHTMAP_QUAD_ID = 5;
+    public static final int VAO_INDEX_VERTEX_LIGHTING_ID = 6;
+    public static final int VAO_INDEX_BONE_IDS_XYZW = 7;
+    public static final int VAO_INDEX_BONE_WEIGHTS_XYZW = 8;
 
     public static final int OFFSET_POSITION_XYZ = 0;
     public static final int OFFSET_TEXTURE_XY = OFFSET_POSITION_XYZ + 3;
     public static final int OFFSET_NORMAL_XYZ = OFFSET_TEXTURE_XY + 2;
     public static final int OFFSET_TANGENT_XYZ = OFFSET_NORMAL_XYZ + 3;
-    public static final int OFFSET_AMBIENT_OCCLUSION_X = OFFSET_TANGENT_XYZ + 3;
-    public static final int OFFSET_BONE_IDS_XYZW = OFFSET_AMBIENT_OCCLUSION_X + 1;
+    public static final int OFFSET_LIGHTMAP_XY = OFFSET_TANGENT_XYZ + 3;
+    public static final int OFFSET_LIGHTMAP_QUAD_ID = OFFSET_LIGHTMAP_XY + 2;
+    public static final int OFFSET_VERTEX_LIGHTING_ID = OFFSET_LIGHTMAP_QUAD_ID + 1;
+    public static final int OFFSET_BONE_IDS_XYZW = OFFSET_VERTEX_LIGHTING_ID + 1;
     public static final int OFFSET_BONE_WEIGHTS_XYZW = OFFSET_BONE_IDS_XYZW + 4;
 
     public static final int VERTEX_SIZE = OFFSET_BONE_WEIGHTS_XYZW + 4;
 
     private static class WrappedVertexArrays {
-
+        
         public int vao = 0;
     }
 
@@ -318,9 +322,15 @@ public class NMesh {
         glEnableVertexAttribArray(VAO_INDEX_TANGENT_XYZ);
         glVertexAttribPointer(VAO_INDEX_TANGENT_XYZ, 3, GL_FLOAT, false, VERTEX_SIZE * Float.BYTES, OFFSET_TANGENT_XYZ * Float.BYTES);
 
-        glEnableVertexAttribArray(VAO_INDEX_AMBIENT_OCCLUSION_X);
-        glVertexAttribPointer(VAO_INDEX_AMBIENT_OCCLUSION_X, 1, GL_FLOAT, false, VERTEX_SIZE * Float.BYTES, OFFSET_AMBIENT_OCCLUSION_X * Float.BYTES);
-
+        glEnableVertexAttribArray(VAO_INDEX_LIGHTMAP_XY);
+        glVertexAttribPointer(VAO_INDEX_LIGHTMAP_XY, 2, GL_FLOAT, false, VERTEX_SIZE * Float.BYTES, OFFSET_LIGHTMAP_XY * Float.BYTES);
+        
+        glEnableVertexAttribArray(VAO_INDEX_LIGHTMAP_QUAD_ID);
+        glVertexAttribIPointer(VAO_INDEX_LIGHTMAP_QUAD_ID, 1, GL_INT, VERTEX_SIZE * Float.BYTES, OFFSET_LIGHTMAP_QUAD_ID * Integer.BYTES);
+        
+        glEnableVertexAttribArray(VAO_INDEX_VERTEX_LIGHTING_ID);
+        glVertexAttribIPointer(VAO_INDEX_VERTEX_LIGHTING_ID, 1, GL_INT, VERTEX_SIZE * Float.BYTES, OFFSET_VERTEX_LIGHTING_ID * Integer.BYTES);
+        
         glEnableVertexAttribArray(VAO_INDEX_BONE_IDS_XYZW);
         glVertexAttribIPointer(VAO_INDEX_BONE_IDS_XYZW, 4, GL_INT, VERTEX_SIZE * Float.BYTES, OFFSET_BONE_IDS_XYZW * Integer.BYTES);
 

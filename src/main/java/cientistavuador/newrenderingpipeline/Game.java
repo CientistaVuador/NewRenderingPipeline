@@ -63,6 +63,7 @@ import cientistavuador.newrenderingpipeline.util.CollisionShapeStore;
 import cientistavuador.newrenderingpipeline.util.LightmapFile;
 import cientistavuador.newrenderingpipeline.util.MeshUtils;
 import cientistavuador.newrenderingpipeline.util.bakedlighting.BakedLighting;
+import cientistavuador.newrenderingpipeline.util.bakedlighting.LightmapQuads;
 import cientistavuador.newrenderingpipeline.util.raycast.RayResult;
 import cientistavuador.newrenderingpipeline.util.bakedlighting.SamplingMode;
 import cientistavuador.newrenderingpipeline.util.bakedlighting.Scene;
@@ -277,17 +278,19 @@ public class Game {
         final float e = Float.intBitsToFloat(-1);
 
         float[] vertices = new float[]{
-            0f, 0f, 0f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f, 1f, e, e, e, e, 1f, 0f, 0f, 0f,
-            20f, 0f, 0f, 10f, 0f, 0f, 1f, 0f, 0f, 0f, 1f, 1f, e, e, e, e, 1f, 0f, 0f, 0f,
-            20f, 0f, -20f, 10f, 10f, 0f, 1f, 0f, 0f, 0f, 1f, 1f, e, e, e, e, 1f, 0f, 0f, 0f,
-            0f, 0f, 0f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f, 1f, e, e, e, e, 1f, 0f, 0f, 0f,
-            20f, 0f, -20f, 10f, 10f, 0f, 1f, 0f, 0f, 0f, 1f, 1f, e, e, e, e, 1f, 0f, 0f, 0f,
-            0f, 0f, -20f, 0f, 10f, 0f, 1f, 0f, 0f, 0f, 1f, 1f, e, e, e, e, 1f, 0f, 0f, 0f
+            0f, 0f, 0f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f, -1f, -1f, -1f, -1f, e, e, e, e, 1f, 0f, 0f, 0f,
+            20f, 0f, 0f, 10f, 0f, 0f, 1f, 0f, 0f, 0f, 1f, -1f, -1f, -1f, -1f, e, e, e, e, 1f, 0f, 0f, 0f,
+            20f, 0f, -20f, 10f, 10f, 0f, 1f, 0f, 0f, 0f, 1f, -1f, -1f, -1f, -1f, e, e, e, e, 1f, 0f, 0f, 0f,
+            0f, 0f, 0f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f, -1f, -1f, -1f, -1f, e, e, e, e, 1f, 0f, 0f, 0f,
+            20f, 0f, -20f, 10f, 10f, 0f, 1f, 0f, 0f, 0f, 1f, -1f, -1f, -1f, -1f, e, e, e, e, 1f, 0f, 0f, 0f,
+            0f, 0f, -20f, 0f, 10f, 0f, 1f, 0f, 0f, 0f, 1f, -1f, -1f, -1f, -1f, e, e, e, e, 1f, 0f, 0f, 0f
         };
         int[] indices = new int[]{
             0, 1, 2,
             3, 4, 5
         };
+        
+        LightmapQuads.generate(vertices, NMesh.VERTEX_SIZE, NMesh.OFFSET_POSITION_XYZ, NMesh.OFFSET_LIGHTMAP_XY, NMesh.OFFSET_LIGHTMAP_QUAD_ID);
 
         MeshUtils.generateTangent(
                 vertices,
@@ -415,11 +418,11 @@ public class Game {
             FileOutputStream out = new FileOutputStream("model.n3dm");
             N3DModelStore.writeModel(model, out);
             out.close();
-
+            
             FileInputStream in = new FileInputStream("model.n3dm");
             model = N3DModelStore.readModel(in);
             in.close();
-
+            
             testModel = new N3DObject("test model", model);
 
             testModel.getPosition().set(8f, 10.75f, -25f);
