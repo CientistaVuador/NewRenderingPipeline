@@ -35,6 +35,7 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 import org.joml.Matrix4f;
+import org.joml.Matrix4fc;
 import org.joml.Vector2f;
 import org.joml.Vector3f;
 
@@ -45,6 +46,68 @@ import org.joml.Vector3f;
 public class LightmapQuads {
 
     private static final float EPSILON = 0.001f;
+
+    private static Map<Vector3f, List<Integer>> mapVertices(float[] vertices, int vertexSize, int xyzOffset) {
+        Map<Vector3f, List<Integer>> vertexMap = new HashMap<>();
+        for (int i = 0; i < vertices.length; i += vertexSize) {
+            Vector3f position = new Vector3f(
+                    vertices[i + xyzOffset + 0],
+                    vertices[i + xyzOffset + 1],
+                    vertices[i + xyzOffset + 2]
+            );
+
+            List<Integer> verticesList = vertexMap.get(position);
+            if (verticesList == null) {
+                verticesList = new ArrayList<>();
+                vertexMap.put(position, verticesList);
+            }
+            verticesList.add(i);
+        }
+        return vertexMap;
+    }
+
+    private static Map<Integer, Vector3f> mapTriangleNormals(float[] vertices, int vertexSize, int xyzOffset) {
+        Map<Integer, Vector3f> triangleNormals = new HashMap<>();
+        for (int i = 0; i < vertices.length; i += vertexSize * 3) {
+            Vector3f a = new Vector3f(
+                    vertices[i + (vertexSize * 0) + xyzOffset + 0],
+                    vertices[i + (vertexSize * 0) + xyzOffset + 1],
+                    vertices[i + (vertexSize * 0) + xyzOffset + 2]
+            );
+            Vector3f b = new Vector3f(
+                    vertices[i + (vertexSize * 1) + xyzOffset + 0],
+                    vertices[i + (vertexSize * 1) + xyzOffset + 1],
+                    vertices[i + (vertexSize * 1) + xyzOffset + 2]
+            );
+            Vector3f c = new Vector3f(
+                    vertices[i + (vertexSize * 2) + xyzOffset + 0],
+                    vertices[i + (vertexSize * 2) + xyzOffset + 1],
+                    vertices[i + (vertexSize * 2) + xyzOffset + 2]
+            );
+
+            a.sub(c);
+            b.sub(c);
+            a.cross(b, c).normalize();
+
+            triangleNormals.put(i, c);
+        }
+        return triangleNormals;
+    }
+
+    private static void transform(float[] uvs, Matrix4fc matrix) {
+        Vector3f transformedPosition = new Vector3f();
+        for (int j = 0; j < uvs.length; j += 3) {
+            transformedPosition.set(
+                    uvs[j + 0],
+                    uvs[j + 1],
+                    uvs[j + 2]
+            );
+            matrix.transformProject(transformedPosition);
+            uvs[j + 0] = transformedPosition.x();
+            uvs[j + 1] = transformedPosition.y();
+            uvs[j + 2] = transformedPosition.z();
+        }
+    }
 
     private static void minMax(float[] uvs, Vector2f outMin, Vector2f outMax) {
         float minX = Float.POSITIVE_INFINITY;
@@ -105,46 +168,8 @@ public class LightmapQuads {
             float[] vertices, int vertexSize,
             int xyzOffset, int outLightmapUv, int outLightmapQuadId
     ) {
-        Map<Vector3f, List<Integer>> vertexMap = new HashMap<>();
-        for (int i = 0; i < vertices.length; i += vertexSize) {
-            Vector3f position = new Vector3f(
-                    vertices[i + xyzOffset + 0],
-                    vertices[i + xyzOffset + 1],
-                    vertices[i + xyzOffset + 2]
-            );
-
-            List<Integer> verticesList = vertexMap.get(position);
-            if (verticesList == null) {
-                verticesList = new ArrayList<>();
-                vertexMap.put(position, verticesList);
-            }
-            verticesList.add(i);
-        }
-
-        Map<Integer, Vector3f> triangleNormals = new HashMap<>();
-        for (int i = 0; i < vertices.length; i += vertexSize * 3) {
-            Vector3f a = new Vector3f(
-                    vertices[i + (vertexSize * 0) + xyzOffset + 0],
-                    vertices[i + (vertexSize * 0) + xyzOffset + 1],
-                    vertices[i + (vertexSize * 0) + xyzOffset + 2]
-            );
-            Vector3f b = new Vector3f(
-                    vertices[i + (vertexSize * 1) + xyzOffset + 0],
-                    vertices[i + (vertexSize * 1) + xyzOffset + 1],
-                    vertices[i + (vertexSize * 1) + xyzOffset + 2]
-            );
-            Vector3f c = new Vector3f(
-                    vertices[i + (vertexSize * 2) + xyzOffset + 0],
-                    vertices[i + (vertexSize * 2) + xyzOffset + 1],
-                    vertices[i + (vertexSize * 2) + xyzOffset + 2]
-            );
-
-            a.sub(c);
-            b.sub(c);
-            a.cross(b, c).normalize();
-
-            triangleNormals.put(i, c);
-        }
+        Map<Vector3f, List<Integer>> vertexMap = mapVertices(vertices, vertexSize, xyzOffset);
+        Map<Integer, Vector3f> triangleNormals = mapTriangleNormals(vertices, vertexSize, xyzOffset);
 
         List<List<Integer>> faces = new ArrayList<>();
         Set<Integer> processedTriangles = new HashSet<>();
@@ -232,7 +257,7 @@ public class LightmapQuads {
         }
 
         List<LightmapQuad> quads = new ArrayList<>();
-        
+
         for (int i = 0; i < faces.size(); i++) {
             List<Integer> face = faces.get(i);
 
@@ -259,82 +284,36 @@ public class LightmapQuads {
             }
 
             Vector3f transformedPosition = new Vector3f();
-
+            
             Matrix4f lookAt = new Matrix4f()
                     .lookAt(
                             0f, 0f, 0f,
                             -faceNormal.x(), -faceNormal.y(), -faceNormal.z(),
                             upX, upY, upZ
                     );
-
-            for (int j = 0; j < uvs.length; j += 3) {
-                transformedPosition.set(
-                        uvs[j + 0],
-                        uvs[j + 1],
-                        uvs[j + 2]
-                );
-                lookAt.transformProject(transformedPosition);
-                uvs[j + 0] = transformedPosition.x();
-                uvs[j + 1] = transformedPosition.y();
-                uvs[j + 2] = transformedPosition.z();
-            }
+            transform(uvs, lookAt);
 
             Vector2f min = new Vector2f();
             Vector2f max = new Vector2f();
+            
             minMax(uvs, min, max);
-
             Matrix4f centralize = new Matrix4f()
                     .translate(
                             (max.x() + min.x()) * -0.5f,
                             (max.y() + min.y()) * -0.5f,
                             -transformedPosition.z()
                     );
-
-            for (int j = 0; j < uvs.length; j += 3) {
-                transformedPosition.set(
-                        uvs[j + 0],
-                        uvs[j + 1],
-                        uvs[j + 2]
-                );
-                centralize.transformProject(transformedPosition);
-                uvs[j + 0] = transformedPosition.x();
-                uvs[j + 1] = transformedPosition.y();
-                uvs[j + 2] = transformedPosition.z();
-            }
+            transform(uvs, centralize);
 
             float bestRotation = findBestRotation(uvs);
-
             Matrix4f rotate = new Matrix4f()
                     .rotateZ((float) Math.toRadians(bestRotation));
-
-            for (int j = 0; j < uvs.length; j += 3) {
-                transformedPosition.set(
-                        uvs[j + 0],
-                        uvs[j + 1],
-                        uvs[j + 2]
-                );
-                rotate.transformProject(transformedPosition);
-                uvs[j + 0] = transformedPosition.x();
-                uvs[j + 1] = transformedPosition.y();
-                uvs[j + 2] = transformedPosition.z();
-            }
+            transform(uvs, rotate);
 
             minMax(uvs, min, max);
-
             Matrix4f bottomLeftCentralize = new Matrix4f()
                     .translate(-min.x(), -min.y(), 0f);
-
-            for (int j = 0; j < uvs.length; j += 3) {
-                transformedPosition.set(
-                        uvs[j + 0],
-                        uvs[j + 1],
-                        uvs[j + 2]
-                );
-                bottomLeftCentralize.transformProject(transformedPosition);
-                uvs[j + 0] = transformedPosition.x();
-                uvs[j + 1] = transformedPosition.y();
-                uvs[j + 2] = transformedPosition.z();
-            }
+            transform(uvs, bottomLeftCentralize);
             
             for (int j = 0; j < face.size(); j++) {
                 int triangle = face.get(j);
