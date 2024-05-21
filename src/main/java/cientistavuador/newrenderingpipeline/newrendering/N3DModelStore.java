@@ -41,6 +41,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -71,11 +72,190 @@ import org.xml.sax.SAXException;
 public class N3DModelStore {
 
     public static final String MAGIC_FILE_IDENTIFIER = "32bd5c10-240f-457f-9c0d-eb44f590e1b1";
-    
+
     public static final int VERSION = 1;
     private static final Matrix4fc IDENTITY = new Matrix4f();
     private static final String INDENT = "    ";
+
+    //utility functions
+    private static String stringToXML(String s, String name) {
+        return name + "=\"" + s + "\"";
+    }
+
+    private static String encodedStringToXML(String s, String name) {
+        return stringToXML(URLEncoder.encode(s, StandardCharsets.UTF_8), name);
+    }
+
+    private static String floatToXML(float f, String name) {
+        return stringToXML(Float.toString(f), name);
+    }
+
+    private static String vec3ToXML(Vector3fc pos, String prefix) {
+        return floatToXML(pos.x(), prefix + "X") + " " + floatToXML(pos.y(), prefix + "Y") + " " + floatToXML(pos.z(), prefix + "Z");
+    }
+
+    private static String colorRGBAToXML(Vector4fc color, String prefix) {
+        return floatToXML(color.x(), prefix + "R") + " " + floatToXML(color.y(), prefix + "G") + " " + floatToXML(color.z(), prefix + "B") + " " + floatToXML(color.w(), prefix + "A");
+    }
+
+    private static String colorRGBToXML(Vector3fc color, String prefix) {
+        return floatToXML(color.x(), prefix + "R") + " " + floatToXML(color.y(), prefix + "G") + " " + floatToXML(color.z(), prefix + "B");
+    }
+
+    private static String matrixToXML(Matrix4fc matrix, String indent) {
+        StringBuilder b = new StringBuilder();
+
+        List<String> m = new ArrayList<>();
+
+        m.add(floatToXML(matrix.m00(), "m00"));
+        m.add(floatToXML(matrix.m10(), "m10"));
+        m.add(floatToXML(matrix.m20(), "m20"));
+        m.add(floatToXML(matrix.m30(), "m30"));
+
+        m.add(floatToXML(matrix.m01(), "m01"));
+        m.add(floatToXML(matrix.m11(), "m11"));
+        m.add(floatToXML(matrix.m21(), "m21"));
+        m.add(floatToXML(matrix.m31(), "m31"));
+
+        m.add(floatToXML(matrix.m02(), "m02"));
+        m.add(floatToXML(matrix.m12(), "m12"));
+        m.add(floatToXML(matrix.m22(), "m22"));
+        m.add(floatToXML(matrix.m32(), "m32"));
+
+        m.add(floatToXML(matrix.m03(), "m03"));
+        m.add(floatToXML(matrix.m13(), "m13"));
+        m.add(floatToXML(matrix.m23(), "m23"));
+        m.add(floatToXML(matrix.m33(), "m33"));
+
+        int largestLength = 0;
+        for (String s : m) {
+            int len = s.length();
+            if (len > largestLength) {
+                largestLength = len;
+            }
+        }
+
+        for (int i = 0; i < m.size(); i++) {
+            String at = m.get(i);
+            m.set(i, at + " ".repeat(largestLength - at.length()));
+        }
+
+        b.append(indent).append(m.get(0)).append(' ').append(m.get(1)).append(' ').append(m.get(2)).append(' ').append(m.get(3)).append('\n');
+        b.append(indent).append(m.get(4)).append(' ').append(m.get(5)).append(' ').append(m.get(6)).append(' ').append(m.get(7)).append('\n');
+        b.append(indent).append(m.get(8)).append(' ').append(m.get(9)).append(' ').append(m.get(10)).append(' ').append(m.get(11)).append('\n');
+        b.append(indent).append(m.get(12)).append(' ').append(m.get(13)).append(' ').append(m.get(14)).append(' ').append(m.get(15));
+
+        return b.toString();
+    }
+
+    private static String commentaryToXML(String commentary) {
+        return "<!-- " + commentary + " -->";
+    }
+
+    private static String generateFileName(AtomicInteger counter, String file, String extension) {
+        return "f" + counter.getAndIncrement() + "_" + URLEncoder.encode(file, StandardCharsets.UTF_8) + "." + extension;
+    }
+
+    private static String decodeString(String s) {
+        return URLDecoder.decode(s, StandardCharsets.UTF_8);
+    }
+
+    private static Vector3f readVec3(Element element, String attributeName) {
+        String[] attributes = {
+            attributeName + "X",
+            attributeName + "Y",
+            attributeName + "Z"
+        };
+
+        boolean isNull = false;
+        for (int i = 0; i < attributes.length; i++) {
+            if (!element.hasAttribute(attributes[i])) {
+                isNull = true;
+                break;
+            }
+        }
+
+        if (isNull) {
+            return null;
+        }
+
+        return new Vector3f(
+                Float.parseFloat(element.getAttribute(attributes[0])),
+                Float.parseFloat(element.getAttribute(attributes[1])),
+                Float.parseFloat(element.getAttribute(attributes[2]))
+        );
+    }
+
+    private static Vector3f readRGB(Element element, String attributeName) {
+        String[] attributes = {
+            attributeName + "R",
+            attributeName + "G",
+            attributeName + "B"
+        };
+
+        boolean isNull = false;
+        for (int i = 0; i < attributes.length; i++) {
+            if (!element.hasAttribute(attributes[i])) {
+                isNull = true;
+                break;
+            }
+        }
+
+        if (isNull) {
+            return new Vector3f(1f);
+        }
+
+        return new Vector3f(
+                Float.parseFloat(element.getAttribute(attributes[0])),
+                Float.parseFloat(element.getAttribute(attributes[1])),
+                Float.parseFloat(element.getAttribute(attributes[2]))
+        );
+    }
+
+    private static Vector4f readRGBA(Element element, String attributeName) {
+        String[] attributes = {
+            attributeName + "R",
+            attributeName + "G",
+            attributeName + "B",
+            attributeName + "A"
+        };
+
+        boolean isNull = false;
+        for (int i = 0; i < attributes.length; i++) {
+            if (!element.hasAttribute(attributes[i])) {
+                isNull = true;
+                break;
+            }
+        }
+
+        if (isNull) {
+            return new Vector4f(1f);
+        }
+
+        return new Vector4f(
+                Float.parseFloat(element.getAttribute(attributes[0])),
+                Float.parseFloat(element.getAttribute(attributes[1])),
+                Float.parseFloat(element.getAttribute(attributes[2])),
+                Float.parseFloat(element.getAttribute(attributes[3]))
+        );
+    }
+
+    private static float f(Element element, String s) {
+        return Float.parseFloat(element.getAttribute(s));
+    }
+
+    private static Matrix4f readMatrix(Element e) {
+        Matrix4f matrix = new Matrix4f(
+                f(e, "m00"), f(e, "m01"), f(e, "m02"), f(e, "m03"),
+                f(e, "m10"), f(e, "m11"), f(e, "m12"), f(e, "m13"),
+                f(e, "m20"), f(e, "m21"), f(e, "m22"), f(e, "m23"),
+                f(e, "m30"), f(e, "m31"), f(e, "m32"), f(e, "m33")
+        );
+
+        return matrix;
+    }
     
+    //classes
     private static class StoreAnimation {
 
         public NAnimation object;
@@ -107,22 +287,6 @@ public class N3DModelStore {
         public String toXML() {
             return "<bone index=\"" + this.index + "\" name=\"" + this.name + "\"/>";
         }
-    }
-
-    private static String stringToXML(String s, String name) {
-        return name + "=\"" + s + "\"";
-    }
-
-    private static String encodedStringToXML(String s, String name) {
-        return stringToXML(URLEncoder.encode(s, StandardCharsets.UTF_8), name);
-    }
-
-    private static String floatToXML(float f, String name) {
-        return stringToXML(Float.toString(f), name);
-    }
-
-    private static String vec3ToXML(Vector3fc pos, String prefix) {
-        return floatToXML(pos.x(), prefix + "X") + " " + floatToXML(pos.y(), prefix + "Y") + " " + floatToXML(pos.z(), prefix + "Z");
     }
 
     private static class StoreMesh {
@@ -169,14 +333,6 @@ public class N3DModelStore {
 
             return b.toString();
         }
-    }
-
-    private static String colorRGBAToXML(Vector4fc color, String prefix) {
-        return floatToXML(color.x(), prefix + "R") + " " + floatToXML(color.y(), prefix + "G") + " " + floatToXML(color.z(), prefix + "B") + " " + floatToXML(color.w(), prefix + "A");
-    }
-
-    private static String colorRGBToXML(Vector3fc color, String prefix) {
-        return floatToXML(color.x(), prefix + "R") + " " + floatToXML(color.y(), prefix + "G") + " " + floatToXML(color.z(), prefix + "B");
     }
 
     private static class StoreMaterial {
@@ -228,14 +384,10 @@ public class N3DModelStore {
         }
     }
 
-    private static class StoreGeometry {
-
-        public NGeometry object;
+    private static class StoreGeometryDefinition {
 
         public String id;
-
-        public String name;
-
+        
         public String meshId;
         public String materialId;
 
@@ -244,11 +396,8 @@ public class N3DModelStore {
 
         public String toXML(String indent) {
             StringBuilder b = new StringBuilder();
-
-            b.append(indent).append("<geometry").append('\n');
+            b.append(indent).append("<geometryDefinition").append('\n');
             b.append(indent).append(INDENT).append(stringToXML(this.id, "id")).append('\n');
-            b.append(indent).append(INDENT).append('\n');
-            b.append(indent).append(INDENT).append(encodedStringToXML(this.name, "name")).append('\n');
             b.append(indent).append(INDENT).append('\n');
             b.append(indent).append(INDENT).append(stringToXML(this.meshId, "meshId")).append('\n');
             if (this.materialId != null) {
@@ -261,61 +410,51 @@ public class N3DModelStore {
 
             return b.toString();
         }
+
+        @Override
+        public int hashCode() {
+            int hash = 7;
+            hash = 67 * hash + Objects.hashCode(this.meshId);
+            hash = 67 * hash + Objects.hashCode(this.materialId);
+            hash = 67 * hash + Objects.hashCode(this.animatedMin);
+            hash = 67 * hash + Objects.hashCode(this.animatedMax);
+            return hash;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            final StoreGeometryDefinition other = (StoreGeometryDefinition) obj;
+            if (!Objects.equals(this.meshId, other.meshId)) {
+                return false;
+            }
+            if (!Objects.equals(this.materialId, other.materialId)) {
+                return false;
+            }
+            if (!Objects.equals(this.animatedMin, other.animatedMin)) {
+                return false;
+            }
+            return Objects.equals(this.animatedMax, other.animatedMax);
+        }
     }
 
     private static class StoreNodeGeometry {
 
-        public String id;
+        public NGeometry object;
+        public String name;
+        public String definitionId;
 
         public String toXML() {
-            return "<geometry id=\"" + this.id + "\"/>";
+            return "<geometry " + encodedStringToXML(this.name, "name") +" definitionId=\"" + this.definitionId + "\"/>";
         }
-    }
-
-    private static String matrixToXML(Matrix4fc matrix, String indent) {
-        StringBuilder b = new StringBuilder();
-
-        List<String> m = new ArrayList<>();
-
-        m.add(floatToXML(matrix.m00(), "m00"));
-        m.add(floatToXML(matrix.m10(), "m10"));
-        m.add(floatToXML(matrix.m20(), "m20"));
-        m.add(floatToXML(matrix.m30(), "m30"));
-
-        m.add(floatToXML(matrix.m01(), "m01"));
-        m.add(floatToXML(matrix.m11(), "m11"));
-        m.add(floatToXML(matrix.m21(), "m21"));
-        m.add(floatToXML(matrix.m31(), "m31"));
-
-        m.add(floatToXML(matrix.m02(), "m02"));
-        m.add(floatToXML(matrix.m12(), "m12"));
-        m.add(floatToXML(matrix.m22(), "m22"));
-        m.add(floatToXML(matrix.m32(), "m32"));
-
-        m.add(floatToXML(matrix.m03(), "m03"));
-        m.add(floatToXML(matrix.m13(), "m13"));
-        m.add(floatToXML(matrix.m23(), "m23"));
-        m.add(floatToXML(matrix.m33(), "m33"));
-
-        int largestLength = 0;
-        for (String s : m) {
-            int len = s.length();
-            if (len > largestLength) {
-                largestLength = len;
-            }
-        }
-
-        for (int i = 0; i < m.size(); i++) {
-            String at = m.get(i);
-            m.set(i, at + " ".repeat(largestLength - at.length()));
-        }
-
-        b.append(indent).append(m.get(0)).append(' ').append(m.get(1)).append(' ').append(m.get(2)).append(' ').append(m.get(3)).append('\n');
-        b.append(indent).append(m.get(4)).append(' ').append(m.get(5)).append(' ').append(m.get(6)).append(' ').append(m.get(7)).append('\n');
-        b.append(indent).append(m.get(8)).append(' ').append(m.get(9)).append(' ').append(m.get(10)).append(' ').append(m.get(11)).append('\n');
-        b.append(indent).append(m.get(12)).append(' ').append(m.get(13)).append(' ').append(m.get(14)).append(' ').append(m.get(15));
-
-        return b.toString();
     }
 
     private static class StoreMatrix {
@@ -365,10 +504,6 @@ public class N3DModelStore {
         }
     }
 
-    private static String commentaryToXML(String commentary) {
-        return "<!-- " + commentary + " -->";
-    }
-
     private static class StoreModel {
 
         public N3DModel object;
@@ -395,8 +530,8 @@ public class N3DModelStore {
         public Map<String, StoreMaterial> materials;
         public Map<NMaterial, StoreMaterial> materialsObjectMap;
 
-        public Map<String, StoreGeometry> geometries;
-        public Map<NGeometry, StoreGeometry> geometriesObjectMap;
+        public Map<String, StoreGeometryDefinition> geometriesDefinitions;
+        public Map<NGeometry, StoreGeometryDefinition> geometriesDefinitionsObjectMap;
 
         public Map<String, StoreMatrix> matrices;
         public Map<Matrix4fc, StoreMatrix> matricesObjectMap;
@@ -448,9 +583,9 @@ public class N3DModelStore {
                     b.append(material.toXML(INDENT)).append('\n');
                 }
             }
-            if (!this.geometriesObjectMap.isEmpty()) {
-                b.append(INDENT).append(commentaryToXML("Geometries")).append('\n');
-                for (StoreGeometry geometry : this.geometriesObjectMap.values()) {
+            if (!this.geometriesDefinitionsObjectMap.isEmpty()) {
+                b.append(INDENT).append(commentaryToXML("Geometries Definitions")).append('\n');
+                for (StoreGeometryDefinition geometry : this.geometriesDefinitionsObjectMap.values()) {
                     b.append(geometry.toXML(INDENT)).append('\n');
                 }
             }
@@ -468,6 +603,7 @@ public class N3DModelStore {
         }
     }
 
+    //write
     private static StoreNode buildSceneGraphNode(StoreModel model, N3DModelNode currentNode) {
         StoreNode node = new StoreNode();
         node.name = currentNode.getName();
@@ -481,7 +617,8 @@ public class N3DModelStore {
             NGeometry geometry = currentNode.getGeometry(i);
 
             StoreNodeGeometry storeGeometry = new StoreNodeGeometry();
-            storeGeometry.id = model.geometriesObjectMap.get(geometry).id;
+            storeGeometry.name = geometry.getName();
+            storeGeometry.definitionId = model.geometriesDefinitionsObjectMap.get(geometry).id;
             node.geometries.add(storeGeometry);
         }
 
@@ -495,16 +632,12 @@ public class N3DModelStore {
         return node;
     }
 
-    private static String generateFileName(AtomicInteger counter, String file, String extension) {
-        return "f" + counter.getAndIncrement() + "_" + URLEncoder.encode(file, StandardCharsets.UTF_8) + "." + extension;
-    }
-
     public static void writeModel(N3DModel model, OutputStream output) throws IOException {
         ZipOutputStream zipOut = new ZipOutputStream(output, StandardCharsets.UTF_8);
-        
+
         zipOut.putNextEntry(new ZipEntry(MAGIC_FILE_IDENTIFIER));
         zipOut.closeEntry();
-        
+
         AtomicInteger fileCounter = new AtomicInteger();
 
         AtomicInteger texCounter = new AtomicInteger();
@@ -628,13 +761,13 @@ public class N3DModelStore {
             store.materialsObjectMap.put(material, storeMaterial);
         }
 
-        store.geometriesObjectMap = new HashMap<>();
+        Map<StoreGeometryDefinition, StoreGeometryDefinition> definitionsMap = new HashMap<>();
+        store.geometriesDefinitionsObjectMap = new HashMap<>();
         for (int i = 0; i < model.getNumberOfGeometries(); i++) {
             NGeometry geometry = model.getGeometry(i);
 
-            StoreGeometry storeGeometry = new StoreGeometry();
-            storeGeometry.id = "geo_" + geoCounter.getAndIncrement();
-            storeGeometry.name = geometry.getName();
+            StoreGeometryDefinition storeGeometry = new StoreGeometryDefinition();
+            storeGeometry.id = "gmd_" + geoCounter.getAndIncrement();
             storeGeometry.meshId = store.meshesObjectMap.get(geometry.getMesh()).id;
 
             StoreMaterial material = store.materialsObjectMap.get(geometry.getMaterial());
@@ -645,7 +778,15 @@ public class N3DModelStore {
             storeGeometry.animatedMin = new Vector3f(geometry.getAnimatedAabbMin());
             storeGeometry.animatedMax = new Vector3f(geometry.getAnimatedAabbMax());
 
-            store.geometriesObjectMap.put(geometry, storeGeometry);
+            StoreGeometryDefinition alreadyDefined = definitionsMap.get(storeGeometry);
+            if (alreadyDefined != null) {
+                storeGeometry = alreadyDefined;
+                geoCounter.decrementAndGet();
+            } else {
+                definitionsMap.put(storeGeometry, storeGeometry);
+            }
+
+            store.geometriesDefinitionsObjectMap.put(geometry, storeGeometry);
         }
 
         store.matricesObjectMap = new HashMap<>();
@@ -674,7 +815,8 @@ public class N3DModelStore {
 
         zipOut.finish();
     }
-
+    
+    //read
     private static Map<String, byte[]> readVirtualFileSystem(InputStream input) throws IOException {
         ZipInputStream zipIn = new ZipInputStream(input, StandardCharsets.UTF_8);
 
@@ -689,105 +831,6 @@ public class N3DModelStore {
         }
 
         return fs;
-    }
-
-    private static String decodeString(String s) {
-        return URLDecoder.decode(s, StandardCharsets.UTF_8);
-    }
-
-    private static Vector3f readVec3(Element element, String attributeName) {
-        String[] attributes = {
-            attributeName + "X",
-            attributeName + "Y",
-            attributeName + "Z"
-        };
-
-        boolean isNull = false;
-        for (int i = 0; i < attributes.length; i++) {
-            if (!element.hasAttribute(attributes[i])) {
-                isNull = true;
-                break;
-            }
-        }
-
-        if (isNull) {
-            return null;
-        }
-
-        return new Vector3f(
-                Float.parseFloat(element.getAttribute(attributes[0])),
-                Float.parseFloat(element.getAttribute(attributes[1])),
-                Float.parseFloat(element.getAttribute(attributes[2]))
-        );
-    }
-
-    private static Vector3f readRGB(Element element, String attributeName) {
-        String[] attributes = {
-            attributeName + "R",
-            attributeName + "G",
-            attributeName + "B"
-        };
-
-        boolean isNull = false;
-        for (int i = 0; i < attributes.length; i++) {
-            if (!element.hasAttribute(attributes[i])) {
-                isNull = true;
-                break;
-            }
-        }
-
-        if (isNull) {
-            return new Vector3f(1f);
-        }
-
-        return new Vector3f(
-                Float.parseFloat(element.getAttribute(attributes[0])),
-                Float.parseFloat(element.getAttribute(attributes[1])),
-                Float.parseFloat(element.getAttribute(attributes[2]))
-        );
-    }
-
-    private static Vector4f readRGBA(Element element, String attributeName) {
-        String[] attributes = {
-            attributeName + "R",
-            attributeName + "G",
-            attributeName + "B",
-            attributeName + "A"
-        };
-
-        boolean isNull = false;
-        for (int i = 0; i < attributes.length; i++) {
-            if (!element.hasAttribute(attributes[i])) {
-                isNull = true;
-                break;
-            }
-        }
-
-        if (isNull) {
-            return new Vector4f(1f);
-        }
-
-        return new Vector4f(
-                Float.parseFloat(element.getAttribute(attributes[0])),
-                Float.parseFloat(element.getAttribute(attributes[1])),
-                Float.parseFloat(element.getAttribute(attributes[2])),
-                Float.parseFloat(element.getAttribute(attributes[3]))
-        );
-    }
-
-    private static float f(Element element, String s) {
-        return Float.parseFloat(element.getAttribute(s));
-    }
-
-    private static Matrix4f readMatrix(Element e) {
-        Matrix4f matrix = new Matrix4f(
-                f(e, "m00"), f(e, "m01"), f(e, "m02"), f(e, "m03"),
-                f(e, "m10"), f(e, "m11"), f(e, "m12"), f(e, "m13"),
-                f(e, "m20"), f(e, "m21"), f(e, "m22"), f(e, "m23"),
-                f(e, "m30"), f(e, "m31"), f(e, "m32"), f(e, "m33")
-        );
-
-        return matrix;
     }
 
     private static StoreNode readSceneGraph(Element nodeElement) {
@@ -807,7 +850,8 @@ public class N3DModelStore {
             }
 
             StoreNodeGeometry storeNodeGeometry = new StoreNodeGeometry();
-            storeNodeGeometry.id = geometryElement.getAttribute("id");
+            storeNodeGeometry.name = decodeString(geometryElement.getAttribute("name"));
+            storeNodeGeometry.definitionId = geometryElement.getAttribute("definitionId");
             node.geometries.add(storeNodeGeometry);
         }
 
@@ -828,7 +872,21 @@ public class N3DModelStore {
     private static N3DModelNode buildNode(StoreModel model, StoreNode node) {
         List<NGeometry> geometries = new ArrayList<>();
         for (StoreNodeGeometry geometry : node.geometries) {
-            geometries.add(model.geometries.get(geometry.id).object);
+            StoreGeometryDefinition definition = model.geometriesDefinitions.get(geometry.definitionId);
+
+            NMaterial mat = null;
+            if (definition.materialId != null) {
+                mat = model.materials.get(definition.materialId).object;
+            }
+
+            geometry.object = new NGeometry(
+                    geometry.name,
+                    model.meshes.get(definition.meshId).object,
+                    mat,
+                    definition.animatedMin, definition.animatedMax
+            );
+
+            geometries.add(geometry.object);
         }
 
         List<N3DModelNode> children = new ArrayList<>();
@@ -851,7 +909,7 @@ public class N3DModelStore {
 
     private static N3DModel buildN3DModel(Map<String, byte[]> fs, StoreModel model) {
         ExecutorService service = Executors.newCachedThreadPool();
-        
+
         for (StoreAnimation animation : model.animations) {
             service.execute(() -> {
                 try {
@@ -881,7 +939,7 @@ public class N3DModelStore {
                     }
 
                     MeshStore.MeshStoreOutput out = MeshStore.decode(new ByteArrayInputStream(fs.get(mesh.file)));
-                    
+
                     float[] vertices = out.vertices();
                     int[] indices = out.indices();
 
@@ -892,7 +950,7 @@ public class N3DModelStore {
                             mesh.min, mesh.max,
                             mesh.sha256
                     );
-                    
+
                     if (mesh.bvhFile != null) {
                         BVH bvh = BVHStore.readBVH(
                                 new ByteArrayInputStream(fs.get(mesh.bvhFile)),
@@ -911,7 +969,7 @@ public class N3DModelStore {
                 }
             });
         }
-        
+
         try {
             service.shutdown();
             boolean result = service.awaitTermination(2, TimeUnit.HOURS);
@@ -944,20 +1002,6 @@ public class N3DModelStore {
             material.object = mat;
         }
 
-        for (StoreGeometry geometry : model.geometries.values()) {
-            NMaterial mat = null;
-            if (geometry.materialId != null) {
-                mat = model.materials.get(geometry.materialId).object;
-            }
-
-            geometry.object = new NGeometry(
-                    geometry.name,
-                    model.meshes.get(geometry.meshId).object,
-                    mat,
-                    geometry.animatedMin, geometry.animatedMax
-            );
-        }
-
         List<NAnimation> animations = new ArrayList<>();
         for (StoreAnimation animation : model.animations) {
             animations.add(animation.object);
@@ -979,11 +1023,11 @@ public class N3DModelStore {
 
     public static N3DModel readModel(InputStream input) throws IOException {
         Map<String, byte[]> fs = readVirtualFileSystem(input);
-        
+
         if (fs.get(MAGIC_FILE_IDENTIFIER) == null) {
             throw new IllegalArgumentException("Invalid n3dm file!");
         }
-        
+
         Document modelXml;
 
         try {
@@ -1120,20 +1164,18 @@ public class N3DModelStore {
             storeModel.materials.put(storeMaterial.id, storeMaterial);
         }
 
-        storeModel.geometries = new HashMap<>();
-        NodeList geometries = rootNode.getElementsByTagName("geometry");
+        storeModel.geometriesDefinitions = new HashMap<>();
+        NodeList geometries = rootNode.getElementsByTagName("geometryDefinition");
         for (int i = 0; i < geometries.getLength(); i++) {
             Element element = (Element) geometries.item(i);
             if (element.getParentNode() != rootNode) {
                 continue;
             }
 
-            StoreGeometry storeGeometry = new StoreGeometry();
+            StoreGeometryDefinition storeGeometry = new StoreGeometryDefinition();
 
             storeGeometry.id = element.getAttribute("id");
-
-            storeGeometry.name = decodeString(element.getAttribute("name"));
-
+            
             storeGeometry.meshId = element.getAttribute("meshId");
             if (element.hasAttribute("materialId")) {
                 storeGeometry.materialId = element.getAttribute("materialId");
@@ -1142,7 +1184,7 @@ public class N3DModelStore {
             storeGeometry.animatedMin = readVec3(element, "animatedMin");
             storeGeometry.animatedMax = readVec3(element, "animatedMax");
 
-            storeModel.geometries.put(storeGeometry.id, storeGeometry);
+            storeModel.geometriesDefinitions.put(storeGeometry.id, storeGeometry);
         }
 
         storeModel.matrices = new HashMap<>();
@@ -1172,7 +1214,7 @@ public class N3DModelStore {
         }
 
         storeModel.rootNode = readSceneGraph(rootElement);
-        
+
         return buildN3DModel(fs, storeModel);
     }
 

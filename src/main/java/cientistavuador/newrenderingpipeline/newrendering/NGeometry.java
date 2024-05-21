@@ -27,7 +27,6 @@
 package cientistavuador.newrenderingpipeline.newrendering;
 
 import static cientistavuador.newrenderingpipeline.newrendering.NMesh.MAX_AMOUNT_OF_BONE_WEIGHTS;
-import java.util.Objects;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
 import org.joml.Vector3f;
@@ -38,7 +37,12 @@ import org.joml.Vector3fc;
  * @author Cien
  */
 public class NGeometry {
-
+    
+    private N3DModel model = null;
+    private int globalId = -1;
+    private N3DModelNode parent = null;
+    private int localId = -1;
+    
     private final String name;
     private final NMesh mesh;
 
@@ -81,7 +85,33 @@ public class NGeometry {
     public NGeometry(String name, NMesh mesh) {
         this(name, mesh, null);
     }
+    
+    protected void configure(N3DModel model, int globalId, N3DModelNode parent, int localId) {
+        if (this.model != null || this.globalId != -1 || this.parent != null || this.localId != -1) {
+            throw new IllegalStateException("This geometry was already configured! Geometry not unique exception.");
+        }
+        this.model = model;
+        this.globalId = globalId;
+        this.parent = parent;
+        this.localId = localId;
+    }
+    
+    public N3DModel getModel() {
+        return model;
+    }
+    
+    public int getGlobalId() {
+        return globalId;
+    }
+    
+    public N3DModelNode getParent() {
+        return parent;
+    }
 
+    public int getLocalId() {
+        return localId;
+    }
+    
     public String getName() {
         return name;
     }
@@ -107,23 +137,11 @@ public class NGeometry {
             return;
         }
 
-        N3DModelNode node = null;
-
-        findNode:
-        for (int i = 0; i < originalModel.getNumberOfNodes(); i++) {
-            N3DModelNode other = originalModel.getNode(i);
-            for (int j = 0; j < other.getNumberOfGeometries(); j++) {
-                if (other.getGeometry(j) == this) {
-                    node = other;
-                    break findNode;
-                }
-            }
-        }
-
+        N3DModelNode node = getParent();
         if (node == null) {
-            throw new IllegalArgumentException("This model does not contain this geometry!");
+            throw new IllegalArgumentException("This geometry has no parent node/not inside a 3d model");
         }
-
+        
         float[] vertices = this.mesh.getVertices();
 
         float minX = Float.POSITIVE_INFINITY;
@@ -224,31 +242,5 @@ public class NGeometry {
     public boolean isAnimatedAabbGenerated() {
         return animatedAabbGenerated;
     }
-
-    @Override
-    public int hashCode() {
-        int hash = 7;
-        hash = 29 * hash + Objects.hashCode(this.mesh);
-        hash = 29 * hash + Objects.hashCode(this.material);
-        return hash;
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        if (obj == null) {
-            return false;
-        }
-        if (getClass() != obj.getClass()) {
-            return false;
-        }
-        final NGeometry other = (NGeometry) obj;
-        if (!Objects.equals(this.mesh, other.mesh)) {
-            return false;
-        }
-        return Objects.equals(this.material, other.material);
-    }
-
+    
 }

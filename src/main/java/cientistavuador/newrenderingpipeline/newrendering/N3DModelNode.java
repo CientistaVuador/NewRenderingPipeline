@@ -35,7 +35,10 @@ import org.joml.Matrix4fc;
  */
 public class N3DModelNode {
 
-    private N3DModelNode parent;
+    private N3DModel model = null;
+    private int globalId = -1;
+    private N3DModelNode parent = null;
+    private int localId = -1;
     
     private final String name;
     private final Matrix4f transformation = new Matrix4f();
@@ -48,18 +51,34 @@ public class N3DModelNode {
     public N3DModelNode(String name, Matrix4fc transformation, NGeometry[] geometries, N3DModelNode[] children) {
         this.name = name;
         this.transformation.set(transformation);
-        this.geometries = geometries.clone();
-        this.children = children.clone();
-        for (N3DModelNode child:this.children) {
-            if (child.parent != null) {
-                throw new IllegalArgumentException("Child already has a parent!");
-            }
-            child.parent = this;
+        this.geometries = geometries;
+        this.children = children;
+    }
+    
+    protected void configure(N3DModel model, int globalId, N3DModelNode parent, int localId) {
+        if (this.model != null || this.globalId != -1 || this.parent != null || this.localId != -1) {
+            throw new IllegalStateException("This node was already configured! Node not unique exception.");
         }
+        this.model = model;
+        this.globalId = globalId;
+        this.parent = parent;
+        this.localId = localId;
+    }
+    
+    public N3DModel getModel() {
+        return model;
+    }
+    
+    public int getGlobalId() {
+        return globalId;
     }
     
     public N3DModelNode getParent() {
         return parent;
+    }
+
+    public int getLocalId() {
+        return localId;
     }
 
     public String getName() {

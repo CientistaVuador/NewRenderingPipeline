@@ -120,17 +120,26 @@ public class N3DModel {
 
             aabbGenerated = true;
         }
-
+        
+        Set<String> nodeNames = new HashSet<>();
         List<N3DModelNode> nodesList = new ArrayList<>();
+        int globalNodeId = 0;
+        
+        List<NGeometry> geometriesList = new ArrayList<>();
+        int globalGeometryId = 0;
+        
         Set<String> boneList = new HashSet<>();
         Set<NMesh> meshList = new HashSet<>();
         Set<NTextures> texturesList = new HashSet<>();
         Set<NMaterial> materialsList = new HashSet<>();
-        Set<NGeometry> geometriesList = new HashSet<>();
 
         Queue<N3DModelNode> current = new ArrayDeque<>();
         Queue<N3DModelNode> next = new ArrayDeque<>();
-
+        
+        rootNode.configure(this, globalNodeId, null, 0);
+        globalNodeId++;
+        nodesList.add(rootNode);
+        
         current.add(rootNode);
 
         do {
@@ -138,20 +147,25 @@ public class N3DModel {
 
             N3DModelNode currentNode;
             while ((currentNode = current.poll()) != null) {
+                if (nodeNames.contains(currentNode.getName())) {
+                    throw new IllegalArgumentException("This model already contains a node named "+currentNode.getName());
+                } else {
+                    nodeNames.add(currentNode.getName());
+                }
+                
                 currentNode.recalculateMatrices();
-                nodesList.add(currentNode);
-
+                
                 Matrix4fc totalTransformation = currentNode.getToRootSpace();
 
                 for (int geometryIndex = 0; geometryIndex < currentNode.getNumberOfGeometries(); geometryIndex++) {
                     NGeometry g = currentNode.getGeometry(geometryIndex);
+                    g.configure(this, globalGeometryId, currentNode, geometryIndex);
+                    globalGeometryId++;
+                    geometriesList.add(g);
+                    
                     NMesh mesh = g.getMesh();
                     NMaterial material = g.getMaterial();
                     NTextures materialTextures = material.getTextures();
-
-                    if (!geometriesList.contains(g)) {
-                        geometriesList.add(g);
-                    }
 
                     if (!meshList.contains(mesh)) {
                         meshList.add(mesh);
@@ -201,7 +215,12 @@ public class N3DModel {
                 }
 
                 for (int i = 0; i < currentNode.getNumberOfChildren(); i++) {
-                    next.add(currentNode.getChild(i));
+                    N3DModelNode child = currentNode.getChild(i);
+                    child.configure(this, globalNodeId, currentNode, i);
+                    globalNodeId++;
+                    nodesList.add(child);
+                    
+                    next.add(child);
                 }
             }
 

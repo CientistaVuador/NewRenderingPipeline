@@ -68,7 +68,6 @@ public class N3DObjectRenderer {
         public final Matrix4f transformation;
         public final Matrix4f model;
         public final float distanceSquared;
-        public final N3DModelNode node;
         public final NGeometry geometry;
 
         public ToRender(
@@ -76,14 +75,12 @@ public class N3DObjectRenderer {
                 Matrix4f transformation,
                 Matrix4f model,
                 float distanceSquared,
-                N3DModelNode node,
                 NGeometry geometry
         ) {
             this.obj = obj;
             this.transformation = transformation;
             this.model = model;
             this.distanceSquared = distanceSquared;
-            this.node = node;
             this.geometry = geometry;
         }
     }
@@ -282,7 +279,6 @@ public class N3DObjectRenderer {
                                 obj,
                                 transformation, modelMatrix,
                                 distanceSquared,
-                                n,
                                 geometry
                         ));
                     }
@@ -525,7 +521,7 @@ public class N3DObjectRenderer {
                         transformedBone
                                 .set(boneMatrix)
                                 .mul(boneNode.getToNodeSpace())
-                                .mul(render.node.getToRootSpace());
+                                .mul(render.geometry.getParent().getToRootSpace());
 
                         NProgram.sendBoneMatrix(variant, transformedBone, boneIndex);
                     } else {

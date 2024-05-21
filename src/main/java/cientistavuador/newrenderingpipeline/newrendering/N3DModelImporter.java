@@ -28,9 +28,6 @@ package cientistavuador.newrenderingpipeline.newrendering;
 
 import cientistavuador.newrenderingpipeline.util.MeshUtils;
 import cientistavuador.newrenderingpipeline.util.Pair;
-import cientistavuador.newrenderingpipeline.util.bakedlighting.LightmapQuad;
-import cientistavuador.newrenderingpipeline.util.bakedlighting.LightmapQuads;
-import cientistavuador.newrenderingpipeline.util.bakedlighting.VertexLightingIDs;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -872,16 +869,6 @@ public class N3DModelImporter {
             
             float[] splitMeshVertices = splitMesh.getA();
             
-            int numberOfVertexLightingIDs = MeshUtils.generateVertexLightingIds(
-                    splitMeshVertices, NMesh.VERTEX_SIZE,
-                    NMesh.OFFSET_POSITION_XYZ, NMesh.OFFSET_VERTEX_LIGHTING_ID
-            );
-            
-            LightmapQuad[] quads = LightmapQuads.generate(
-                    splitMeshVertices, NMesh.VERTEX_SIZE,
-                    NMesh.OFFSET_POSITION_XYZ, NMesh.OFFSET_LIGHTMAP_XY, NMesh.OFFSET_LIGHTMAP_QUAD_ID
-            );
-            
             Pair<float[], int[]> newMesh = MeshUtils.generateIndices(splitMeshVertices, NMesh.VERTEX_SIZE);
 
             float[] finalVertices = newMesh.getA();
@@ -891,7 +878,7 @@ public class N3DModelImporter {
             if (splitMeshes.size() > 1) {
                 name += "_" + i;
             }
-
+            
             NMesh loadedMesh = new NMesh(
                     name,
                     finalVertices, finalIndices,
