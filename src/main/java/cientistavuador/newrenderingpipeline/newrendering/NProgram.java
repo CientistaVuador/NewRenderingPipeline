@@ -42,9 +42,9 @@ public class NProgram {
     public static final float SPECULAR_STRENGTH = 0.05f;
 
     public static final float LIGHT_ATTENUATION = 0.75f;
-
-    public static final int MAX_AMOUNT_OF_LIGHTS = 16;
-    public static final int MAX_AMOUNT_OF_LIGHTMAPS = 16;
+    
+    public static final int MAX_AMOUNT_OF_LIGHTS = 24;
+    public static final int MAX_AMOUNT_OF_LIGHTMAPS = 32;
 
     public static final int NULL_LIGHT_TYPE = 0;
     public static final int DIRECTIONAL_LIGHT_TYPE = 1;
@@ -176,14 +176,13 @@ public class NProgram {
 
     public static final BetterUniformSetter VARIANT_ALPHA_TESTING;
     public static final BetterUniformSetter VARIANT_ALPHA_BLENDING;
-    public static final BetterUniformSetter VARIANT_LIGHTMAPPED_ALPHA_TESTING;
-    public static final BetterUniformSetter VARIANT_LIGHTMAPPED_ALPHA_BLENDING;
 
     private static final String VERTEX_SHADER
             = 
             """
             layout (location = VAO_INDEX_POSITION_XYZ) in vec3 vertexPosition;
             layout (location = VAO_INDEX_TEXTURE_XY) in vec2 vertexTexture;
+            layout (location = VAO_INDEX_LIGHTMAP_TEXTURE_XY) in vec2 vertexLightmapTexture;
             layout (location = VAO_INDEX_NORMAL_XYZ) in vec3 vertexNormal;
             layout (location = VAO_INDEX_TANGENT_XYZ) in vec3 vertexTangent;
             layout (location = VAO_INDEX_BONE_IDS_XYZW) in ivec4 vertexBoneIds;
@@ -196,22 +195,14 @@ public class NProgram {
             
             uniform mat4 boneMatrices[MAX_AMOUNT_OF_BONES + 1];
             
-            #if defined(VARIANT_LIGHTMAPPED_ALPHA_TESTING) || defined(VARIANT_LIGHTMAPPED_ALPHA_BLENDING)
-            uniform samplerBuffer lightmapUvs;
-            #endif
-            
             out VertexData {
                 vec3 worldPosition;
                 vec2 worldTexture;
+                vec2 worldLightmapTexture;
                 vec3 worldNormal;
-                float worldAmbientOcclusion;
                 
                 mat3 TBN;
                 vec3 tangentPosition;
-                
-                #if defined(VARIANT_LIGHTMAPPED_ALPHA_TESTING) || defined(VARIANT_LIGHTMAPPED_ALPHA_BLENDING)
-                vec2 worldLightmapUv;
-                #endif
             } outVertex;
             
             void main() {
@@ -237,14 +228,11 @@ public class NProgram {
                 
                 outVertex.worldPosition = worldPosition.xyz;
                 outVertex.worldTexture = vertexTexture;
+                outVertex.worldLightmapTexture = vertexLightmapTexture;
                 outVertex.worldNormal = normal;
-                outVertex.worldAmbientOcclusion = 1.0;
+                
                 outVertex.TBN = mat3(tangent, cross(normal, tangent), normal);
                 outVertex.tangentPosition = transpose(outVertex.TBN) * outVertex.worldPosition;
-                
-                #if defined(VARIANT_LIGHTMAPPED_ALPHA_TESTING) || defined(VARIANT_LIGHTMAPPED_ALPHA_BLENDING)
-                outVertex.worldLightmapUv = texelFetch(lightmapUvs, gl_VertexID).xy;
-                #endif
                 
                 gl_Position = projection * view * worldPosition;
             }
@@ -253,18 +241,15 @@ public class NProgram {
     private static final String FRAGMENT_SHADER
             = 
             """
-            #if defined(VARIANT_LIGHTMAPPED_ALPHA_TESTING) || defined(VARIANT_LIGHTMAPPED_ALPHA_BLENDING)
-            #define IS_LIGHTMAPPED
-            #endif
-            
-            #if defined(VARIANT_ALPHA_TESTING) || defined(VARIANT_LIGHTMAPPED_ALPHA_TESTING)
+            #if defined(VARIANT_ALPHA_TESTING)
             #define IS_ALPHA_TESTING
             #endif
             
-            #if defined(VARIANT_ALPHA_BLENDING) || defined(VARIANT_LIGHTMAPPED_ALPHA_BLENDING)
+            #if defined(VARIANT_ALPHA_BLENDING)
             #define IS_ALPHA_BLENDING
             #endif
             
+            //material textures
             uniform sampler2D r_g_b_a;
             uniform sampler2D ht_rg_mt_nx;
             uniform sampler2D er_eg_eb_ny;
@@ -272,11 +257,11 @@ public class NProgram {
             uniform bool parallaxSupported;
             uniform bool parallaxEnabled;
             
-            #ifdef IS_LIGHTMAPPED
+            //lightmaps texture
             uniform float lightmapIntensity[MAX_AMOUNT_OF_LIGHTMAPS];
             uniform sampler2DArray lightmaps;
-            #endif
             
+            //reflection cubemap
             uniform samplerCube reflectionCubemap;
             
             uniform bool reflectionsSupported;
@@ -328,15 +313,11 @@ public class NProgram {
             in VertexData {
                 vec3 worldPosition;
                 vec2 worldTexture;
+                vec2 worldLightmapTexture;
                 vec3 worldNormal;
-                float worldAmbientOcclusion;
                 
                 mat3 TBN;
                 vec3 tangentPosition;
-                
-                #ifdef IS_LIGHTMAPPED
-                vec2 worldLightmapUv;
-                #endif
             } inVertex;
             
             layout (location = 0) out vec4 outputFragColor;
@@ -428,7 +409,7 @@ public class NProgram {
                 vec3 fragPosition,
                 vec3 fragDirection,
                 vec3 normal,
-                vec3 specularColor,
+                vec3 metallicColor,
                 float roughness,
                 float metallic
             ) {
@@ -469,7 +450,7 @@ public class NProgram {
                 
                 float fresnel = (1.0 - materialRoughness) * pow(1.0 - max(dot(fragDirection, normal), 0.0), 5.0);
                 
-                vec3 metallicReflection = reflectedColor * specularColor;
+                vec3 metallicReflection = reflectedColor * metallicColor;
                 vec3 nonmetallicReflection = reflectedColor * fresnel;
                 
                 vec3 reflection = material.reflectionColor * mix(nonmetallicReflection, metallicReflection, metallic);
@@ -501,33 +482,22 @@ public class NProgram {
                 }
                 
                 vec4 rgba = texture(r_g_b_a, textureUv);
-                vec4 hrmnx = texture(ht_rg_mt_nx, textureUv);
-                vec4 eregebny = texture(er_eg_eb_ny, textureUv);
                 
                 finalColor.a = rgba.a * material.diffuseColor.a;
-                
                 #ifdef IS_ALPHA_TESTING
                 if (finalColor.a < 0.5) {
                     discard;
                 }
                 #endif
                 
+                vec4 hrmnx = texture(ht_rg_mt_nx, textureUv);
+                vec4 eregebny = texture(er_eg_eb_ny, textureUv);
+                
                 vec3 vertexNormal = normalize(inVertex.worldNormal);
-                
                 mat3 TBN = inVertex.TBN;
-                
-                vec3 normal = vec3(
-                    (hrmnx[3] * 2.0) - 1.0,
-                    (eregebny[3] * 2.0) - 1.0,
-                    0.0
-                );
-                normal = normalize(vec3(
-                    normal.x,
-                    normal.y,
-                    sqrt(1.0 - (normal.x * normal.x) - (normal.y * normal.y))
-                ));
-                
-                normal = normalize(TBN * normal);
+                float nx = (hrmnx[3] * 2.0) - 1.0;
+                float ny = (eregebny[3] * 2.0) - 1.0;
+                vec3 normal = normalize(TBN * vec3(nx, ny, sqrt(1.0 - (nx * nx) - (ny * ny))));
                 
                 float roughness = hrmnx[1];
                 float metallic = hrmnx[2];
@@ -538,7 +508,9 @@ public class NProgram {
                 float exponent = (pow((material.maxExponent - material.minExponent) + 1.0, 1.0 - roughness) - 1.0) + material.minExponent;
                 float normalizationFactor = ((exponent + 2.0) * (exponent + 4.0)) / (8.0 * PI * (pow(2.0, -exponent * 0.5) + exponent));
                 
-                vec3 diffuseColor = material.diffuseColor.rgb * rgba.rgb;
+                vec3 metallicColor = material.diffuseColor.rgb * rgba.rgb;
+                
+                vec3 diffuseColor = metallicColor;
                 vec3 specularColor = material.specularColor;
                 
                 float metallicStrength = (reflectionsEnabled ? metallic : 0.0);
@@ -551,7 +523,6 @@ public class NProgram {
                 diffuseColor *= diffuseStrength;
                 specularColor *= specularStrength;
                 
-                #ifdef IS_LIGHTMAPPED
                 float lightmapAo = (max(dot(vertexNormal, normal), 0.0) * 0.5) + 0.5;
                 int amountOfLightmaps = textureSize(lightmaps, 0).z;
                 for (int i = 0; i < amountOfLightmaps; i++) {
@@ -559,9 +530,8 @@ public class NProgram {
                     if (i < MAX_AMOUNT_OF_LIGHTMAPS) {
                         intensity = lightmapIntensity[i];
                     }
-                    finalColor.rgb += texture(lightmaps, vec3(inVertex.worldLightmapUv, float(i))).rgb * intensity * diffuseColor * lightmapAo;
+                    finalColor.rgb += texture(lightmaps, vec3(inVertex.worldLightmapTexture, float(i))).rgb * intensity * diffuseColor * lightmapAo;
                 }
-                #endif
                 
                 for (int i = 0; i < MAX_AMOUNT_OF_LIGHTS; i++) {
                     Light light = lights[i];
@@ -578,7 +548,7 @@ public class NProgram {
                 }
                 
                 if (reflectionsSupported && reflectionsEnabled) {
-                    finalColor.rgb += computeReflection(worldPosition, fragDirection, normal, specularColor, roughness, metallic);
+                    finalColor.rgb += computeReflection(worldPosition, fragDirection, normal, metallicColor, roughness, metallic);
                 }
                 
                 finalColor.rgb += eregebny.rgb * material.emissiveColor;
@@ -602,6 +572,7 @@ public class NProgram {
     private static final ProgramCompiler.ShaderConstant[] CONSTANTS = {
         new ProgramCompiler.ShaderConstant("VAO_INDEX_POSITION_XYZ", NMesh.VAO_INDEX_POSITION_XYZ),
         new ProgramCompiler.ShaderConstant("VAO_INDEX_TEXTURE_XY", NMesh.VAO_INDEX_TEXTURE_XY),
+        new ProgramCompiler.ShaderConstant("VAO_INDEX_LIGHTMAP_TEXTURE_XY", NMesh.VAO_INDEX_LIGHTMAP_TEXTURE_XY),
         new ProgramCompiler.ShaderConstant("VAO_INDEX_NORMAL_XYZ", NMesh.VAO_INDEX_NORMAL_XYZ),
         new ProgramCompiler.ShaderConstant("VAO_INDEX_TANGENT_XYZ", NMesh.VAO_INDEX_TANGENT_XYZ),
         new ProgramCompiler.ShaderConstant("VAO_INDEX_BONE_IDS_XYZW", NMesh.VAO_INDEX_BONE_IDS_XYZW),
@@ -626,16 +597,12 @@ public class NProgram {
                 new String[]{
                     "ALPHA_TESTING",
                     "ALPHA_BLENDING",
-                    "LIGHTMAPPED_ALPHA_TESTING",
-                    "LIGHTMAPPED_ALPHA_BLENDING"
                 },
                 CONSTANTS
         );
 
         VARIANT_ALPHA_TESTING = new BetterUniformSetter(programs.get("ALPHA_TESTING"));
         VARIANT_ALPHA_BLENDING = new BetterUniformSetter(programs.get("ALPHA_BLENDING"));
-        VARIANT_LIGHTMAPPED_ALPHA_TESTING = new BetterUniformSetter(programs.get("LIGHTMAPPED_ALPHA_TESTING"));
-        VARIANT_LIGHTMAPPED_ALPHA_BLENDING = new BetterUniformSetter(programs.get("LIGHTMAPPED_ALPHA_BLENDING"));
     }
 
     public static final String UNIFORM_PROJECTION = "projection";
@@ -645,7 +612,6 @@ public class NProgram {
     public static final String UNIFORM_R_G_B_A = "r_g_b_a";
     public static final String UNIFORM_HT_RG_MT_NX = "ht_rg_mt_nx";
     public static final String UNIFORM_ER_EG_EB_NY = "er_eg_eb_ny";
-    public static final String UNIFORM_LIGHTMAPS_UVS = "lightmapUvs";
     public static final String UNIFORM_LIGHTMAPS = "lightmaps";
     public static final String UNIFORM_PARALLAX_SUPPORTED = "parallaxSupported";
     public static final String UNIFORM_PARALLAX_ENABLED = "parallaxEnabled";

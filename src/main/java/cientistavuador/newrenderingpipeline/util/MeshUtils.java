@@ -235,6 +235,10 @@ public class MeshUtils {
     public static LightmapUVs.GeneratorOutput generateLightmapUVs(float[] vertices, int vertexSize, int xyzOffset, float pixelToWorldRatio, float scaleX, float scaleY, float scaleZ) {
         return LightmapUVs.generate(vertices, vertexSize, xyzOffset, pixelToWorldRatio, scaleX, scaleY, scaleZ);
     }
+    
+    public static LightmapUVs.GeneratorOutput generateLightmapUVs(float[] vertices, int vertexSize, int xyzOffset, int margin, float pixelToWorldRatio, float scaleX, float scaleY, float scaleZ) {
+        return LightmapUVs.generate(vertices, vertexSize, xyzOffset, margin, pixelToWorldRatio, scaleX, scaleY, scaleZ);
+    }
 
     public static void calculateTriangleNormal(
             float ax, float ay, float az,

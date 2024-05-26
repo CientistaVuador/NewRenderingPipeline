@@ -31,13 +31,16 @@ import cientistavuador.newrenderingpipeline.debug.AabRender;
 import cientistavuador.newrenderingpipeline.debug.LineRender;
 import cientistavuador.newrenderingpipeline.newrendering.N3DModel;
 import cientistavuador.newrenderingpipeline.newrendering.N3DModelImporter;
+import cientistavuador.newrenderingpipeline.newrendering.N3DModelNode;
 import cientistavuador.newrenderingpipeline.newrendering.N3DModelStore;
 import cientistavuador.newrenderingpipeline.newrendering.N3DObject;
 import cientistavuador.newrenderingpipeline.newrendering.N3DObjectRenderer;
 import cientistavuador.newrenderingpipeline.newrendering.NAnimator;
 import cientistavuador.newrenderingpipeline.newrendering.NCubemap;
 import cientistavuador.newrenderingpipeline.newrendering.NCubemapIO;
+import cientistavuador.newrenderingpipeline.newrendering.NGeometry;
 import cientistavuador.newrenderingpipeline.newrendering.NLight;
+import cientistavuador.newrenderingpipeline.newrendering.NMap;
 import cientistavuador.newrenderingpipeline.ubo.CameraUBO;
 import cientistavuador.newrenderingpipeline.ubo.UBOBindingPoints;
 import java.io.FileInputStream;
@@ -63,10 +66,9 @@ public class Game {
     private final FreeCamera camera = new FreeCamera();
 
     private final NCubemap cubemap;
-
+    
+    private final NMap map;
     private final N3DObject testModel;
-    private final N3DObject myBalls;
-    private final N3DObject waterBottle;
     private final N3DObject fox;
 
     private final List<NLight> lights = new ArrayList<>();
@@ -75,6 +77,27 @@ public class Game {
         try {
             this.cubemap = NCubemapIO.loadFromJar("cientistavuador/newrenderingpipeline/resources/image/generic_cubemap2.png", true, false);
 
+            List<N3DObject> mapObjects = new ArrayList<>();
+            
+            {
+                N3DModel model = N3DModelImporter.importFromJarFile("cientistavuador/newrenderingpipeline/my_metallic_balls.glb");
+
+                N3DObject myBalls = new N3DObject("my balls", model);
+                myBalls.getPosition().set(0f, 20f, -15f);
+                
+                mapObjects.add(myBalls);
+            }
+
+            {
+                N3DModel waterBottle3DModel = N3DModelImporter.importFromJarFile("cientistavuador/newrenderingpipeline/nrp.glb");
+                
+                N3DObject nrp = new N3DObject("nrp", waterBottle3DModel);
+                nrp.getPosition().set(0f, 25f, -15f);
+                nrp.getScale().set(1f);
+                
+                mapObjects.add(nrp);
+            }
+            
             {
                 N3DModel model = N3DModelImporter.importFromJarFile("cientistavuador/newrenderingpipeline/cc0_zacxophone_triceratops.glb");
 
@@ -92,23 +115,10 @@ public class Game {
                 this.testModel.getRotation().rotateY((float) Math.toRadians(-90f + -45f));
 
                 this.testModel.setAnimator(new NAnimator(model, "Armature|Armature|Fall"));
+                
+                mapObjects.add(this.testModel);
             }
-
-            {
-                N3DModel model = N3DModelImporter.importFromJarFile("cientistavuador/newrenderingpipeline/my_metallic_balls.glb");
-
-                this.myBalls = new N3DObject("test model", model);
-                this.myBalls.getPosition().set(0f, 20f, -15f);
-            }
-
-            {
-                N3DModel waterBottle3DModel = N3DModelImporter.importFromJarFile("cientistavuador/newrenderingpipeline/nrp.glb");
-
-                this.waterBottle = new N3DObject("water bottle", waterBottle3DModel);
-                this.waterBottle.getPosition().set(0f, 25f, -15f);
-                this.waterBottle.getScale().set(1f);
-            }
-
+            
             {
                 N3DModel fox3DModel = N3DModelImporter.importFromJarFile("cientistavuador/newrenderingpipeline/cc0_Fox.glb");
                 this.fox = new N3DObject("fox", fox3DModel);
@@ -117,7 +127,13 @@ public class Game {
 
                 NAnimator foxAnimator = new NAnimator(fox3DModel, "Run");
                 this.fox.setAnimator(foxAnimator);
+                
+                mapObjects.add(this.fox);
             }
+            
+            this.map = new NMap("map", mapObjects, NMap.DEFAULT_LIGHTMAP_MARGIN, 1f/0.02f);
+            
+            System.out.println(this.map.getLightmapSize());
 
             {
                 NLight.NDirectionalLight sun = new NLight.NDirectionalLight("sun");
@@ -152,11 +168,13 @@ public class Game {
         
         this.fox.getAnimator().update(Main.TPF);
         this.testModel.getAnimator().update(Main.TPF);
-
-        N3DObjectRenderer.queueRender(this.fox);
-        N3DObjectRenderer.queueRender(this.waterBottle);
-        N3DObjectRenderer.queueRender(this.myBalls);
-        N3DObjectRenderer.queueRender(this.testModel);
+        
+        for (int i = 0; i < this.map.getNumberOfObjects(); i++) {
+            N3DObjectRenderer.queueRender(this.map.getObject(i));
+        }
+        
+        //N3DObjectRenderer.queueRender(this.fox);
+        //N3DObjectRenderer.queueRender(this.testModel);
         
         N3DObjectRenderer.render(this.camera, this.lights, this.cubemap);
 

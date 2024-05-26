@@ -50,9 +50,21 @@ public class N3DModelNode {
     
     public N3DModelNode(String name, Matrix4fc transformation, NGeometry[] geometries, N3DModelNode[] children) {
         this.name = name;
-        this.transformation.set(transformation);
-        this.geometries = geometries;
-        this.children = children;
+        if (transformation != null) {
+            this.transformation.set(transformation);
+        }
+        
+        if (geometries != null) {
+            this.geometries = geometries;
+        } else {
+            this.geometries = new NGeometry[0];
+        }
+        
+        if (children != null) {
+            this.children = children;
+        } else {
+            this.children = new N3DModelNode[0];
+        }
     }
     
     protected void configure(N3DModel model, int globalId, N3DModelNode parent, int localId) {

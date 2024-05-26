@@ -56,14 +56,16 @@ public class NMesh {
 
     public static final int VAO_INDEX_POSITION_XYZ = 0;
     public static final int VAO_INDEX_TEXTURE_XY = 1;
-    public static final int VAO_INDEX_NORMAL_XYZ = 2;
-    public static final int VAO_INDEX_TANGENT_XYZ = 3;
-    public static final int VAO_INDEX_BONE_IDS_XYZW = 4;
-    public static final int VAO_INDEX_BONE_WEIGHTS_XYZW = 5;
+    public static final int VAO_INDEX_LIGHTMAP_TEXTURE_XY = 2;
+    public static final int VAO_INDEX_NORMAL_XYZ = 3;
+    public static final int VAO_INDEX_TANGENT_XYZ = 4;
+    public static final int VAO_INDEX_BONE_IDS_XYZW = 5;
+    public static final int VAO_INDEX_BONE_WEIGHTS_XYZW = 6;
 
     public static final int OFFSET_POSITION_XYZ = 0;
     public static final int OFFSET_TEXTURE_XY = OFFSET_POSITION_XYZ + 3;
-    public static final int OFFSET_NORMAL_XYZ = OFFSET_TEXTURE_XY + 2;
+    public static final int OFFSET_LIGHTMAP_TEXTURE_XY = OFFSET_TEXTURE_XY + 2;
+    public static final int OFFSET_NORMAL_XYZ = OFFSET_LIGHTMAP_TEXTURE_XY + 2;
     public static final int OFFSET_TANGENT_XYZ = OFFSET_NORMAL_XYZ + 3;
     public static final int OFFSET_BONE_IDS_XYZW = OFFSET_TANGENT_XYZ + 3;
     public static final int OFFSET_BONE_WEIGHTS_XYZW = OFFSET_BONE_IDS_XYZW + 4;
@@ -84,9 +86,7 @@ public class NMesh {
     private final float[] vertices;
     private final int[] indices;
     private final String[] bones;
-
-    private final boolean lightmapped;
-
+    
     private final Vector3f aabbMin = new Vector3f();
     private final Vector3f aabbMax = new Vector3f();
     private final Vector3f aabbCenter = new Vector3f();
@@ -128,16 +128,7 @@ public class NMesh {
             throw new IllegalArgumentException("Max amount of bones per mesh is " + MAX_AMOUNT_OF_BONES);
         }
         this.bones = bones;
-
-        boolean lightmap = true;
-        for (int i = 0; i < this.indices.length; i++) {
-            if (this.indices[i] != i) {
-                lightmap = false;
-                break;
-            }
-        }
-        this.lightmapped = lightmap;
-
+        
         if (min == null || max == null) {
             MeshUtils.aabb(this.vertices,
                     NMesh.VERTEX_SIZE,
@@ -248,11 +239,7 @@ public class NMesh {
     public String getBone(int index) {
         return this.bones[index];
     }
-
-    public boolean isLightmapped() {
-        return lightmapped;
-    }
-
+    
     public Vector3fc getAabbMin() {
         return aabbMin;
     }
@@ -309,7 +296,10 @@ public class NMesh {
 
         glEnableVertexAttribArray(VAO_INDEX_TEXTURE_XY);
         glVertexAttribPointer(VAO_INDEX_TEXTURE_XY, 2, GL_FLOAT, false, VERTEX_SIZE * Float.BYTES, OFFSET_TEXTURE_XY * Float.BYTES);
-
+        
+        glEnableVertexAttribArray(VAO_INDEX_LIGHTMAP_TEXTURE_XY);
+        glVertexAttribPointer(VAO_INDEX_LIGHTMAP_TEXTURE_XY, 2, GL_FLOAT, false, VERTEX_SIZE * Float.BYTES, OFFSET_LIGHTMAP_TEXTURE_XY * Float.BYTES);
+        
         glEnableVertexAttribArray(VAO_INDEX_NORMAL_XYZ);
         glVertexAttribPointer(VAO_INDEX_NORMAL_XYZ, 3, GL_FLOAT, false, VERTEX_SIZE * Float.BYTES, OFFSET_NORMAL_XYZ * Float.BYTES);
 

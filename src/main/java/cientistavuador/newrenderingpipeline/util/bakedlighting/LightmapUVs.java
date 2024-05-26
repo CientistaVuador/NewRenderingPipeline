@@ -41,9 +41,16 @@ import org.joml.Vector4i;
 
 /**
  * is this o(n^3)?
+ *
  * @author Cien
  */
 public class LightmapUVs {
+
+    private static final float EPSILON = 0.001f;
+    private static final int VERTEX_SIZE = 3;
+    public static final int DEFAULT_MARGIN = 1;
+    private static final int OPTIMIZATION_TRIGGER = 1024;
+    public static volatile boolean MAINTAIN_ROTATION = false;
 
     public static class LightmapperQuad {
 
@@ -114,8 +121,12 @@ public class LightmapUVs {
 
     }
 
+    public static GeneratorOutput generate(float[] vertices, int vertexSize, int xyzOffset, int margin, float pixelToWorldRatio, float scaleX, float scaleY, float scaleZ) {
+        return new LightmapUVs(vertices, vertexSize, xyzOffset, margin, pixelToWorldRatio, scaleX, scaleY, scaleZ).process();
+    }
+
     public static GeneratorOutput generate(float[] vertices, int vertexSize, int xyzOffset, float pixelToWorldRatio, float scaleX, float scaleY, float scaleZ) {
-        return new LightmapUVs(vertices, vertexSize, xyzOffset, pixelToWorldRatio, scaleX, scaleY, scaleZ).process();
+        return new LightmapUVs(vertices, vertexSize, xyzOffset, DEFAULT_MARGIN, pixelToWorldRatio, scaleX, scaleY, scaleZ).process();
     }
 
     private class Vertex {
@@ -221,14 +232,9 @@ public class LightmapUVs {
         public QuadBVH right;
         public Quad value;
     }
-
-    private static final float EPSILON = 0.001f;
-    private static final int VERTEX_SIZE = 3;
-    public static final int MARGIN = 1;
-    private static final int OPTIMIZATION_TRIGGER = 1024;
-    public static volatile boolean MAINTAIN_ROTATION = false;
-
+    
     private final float[] vertices;
+    private final int margin;
     private final float pixelToWorldRatio;
 
     private final Map<Vertex, List<Vertex>> mappedVertices = new HashMap<>();
@@ -245,7 +251,7 @@ public class LightmapUVs {
     private final List<LightmapperQuad> lightmapperQuads = new ArrayList<>();
     private final boolean maintainRotation;
 
-    private LightmapUVs(float[] vertices, int vertexSize, int xyzOffset, float pixelToWorldRatio, float scaleX, float scaleY, float scaleZ) {
+    private LightmapUVs(float[] vertices, int vertexSize, int xyzOffset, int margin, float pixelToWorldRatio, float scaleX, float scaleY, float scaleZ) {
         this.vertices = new float[(vertices.length / vertexSize) * VERTEX_SIZE];
         for (int v = 0; v < vertices.length; v += vertexSize) {
             int vertex = v / vertexSize;
@@ -254,6 +260,7 @@ public class LightmapUVs {
             this.vertices[(vertex * VERTEX_SIZE) + 1] = vertices[vxyz + 1] * scaleY;
             this.vertices[(vertex * VERTEX_SIZE) + 2] = vertices[vxyz + 2] * scaleZ;
         }
+        this.margin = margin;
         this.pixelToWorldRatio = pixelToWorldRatio;
         this.maintainRotation = MAINTAIN_ROTATION;
     }
@@ -381,13 +388,13 @@ public class LightmapUVs {
         float normalX = outNormal.x();
         float normalY = outNormal.y();
         float normalZ = outNormal.z();
-        
+
         if (!outNormal.isFinite()) {
             return null;
         }
-        
+
         Face face = new Face();
-        
+
         Set<Integer> ignoreSet = new HashSet<>();
         Vector4i edgeTriangle = new Vector4i();
 
@@ -644,8 +651,8 @@ public class LightmapUVs {
             quad.face = face;
             quad.width = (int) (Math.ceil(face.width));
             quad.height = (int) (Math.ceil(face.height));
-            quad.width += (MARGIN * 2);
-            quad.height += (MARGIN * 2);
+            quad.width += (this.margin * 2);
+            quad.height += (this.margin * 2);
 
             float moveCenterX = (quad.width - face.width) / 2f;
             float moveCenterY = (quad.height - face.height) / 2f;

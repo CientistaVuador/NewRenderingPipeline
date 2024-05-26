@@ -1602,7 +1602,7 @@ public class BakedLighting {
             }
         };
 
-        MarginAutomata.generateMargin(io, 3 + LightmapUVs.MARGIN);
+        MarginAutomata.generateMargin(io, 3 + LightmapUVs.DEFAULT_MARGIN);
     }
 
     private void outputLightmap() {

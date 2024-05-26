@@ -271,36 +271,17 @@ public class NTextures {
             int texture = glGenTextures();
             glBindTexture(GL_TEXTURE_2D, texture);
 
-            if (Main.isSupported(4, 2)) {
-                GL42C.glTexStorage2D(
-                        GL_TEXTURE_2D,
-                        mipLevels,
-                        internalFormat,
-                        this.width,
-                        this.height
-                );
-                glTexSubImage2D(
-                        GL_TEXTURE_2D,
-                        0,
-                        0, 0,
-                        this.width, this.height,
-                        GL_RGBA,
-                        GL_UNSIGNED_BYTE,
-                        textureBuffer
-                );
-            } else {
-                glTexImage2D(
-                        GL_TEXTURE_2D,
-                        0,
-                        internalFormat,
-                        this.width,
-                        this.height,
-                        0,
-                        GL_RGBA,
-                        GL_UNSIGNED_BYTE,
-                        textureBuffer
-                );
-            }
+            glTexImage2D(
+                    GL_TEXTURE_2D,
+                    0,
+                    internalFormat,
+                    this.width,
+                    this.height,
+                    0,
+                    GL_RGBA,
+                    GL_UNSIGNED_BYTE,
+                    textureBuffer
+            );
 
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 

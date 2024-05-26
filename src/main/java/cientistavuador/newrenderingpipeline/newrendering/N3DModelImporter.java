@@ -811,7 +811,7 @@ public class N3DModelImporter {
 
                 vertices[verticesIndex + NMesh.OFFSET_TEXTURE_XY + 0] = texX;
                 vertices[verticesIndex + NMesh.OFFSET_TEXTURE_XY + 1] = texY;
-
+                
                 vertices[verticesIndex + NMesh.OFFSET_NORMAL_XYZ + 0] = norX;
                 vertices[verticesIndex + NMesh.OFFSET_NORMAL_XYZ + 1] = norY;
                 vertices[verticesIndex + NMesh.OFFSET_NORMAL_XYZ + 2] = norZ;

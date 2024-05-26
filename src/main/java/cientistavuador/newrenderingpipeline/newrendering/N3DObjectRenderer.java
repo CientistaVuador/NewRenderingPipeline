@@ -444,7 +444,9 @@ public class N3DObjectRenderer {
         NMesh lastMesh = null;
         NAnimator lastAnimator = null;
         N3DObject lastFresnel = null;
-
+        
+        Matrix3f normalMatrix = new Matrix3f();
+        
         for (ToRender render : list) {
             N3DModel n3dmodel = render.obj.getN3DModel();
 
@@ -505,7 +507,7 @@ public class N3DObjectRenderer {
                 );
                 BetterUniformSetter.uniformMatrix3fv(
                         variant.locationOf(NProgram.UNIFORM_NORMAL_MODEL),
-                        new Matrix3f().set(new Matrix4f().set(transformation).invert().transpose())
+                        transformation.normal(normalMatrix)
                 );
                 lastTransformation = transformation;
             }

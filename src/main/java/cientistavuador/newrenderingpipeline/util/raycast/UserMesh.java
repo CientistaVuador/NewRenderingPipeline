@@ -36,13 +36,13 @@ import org.joml.Vector3f;
  * @author Cien
  */
 public class UserMesh {
-    
+
     public static final int USER_INDEX_OFFSET = 0;
     public static final int VERTEX_INDEX_OFFSET = USER_INDEX_OFFSET + 1;
     public static final int XYZ_OFFSET = VERTEX_INDEX_OFFSET + 1;
-    
+
     public static final int VERTEX_SIZE = XYZ_OFFSET + 3;
-    
+
     public static UserMesh create(
             float[][] verticesArray,
             int[][] indicesArray,
@@ -52,42 +52,43 @@ public class UserMesh {
             int xyzOffset
     ) {
         if (verticesArray.length != indicesArray.length
-                || verticesArray.length != transformations.length
-                || verticesArray.length != userData.length
-                ) {
+                || (transformations != null && verticesArray.length != transformations.length)
+                || verticesArray.length != userData.length) {
             throw new IllegalArgumentException("Arrays differ in size!");
         }
-        
+
         int totalVertices = 0;
-        for (int[] indices:indicesArray) {
+        for (int[] indices : indicesArray) {
             totalVertices += indices.length;
         }
-        
+
         float[] resultVertices = new float[totalVertices * UserMesh.VERTEX_SIZE];
         int resultVerticesIndex = 0;
-        
+
         Vector3f transformed = new Vector3f();
-        
+
         for (int userIndex = 0; userIndex < indicesArray.length; userIndex++) {
             float[] vertices = verticesArray[userIndex];
-            
+
             float userIndexFloat = Float.intBitsToFloat(userIndex);
-            for (int vertexIndex:indicesArray[userIndex]) {
+            for (int vertexIndex : indicesArray[userIndex]) {
                 float vertexIndexFloat = Float.intBitsToFloat(vertexIndex);
-                
+
                 float x = vertices[(vertexIndex * vertexSize) + xyzOffset + 0];
                 float y = vertices[(vertexIndex * vertexSize) + xyzOffset + 1];
                 float z = vertices[(vertexIndex * vertexSize) + xyzOffset + 2];
-                
+
                 transformed.set(x, y, z);
-                Matrix4fc transformation = transformations[userIndex];
-                if (transformation != null) {
-                    transformation.transformProject(transformed);
+                if (transformations != null) {
+                    Matrix4fc transformation = transformations[userIndex];
+                    if (transformation != null) {
+                        transformation.transformProject(transformed);
+                    }
                 }
                 x = transformed.x();
                 y = transformed.y();
                 z = transformed.z();
-                
+
                 resultVertices[resultVerticesIndex + UserMesh.USER_INDEX_OFFSET + 0] = userIndexFloat;
                 resultVertices[resultVerticesIndex + UserMesh.VERTEX_INDEX_OFFSET + 0] = vertexIndexFloat;
                 resultVertices[resultVerticesIndex + UserMesh.XYZ_OFFSET + 0] = x;
@@ -96,19 +97,19 @@ public class UserMesh {
                 resultVerticesIndex += UserMesh.VERTEX_SIZE;
             }
         }
-        
+
         Pair<float[], int[]> pair = MeshUtils.generateIndices(resultVertices, UserMesh.VERTEX_SIZE);
-        
+
         float[] finalVertices = pair.getA();
         int[] finalIndices = pair.getB();
-        
+
         return new UserMesh(finalVertices, finalIndices, userData.clone());
     }
-    
+
     private final float[] vertices;
     private final int[] indices;
     private final Object[] userData;
-    
+
     private UserMesh(
             float[] vertices,
             int[] indices,
@@ -130,5 +131,5 @@ public class UserMesh {
     public Object[] getUserData() {
         return userData;
     }
-    
+
 }

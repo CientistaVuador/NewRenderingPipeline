@@ -161,17 +161,27 @@ public class N3DObject {
     }
 
     public void calculateModelMatrix(Matrix4f outputModelMatrix, Camera camera) {
+        double camX = 0.0;
+        double camY = 0.0;
+        double camZ = 0.0;
+        
+        if (camera != null) {
+            camX = camera.getPosition().x();
+            camY = camera.getPosition().y();
+            camZ = camera.getPosition().z();
+        }
+        
         outputModelMatrix
                 .identity()
                 .translate(
-                        (float) (getPosition().x() - camera.getPosition().x()),
-                        (float) (getPosition().y() - camera.getPosition().y()),
-                        (float) (getPosition().z() - camera.getPosition().z())
+                        (float) (getPosition().x() - camX),
+                        (float) (getPosition().y() - camY),
+                        (float) (getPosition().z() - camZ)
                 )
                 .rotate(getRotation())
                 .scale(getScale());
 
-        if (isBillboardEnabled()) {
+        if (camera != null && isBillboardEnabled()) {
             outputModelMatrix.mul(camera.getInverseView());
         }
 
