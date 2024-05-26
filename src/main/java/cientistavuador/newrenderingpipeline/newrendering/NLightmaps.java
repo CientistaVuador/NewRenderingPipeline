@@ -47,8 +47,8 @@ import org.lwjgl.opengl.KHRDebug;
 public class NLightmaps {
 
     public static final NLightmaps NULL_LIGHTMAPS = new NLightmaps(
-            "null lightmaps",
-            new String[]{"none"},
+            "Empty/Null Lightmaps",
+            new String[]{"None"},
             new float[]{0f, 0f, 0f},
             1, 1,
             0
@@ -93,7 +93,7 @@ public class NLightmaps {
         }
 
         Set<String> nameSet = new HashSet<>();
-        for (int i = 0; i < lightmaps.length; i++) {
+        for (int i = 0; i < names.length; i++) {
             if (names[i] == null) {
                 throw new IllegalArgumentException("Lightmap at index " + i + " has a null name");
             }
@@ -109,10 +109,10 @@ public class NLightmaps {
         this.width = width;
         this.height = height;
         this.margin = margin;
-        for (int i = 0; i < this.lightmaps.length; i++) {
+        for (int i = 0; i < this.names.length; i++) {
             this.nameMap.put(this.names[i], i);
         }
-        this.intensities = new float[this.lightmaps.length];
+        this.intensities = new float[this.names.length];
         for (int i = 0; i < this.intensities.length; i++) {
             this.intensities[i] = 1f;
         }
@@ -203,6 +203,8 @@ public class NLightmaps {
                 Math.log(this.margin) / Math.log(2.0)
         );
         
+        glActiveTexture(GL_TEXTURE0);
+        
         int lightmap = glGenTextures();
         glBindTexture(GL_TEXTURE_2D_ARRAY, lightmap);
         glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, internalFormat, this.width, this.height, this.names.length, 0, GL_RGB, GL_FLOAT, this.lightmaps);
@@ -228,7 +230,7 @@ public class NLightmaps {
         this.lightmapTexture.texture = lightmap;
     }
 
-    public int lightmap() {
+    public int lightmaps() {
         validate();
         return this.lightmapTexture.texture;
     }

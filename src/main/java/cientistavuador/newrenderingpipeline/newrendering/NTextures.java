@@ -40,7 +40,6 @@ import org.lwjgl.opengl.GL;
 import org.lwjgl.opengl.KHRDebug;
 import org.lwjgl.system.MemoryUtil;
 import static org.lwjgl.opengl.GL33C.*;
-import org.lwjgl.opengl.GL42C;
 
 /**
  *
@@ -72,7 +71,7 @@ public class NTextures {
                 }
             }
         }
-
+        
         byte[] nullTextureData = new byte[nullTexturePixels.length * 4];
         for (int i = 0; i < nullTexturePixels.length; i++) {
             int pixel = nullTexturePixels[i];
@@ -261,13 +260,6 @@ public class NTextures {
                 .put(textureData)
                 .flip();
         try {
-            int mipLevels = (int) Math.abs(
-                    Math.log(Math.max(this.width, this.height)) / Math.log(2.0)
-            ) + 1;
-            if (NBlendingMode.ALPHA_TESTING.equals(this.blendingMode)) {
-                mipLevels = 1;
-            }
-
             int texture = glGenTextures();
             glBindTexture(GL_TEXTURE_2D, texture);
 

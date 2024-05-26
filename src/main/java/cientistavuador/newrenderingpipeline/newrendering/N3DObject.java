@@ -65,6 +65,7 @@ public class N3DObject {
     private final WrappedQueryObject queryObject = new WrappedQueryObject();
 
     private NAnimator animator = null;
+    private NLightmaps lightmaps = NLightmaps.NULL_LIGHTMAPS;
 
     public N3DObject(String name, N3DModel n3DModel) {
         this.name = name;
@@ -208,6 +209,17 @@ public class N3DObject {
 
     public void setAnimator(NAnimator animator) {
         this.animator = animator;
+    }
+
+    public NLightmaps getLightmaps() {
+        return lightmaps;
+    }
+
+    public void setLightmaps(NLightmaps lightmaps) {
+        if (lightmaps == null) {
+            lightmaps = NLightmaps.NULL_LIGHTMAPS;
+        }
+        this.lightmaps = lightmaps;
     }
 
 }

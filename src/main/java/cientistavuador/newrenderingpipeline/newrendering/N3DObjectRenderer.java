@@ -400,10 +400,10 @@ public class N3DObjectRenderer {
 
         int skyboxCubemap = skybox.cubemap();
 
-        glActiveTexture(GL_TEXTURE3);
+        glActiveTexture(GL_TEXTURE5);
         glBindTexture(GL_TEXTURE_CUBE_MAP, skyboxCubemap);
 
-        glUniform1i(variant.locationOf(NProgram.UNIFORM_REFLECTION_CUBEMAP), 3);
+        glUniform1i(variant.locationOf(NProgram.UNIFORM_REFLECTION_CUBEMAP), 5);
 
         float width = 20f;
         float height = 5f;
@@ -426,9 +426,10 @@ public class N3DObjectRenderer {
             NProgram.sendLight(variant, lights[i], i);
         }
 
-        glUniform1i(variant.locationOf(NProgram.UNIFORM_R_G_B_A), 0);
-        glUniform1i(variant.locationOf(NProgram.UNIFORM_HT_RG_MT_NX), 1);
-        glUniform1i(variant.locationOf(NProgram.UNIFORM_ER_EG_EB_NY), 2);
+        glUniform1i(variant.locationOf(NProgram.UNIFORM_R_G_B_A), 1);
+        glUniform1i(variant.locationOf(NProgram.UNIFORM_HT_RG_MT_NX), 2);
+        glUniform1i(variant.locationOf(NProgram.UNIFORM_ER_EG_EB_NY), 3);
+        glUniform1i(variant.locationOf(NProgram.UNIFORM_LIGHTMAPS), 4);
 
         render(variant, toRender);
 
@@ -437,7 +438,8 @@ public class N3DObjectRenderer {
 
     private static void render(BetterUniformSetter variant, List<ToRender> list) {
         Matrix4f transformedBone = new Matrix4f();
-
+        
+        NLightmaps lastLightmaps = null;
         NMaterial lastMaterial = null;
         NTextures lastTextures = null;
         Matrix4fc lastTransformation = null;
@@ -449,14 +451,15 @@ public class N3DObjectRenderer {
         
         for (ToRender render : list) {
             N3DModel n3dmodel = render.obj.getN3DModel();
-
+            
             NMaterial material = render.geometry.getMaterial();
             NTextures textures = material.getTextures();
             Matrix4f transformation = render.transformation;
             NMesh mesh = render.geometry.getMesh();
             NAnimator animator = render.obj.getAnimator();
+            NLightmaps lightmaps = render.obj.getLightmaps();
             N3DObject fresnel = render.obj;
-
+            
             if (animator != null) {
                 transformation = render.model;
             }
@@ -477,19 +480,32 @@ public class N3DObjectRenderer {
                 ));
                 lastMaterial = material;
             }
-
+            
+            if (lastLightmaps != lightmaps) {
+                int maps = lightmaps.lightmaps();
+                
+                glActiveTexture(GL_TEXTURE4);
+                glBindTexture(GL_TEXTURE_2D_ARRAY, maps);
+                
+                for (int i = 0; i < lightmaps.getNumberOfLightmaps(); i++) {
+                    NProgram.sendLightmapIntensity(variant, lightmaps.getIntensity(i), i);
+                }
+                
+                lastLightmaps = lightmaps;
+            }
+            
             if (!textures.equals(lastTextures)) {
                 int r_g_b_a = textures.r_g_b_a();
                 int ht_ie_rf_nx = textures.ht_rg_mt_nx();
                 int er_eg_eb_ny = textures.er_eg_eb_ny();
 
-                glActiveTexture(GL_TEXTURE0);
+                glActiveTexture(GL_TEXTURE1);
                 glBindTexture(GL_TEXTURE_2D, r_g_b_a);
 
-                glActiveTexture(GL_TEXTURE1);
+                glActiveTexture(GL_TEXTURE2);
                 glBindTexture(GL_TEXTURE_2D, ht_ie_rf_nx);
 
-                glActiveTexture(GL_TEXTURE2);
+                glActiveTexture(GL_TEXTURE3);
                 glBindTexture(GL_TEXTURE_2D, er_eg_eb_ny);
 
                 glUniform1i(
@@ -499,7 +515,7 @@ public class N3DObjectRenderer {
 
                 lastTextures = textures;
             }
-
+            
             if (!transformation.equals(lastTransformation)) {
                 BetterUniformSetter.uniformMatrix4fv(
                         variant.locationOf(NProgram.UNIFORM_MODEL),
@@ -547,9 +563,9 @@ public class N3DObjectRenderer {
                 );
                 lastFresnel = fresnel;
             }
-
+            
             glDrawElements(GL_TRIANGLES, mesh.getIndices().length, GL_UNSIGNED_INT, 0);
-
+            
             Main.NUMBER_OF_DRAWCALLS++;
             Main.NUMBER_OF_VERTICES += mesh.getIndices().length;
         }
