@@ -216,8 +216,8 @@ public class Scene {
     }
     
     private float pixelToWorldRatio = 6f;
-    
     private final List<Geometry> geometries = new ArrayList<>();
+    
     private final List<Light> lights = new ArrayList<>();
 
     private SamplingMode samplingMode = SamplingMode.SAMPLE_9;
@@ -235,7 +235,7 @@ public class Scene {
     private float indirectLightingBlurArea = 4f;
     private float indirectLightReflectionFactor = 1f;
 
-    private float rayOffset = 0.001f;
+    private float rayOffset = 0.003f;
     private boolean fillDisabledValuesWithLightColors = false;
 
     private boolean fastModeEnabled = false;

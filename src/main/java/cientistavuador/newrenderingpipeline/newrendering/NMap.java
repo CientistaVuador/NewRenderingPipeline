@@ -30,6 +30,7 @@ import cientistavuador.newrenderingpipeline.util.MeshUtils;
 import cientistavuador.newrenderingpipeline.util.Pair;
 import cientistavuador.newrenderingpipeline.util.bakedlighting.LightmapUVs;
 import cientistavuador.newrenderingpipeline.util.raycast.UserMesh;
+import java.awt.Rectangle;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -37,6 +38,7 @@ import java.util.List;
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
+import org.joml.primitives.Rectanglei;
 
 /**
  *
@@ -56,7 +58,7 @@ public class NMap {
     private final int lightmapMargin;
     private final float lightmapPixelToWorldRatio;
     private final int lightmapSize;
-    private final LightmapUVs.LightmapperQuad[] lightmapperQuads;
+    private final Rectanglei[] lightmapRectangles;
     
     private final UserMesh userMesh;
     
@@ -178,7 +180,16 @@ public class NMap {
         );
         
         this.lightmapSize = output.getLightmapSize();
-        this.lightmapperQuads = output.getQuads();
+        
+        LightmapUVs.LightmapperQuad[] quads = output.getQuads();
+        this.lightmapRectangles = new Rectanglei[quads.length];
+        for (int i = 0; i < this.lightmapRectangles.length; i++) {
+            LightmapUVs.LightmapperQuad quad = quads[i];
+            this.lightmapRectangles[i] = new Rectanglei(
+                    quad.getX(), quad.getY(),
+                    quad.getX() + quad.getWidth(), quad.getY() + quad.getHeight()
+            );
+        }
         
         float[] uvs = output.getUVs();
         for (int i = 0; i < transformedVertices.length; i += NMesh.VERTEX_SIZE) {
@@ -267,10 +278,14 @@ public class NMap {
         return lightmapSize;
     }
     
-    public LightmapUVs.LightmapperQuad[] getLightmapperQuads() {
-        return lightmapperQuads;
+    public int getNumberOfLightmapRectangles() {
+        return this.lightmapRectangles.length;
     }
-
+    
+    public Rectanglei getLightmapRectangle(int index) {
+        return this.lightmapRectangles[index];
+    }
+    
     public UserMesh getUserMesh() {
         return userMesh;
     }
