@@ -26,7 +26,9 @@
  */
 package cientistavuador.newrenderingpipeline.util.bakedlighting;
 
+import cientistavuador.newrenderingpipeline.resources.mesh.MeshData;
 import cientistavuador.newrenderingpipeline.util.MeshUtils;
+import cientistavuador.newrenderingpipeline.util.RasterUtils;
 import cientistavuador.newrenderingpipeline.util.raycast.BVH;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -34,6 +36,7 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import org.joml.Vector3f;
+import org.joml.Vector3fc;
 import org.joml.primitives.Rectanglei;
 
 /**
@@ -198,12 +201,11 @@ public class Lightmapper {
 
     public static volatile int NUMBER_OF_THREADS = Runtime.getRuntime().availableProcessors();
     public static final int IGNORE_TRIGGER = 32;
-    
+
     private static final int EMPTY = 0;
-    private static final int FILLED = 1;
-    private static final int IGNORE_SHADOW = 2;
-    private static final int IGNORE_AMBIENT = 3;
-    private static final int IGNORE_SHADOW_AND_AMBIENT = 4;
+    private static final int FILLED = 0b00000001;
+    private static final int IGNORE_SHADOW = 0b00000010;
+    private static final int IGNORE_AMBIENT = 0b00000100;
 
     //lightmapper geometry/scene state
     private final Scene scene;
@@ -219,10 +221,10 @@ public class Lightmapper {
     //lightmapper lightmaps
     private final Lightmap[] lightmaps;
 
-    //mesh buffers
+    //barycentric buffers
     private final Float3ImageBuffer weights;
     private final IntegerImageBuffer triangles;
-    private final IntegerImageBuffer samples;
+    private final IntegerImageBuffer sampleStates;
 
     //threads
     private ExecutorService service = null;
@@ -279,7 +281,7 @@ public class Lightmapper {
 
         this.weights = new Float3ImageBuffer(lightmapSize, this.scene.getSamplingMode().numSamples());
         this.triangles = new IntegerImageBuffer(lightmapSize, this.scene.getSamplingMode().numSamples());
-        this.samples = new IntegerImageBuffer(lightmapSize, this.scene.getSamplingMode().numSamples());
+        this.sampleStates = new IntegerImageBuffer(lightmapSize, this.scene.getSamplingMode().numSamples());
     }
 
     private int clamp(int v, int min, int max) {
@@ -291,30 +293,31 @@ public class Lightmapper {
         }
         return v;
     }
-    
+
     private class RectangleBVH {
+
         Rectanglei rectangle;
         RectangleBVH left;
         RectangleBVH right;
     }
-    
+
     private RectangleBVH buildRectangleBVH() {
         RectangleBVH[] current = new RectangleBVH[this.lightmapRectangles.length];
         int currentLength = current.length;
-        
+
         for (int i = 0; i < current.length; i++) {
             RectangleBVH bvh = new RectangleBVH();
             bvh.rectangle = this.lightmapRectangles[i];
             current[i] = bvh;
         }
-        
+
         RectangleBVH[] next = new RectangleBVH[current.length];
         int nextIndex = 0;
 
         while (currentLength != 1) {
             for (int i = 0; i < currentLength; i++) {
                 RectangleBVH bvh = current[i];
-                
+
                 if (bvh == null) {
                     continue;
                 }
@@ -332,7 +335,7 @@ public class Lightmapper {
                 int closestIndex = 0;
                 for (int j = 0; j < currentLength; j++) {
                     RectangleBVH other = current[j];
-                    
+
                     if (i == j) {
                         continue;
                     }
@@ -343,7 +346,7 @@ public class Lightmapper {
 
                     float otherCenterX = ((other.rectangle.minX + 0.5f) * 0.5f) + ((other.rectangle.maxX + 0.5f) * 0.5f);
                     float otherCenterY = ((other.rectangle.minY + 0.5f) * 0.5f) + ((other.rectangle.maxY + 0.5f) * 0.5f);
-                    
+
                     float dX = centerX - otherCenterX;
                     float dY = centerY - otherCenterY;
 
@@ -383,16 +386,16 @@ public class Lightmapper {
 
         return current[0];
     }
-    
+
     private RectangleBVH rectangleOfPixel(RectangleBVH root, int x, int y) {
         if (root == null) {
             return null;
         }
-        
+
         if (root.rectangle.containsPoint(x, y)) {
             RectangleBVH left = rectangleOfPixel(root.left, x, y);
             RectangleBVH right = rectangleOfPixel(root.right, x, y);
-            
+
             if (left != null && right != null) {
                 int minLeft = Math.min(left.left.rectangle.lengthX(), left.left.rectangle.lengthY());
                 int minRight = Math.min(left.right.rectangle.lengthX(), left.right.rectangle.lengthY());
@@ -402,7 +405,7 @@ public class Lightmapper {
                     return right;
                 }
             }
-            
+
             if (left != null) {
                 return left;
             } else if (right != null) {
@@ -411,31 +414,53 @@ public class Lightmapper {
                 return root;
             }
         }
-        
+
         return null;
     }
-    
-    private void rasterize() {
+
+    private float lerp(Vector3fc weights, int triangle, int offset) {
+        float va  = this.mesh[triangle + (VERTEX_SIZE * 0) + offset];
+        float vb = this.mesh[triangle + (VERTEX_SIZE * 1) + offset];
+        float vc = this.mesh[triangle + (VERTEX_SIZE * 2) + offset];
+        return (va  * weights.x()) + (vb * weights.y()) + (vc * weights.z());
+    }
+
+    private void rasterizeBarycentricBuffers() {
         RectangleBVH rectangleBvh = buildRectangleBVH();
-        
+
+        Vector3f samplePosition = new Vector3f();
+
         Vector3f a = new Vector3f();
         Vector3f b = new Vector3f();
         Vector3f c = new Vector3f();
-        
-        for (int i = 0; i < this.mesh.length; i += VERTEX_SIZE * 3) {
-            float v0x = this.mesh[i + (VERTEX_SIZE * 0) + OFFSET_LIGHTMAP_XY + 0] * this.lightmapSize;
-            float v0y = this.mesh[i + (VERTEX_SIZE * 0) + OFFSET_LIGHTMAP_XY + 1] * this.lightmapSize;
 
-            float v1x = this.mesh[i + (VERTEX_SIZE * 1) + OFFSET_LIGHTMAP_XY + 0] * this.lightmapSize;
-            float v1y = this.mesh[i + (VERTEX_SIZE * 1) + OFFSET_LIGHTMAP_XY + 1] * this.lightmapSize;
+        Vector3f sampleWeights = new Vector3f();
 
-            float v2x = this.mesh[i + (VERTEX_SIZE * 2) + OFFSET_LIGHTMAP_XY + 0] * this.lightmapSize;
-            float v2y = this.mesh[i + (VERTEX_SIZE * 2) + OFFSET_LIGHTMAP_XY + 1] * this.lightmapSize;
+        Vector3f position = new Vector3f();
+        Vector3f normal = new Vector3f();
+
+        SamplingMode mode = this.scene.getSamplingMode();
+
+        for (int triangle = 0; triangle < this.mesh.length; triangle += VERTEX_SIZE * 3) {
+            normal.set(
+                    this.mesh[triangle + OFFSET_TRIANGLE_NORMAL_XYZ + 0],
+                    this.mesh[triangle + OFFSET_TRIANGLE_NORMAL_XYZ + 1],
+                    this.mesh[triangle + OFFSET_TRIANGLE_NORMAL_XYZ + 2]
+            );
+
+            float v0x = this.mesh[triangle + (VERTEX_SIZE * 0) + OFFSET_LIGHTMAP_XY + 0] * this.lightmapSize;
+            float v0y = this.mesh[triangle + (VERTEX_SIZE * 0) + OFFSET_LIGHTMAP_XY + 1] * this.lightmapSize;
+
+            float v1x = this.mesh[triangle + (VERTEX_SIZE * 1) + OFFSET_LIGHTMAP_XY + 0] * this.lightmapSize;
+            float v1y = this.mesh[triangle + (VERTEX_SIZE * 1) + OFFSET_LIGHTMAP_XY + 1] * this.lightmapSize;
+
+            float v2x = this.mesh[triangle + (VERTEX_SIZE * 2) + OFFSET_LIGHTMAP_XY + 0] * this.lightmapSize;
+            float v2y = this.mesh[triangle + (VERTEX_SIZE * 2) + OFFSET_LIGHTMAP_XY + 1] * this.lightmapSize;
 
             a.set(v0x, v0y, 0f);
             b.set(v1x, v1y, 0f);
             c.set(v2x, v2y, 0f);
-            
+
             int minX = (int) Math.floor(Math.min(v0x, Math.min(v1x, v2x))) - 1;
             int minY = (int) Math.floor(Math.min(v0y, Math.min(v1y, v2y))) - 1;
             int maxX = (int) Math.ceil(Math.max(v0x, Math.max(v1x, v2x))) + 1;
@@ -445,13 +470,65 @@ public class Lightmapper {
             minY = clamp(minY, 0, this.lightmapSize - 1);
             maxX = clamp(maxX, 0, this.lightmapSize - 1);
             maxY = clamp(maxY, 0, this.lightmapSize - 1);
-            
+
+            raster:
             for (int y = minY; y < maxY; y++) {
                 for (int x = minX; x < maxX; x++) {
                     RectangleBVH rect = rectangleOfPixel(rectangleBvh, x, y);
                     boolean ignoreEnabled = rect != null && Math.min(rect.rectangle.lengthX(), rect.rectangle.lengthY()) >= IGNORE_TRIGGER;
-                    
-                    
+
+                    int sampleState = FILLED;
+
+                    if (ignoreEnabled) {
+                        if (!((x % 2 == 0 && y % 2 == 0) || (x % 2 != 0 && y % 2 != 0))) {
+                            sampleState |= IGNORE_SHADOW;
+                        }
+                        if (!((y % 2 == 0) && ((((y / 2) % 2 == 0 && x % 2 == 0)) || (((y / 2) % 2 != 0 && x % 2 != 0))))) {
+                            sampleState |= IGNORE_AMBIENT;
+                        }
+                    }
+
+                    for (int s = 0; s < mode.numSamples(); s++) {
+                        float sampleX = mode.sampleX(s);
+                        float sampleY = mode.sampleY(s);
+
+                        samplePosition.set(x + sampleX, y + sampleY, 0f);
+
+                        RasterUtils.barycentricWeights(samplePosition, a, b, c, sampleWeights);
+
+                        float wx = sampleWeights.x();
+                        float wy = sampleWeights.y();
+                        float wz = sampleWeights.z();
+
+                        if (!Float.isFinite(wx) || !Float.isFinite(wy) || !Float.isFinite(wz)) {
+                            break raster;
+                        }
+
+                        if (wx < 0f || wy < 0f || wz < 0f) {
+                            continue;
+                        }
+
+                        position.set(
+                                lerp(sampleWeights, triangle, OFFSET_POSITION_XYZ + 0),
+                                lerp(sampleWeights, triangle, OFFSET_POSITION_XYZ + 1),
+                                lerp(sampleWeights, triangle, OFFSET_POSITION_XYZ + 2)
+                        ).add(
+                                normal.x() * this.scene.getRayOffset(),
+                                normal.y() * this.scene.getRayOffset(),
+                                normal.z() * this.scene.getRayOffset()
+                        );
+                        
+                        if (this.opaqueBVH.testSphere(
+                                position.x(), position.y(), position.z(),
+                                this.scene.getRayOffset() * 0.5f
+                        )) {
+                            continue;
+                        }
+
+                        this.weights.write(sampleWeights, x, y, s);
+                        this.triangles.write(triangle, x, y, s);
+                        this.sampleStates.write(sampleState, x, y, s);
+                    }
                 }
             }
         }
@@ -460,7 +537,7 @@ public class Lightmapper {
     public Lightmap[] bake() {
         this.service = Executors.newFixedThreadPool(NUMBER_OF_THREADS);
         try {
-
+            rasterizeBarycentricBuffers();
             return this.lightmaps;
         } finally {
             this.service.shutdownNow();
