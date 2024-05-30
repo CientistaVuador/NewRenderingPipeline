@@ -66,6 +66,7 @@ public class Game {
     private final NCubemap cubemap;
     
     private final NMap map;
+    private final N3DObject myBalls;
     private final N3DObject testModel;
     private final N3DObject fox;
 
@@ -80,10 +81,8 @@ public class Game {
             {
                 N3DModel model = N3DModelImporter.importFromJarFile("cientistavuador/newrenderingpipeline/my_metallic_balls.glb");
 
-                N3DObject myBalls = new N3DObject("my balls", model);
-                myBalls.getPosition().set(0f, 20f, -15f);
-                
-                mapObjects.add(myBalls);
+                this.myBalls = new N3DObject("my balls", model);
+                this.myBalls.getPosition().set(0f, 20f, -15f);
             }
 
             {
@@ -113,8 +112,6 @@ public class Game {
                 this.testModel.getRotation().rotateY((float) Math.toRadians(-90f + -45f));
 
                 this.testModel.setAnimator(new NAnimator(model, "Armature|Armature|Fall"));
-                
-                mapObjects.add(this.testModel);
             }
             
             {
@@ -125,11 +122,10 @@ public class Game {
 
                 NAnimator foxAnimator = new NAnimator(fox3DModel, "Run");
                 this.fox.setAnimator(foxAnimator);
-                
-                mapObjects.add(this.fox);
             }
             
             this.map = new NMap("map", mapObjects, NMap.DEFAULT_LIGHTMAP_MARGIN, 1f/0.02f);
+            this.map.bake();
             
             System.out.println(this.map.getLightmapSize());
 
@@ -171,8 +167,9 @@ public class Game {
             N3DObjectRenderer.queueRender(this.map.getObject(i));
         }
         
-        //N3DObjectRenderer.queueRender(this.fox);
-        //N3DObjectRenderer.queueRender(this.testModel);
+        N3DObjectRenderer.queueRender(this.fox);
+        N3DObjectRenderer.queueRender(this.testModel);
+        N3DObjectRenderer.queueRender(this.myBalls);
         
         N3DObjectRenderer.render(this.camera, this.lights, this.cubemap);
 

@@ -26,12 +26,10 @@
  */
 package cientistavuador.newrenderingpipeline.util.bakedlighting;
 
-import cientistavuador.newrenderingpipeline.resources.mesh.MeshData;
 import cientistavuador.newrenderingpipeline.util.MeshUtils;
 import cientistavuador.newrenderingpipeline.util.RasterUtils;
 import cientistavuador.newrenderingpipeline.util.raycast.BVH;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -147,14 +145,14 @@ public class Lightmapper {
         public final List<Scene.Light> lights = new ArrayList<>();
     }
 
-    private static class Float3ImageBuffer {
+    private static class Float3Buffer {
 
         private final int lineSize;
         private final int sampleSize;
         private final int vectorSize;
         private final float[] data;
 
-        public Float3ImageBuffer(int size, int samples) {
+        public Float3Buffer(int size, int samples) {
             this.sampleSize = 3;
             this.vectorSize = this.sampleSize * samples;
             this.lineSize = size * this.vectorSize;
@@ -176,14 +174,21 @@ public class Lightmapper {
         }
     }
 
-    private static class IntegerImageBuffer {
+    private static class Float3ImageBuffer extends Float3Buffer {
+
+        public Float3ImageBuffer(int size) {
+            super(size, 1);
+        }
+    }
+
+    private static class IntegerBuffer {
 
         private final int lineSize;
         private final int sampleSize;
         private final int vectorSize;
         private final int[] data;
 
-        public IntegerImageBuffer(int size, int samples) {
+        public IntegerBuffer(int size, int samples) {
             this.sampleSize = 1;
             this.vectorSize = this.sampleSize * samples;
             this.lineSize = size * this.vectorSize;
@@ -199,8 +204,8 @@ public class Lightmapper {
         }
     }
 
-    public static volatile int NUMBER_OF_THREADS = Runtime.getRuntime().availableProcessors();
-    public static final int IGNORE_TRIGGER = 32;
+    public static volatile int NUMBER_OF_THREADS = Runtime.getRuntime().availableProcessors() * 2;
+    public static final int IGNORE_TRIGGER_SIZE = 32;
 
     private static final int EMPTY = 0;
     private static final int FILLED = 0b00000001;
@@ -222,23 +227,36 @@ public class Lightmapper {
     private final Lightmap[] lightmaps;
 
     //barycentric buffers
-    private final Float3ImageBuffer weights;
-    private final IntegerImageBuffer triangles;
-    private final IntegerImageBuffer sampleStates;
+    private final Float3Buffer weights;
+    private final IntegerBuffer triangles;
+    private final IntegerBuffer sampleStates;
 
     //threads
-    private ExecutorService service = null;
+    private ExecutorService service;
+
+    //light group
+    private LightGroup group;
+    private int groupIndex;
+
+    //lightmap
+    private Float3ImageBuffer lightmap;
+
+    //light buffers
+    private Scene.Light light;
+    private Float3ImageBuffer direct;
+    private Float3ImageBuffer shadow;
+    private Float3ImageBuffer ambient;
 
     public Lightmapper(
             Scene scene,
             int lightmapSize,
-            Collection<Rectanglei> lightmapRectangles,
+            Rectanglei[] lightmapRectangles,
             float[] opaqueMesh,
             float[] alphaMesh
     ) {
         this.scene = scene;
         this.lightmapSize = lightmapSize;
-        this.lightmapRectangles = lightmapRectangles.toArray(Rectanglei[]::new);
+        this.lightmapRectangles = lightmapRectangles;
         this.opaqueMesh = validate(opaqueMesh);
         this.alphaMesh = validate(alphaMesh);
 
@@ -279,9 +297,9 @@ public class Lightmapper {
 
         this.lightmaps = new Lightmap[this.lightGroups.length];
 
-        this.weights = new Float3ImageBuffer(lightmapSize, this.scene.getSamplingMode().numSamples());
-        this.triangles = new IntegerImageBuffer(lightmapSize, this.scene.getSamplingMode().numSamples());
-        this.sampleStates = new IntegerImageBuffer(lightmapSize, this.scene.getSamplingMode().numSamples());
+        this.weights = new Float3Buffer(lightmapSize, this.scene.getSamplingMode().numSamples());
+        this.triangles = new IntegerBuffer(lightmapSize, this.scene.getSamplingMode().numSamples());
+        this.sampleStates = new IntegerBuffer(lightmapSize, this.scene.getSamplingMode().numSamples());
     }
 
     private int clamp(int v, int min, int max) {
@@ -294,130 +312,6 @@ public class Lightmapper {
         return v;
     }
 
-    private class RectangleBVH {
-
-        Rectanglei rectangle;
-        RectangleBVH left;
-        RectangleBVH right;
-    }
-
-    private RectangleBVH buildRectangleBVH() {
-        RectangleBVH[] current = new RectangleBVH[this.lightmapRectangles.length];
-        int currentLength = current.length;
-
-        for (int i = 0; i < current.length; i++) {
-            RectangleBVH bvh = new RectangleBVH();
-            bvh.rectangle = this.lightmapRectangles[i];
-            current[i] = bvh;
-        }
-
-        RectangleBVH[] next = new RectangleBVH[current.length];
-        int nextIndex = 0;
-
-        while (currentLength != 1) {
-            for (int i = 0; i < currentLength; i++) {
-                RectangleBVH bvh = current[i];
-
-                if (bvh == null) {
-                    continue;
-                }
-
-                int minX = bvh.rectangle.minX;
-                int minY = bvh.rectangle.minY;
-                int maxX = bvh.rectangle.maxX;
-                int maxY = bvh.rectangle.maxY;
-
-                float centerX = ((minX + 0.5f) * 0.5f) + ((maxX + 0.5f) * 0.5f);
-                float centerY = ((minY + 0.5f) * 0.5f) + ((maxY + 0.5f) * 0.5f);
-
-                RectangleBVH closest = null;
-                float closestSquaredDistance = 0f;
-                int closestIndex = 0;
-                for (int j = 0; j < currentLength; j++) {
-                    RectangleBVH other = current[j];
-
-                    if (i == j) {
-                        continue;
-                    }
-
-                    if (other == null) {
-                        continue;
-                    }
-
-                    float otherCenterX = ((other.rectangle.minX + 0.5f) * 0.5f) + ((other.rectangle.maxX + 0.5f) * 0.5f);
-                    float otherCenterY = ((other.rectangle.minY + 0.5f) * 0.5f) + ((other.rectangle.maxY + 0.5f) * 0.5f);
-
-                    float dX = centerX - otherCenterX;
-                    float dY = centerY - otherCenterY;
-
-                    float squaredDist = (dX * dX) + (dY * dY);
-
-                    if (squaredDist < closestSquaredDistance || closest == null) {
-                        closest = other;
-                        closestSquaredDistance = squaredDist;
-                        closestIndex = j;
-                    }
-                }
-
-                current[i] = null;
-
-                if (closest == null) {
-                    next[nextIndex++] = bvh;
-                    continue;
-                }
-
-                current[closestIndex] = null;
-
-                RectangleBVH merge = new RectangleBVH();
-                merge.left = bvh;
-                merge.right = closest;
-                merge.rectangle = new Rectanglei(bvh.rectangle).union(closest.rectangle);
-                next[nextIndex++] = merge;
-            }
-
-            RectangleBVH[] currentStore = current;
-
-            current = next;
-            next = currentStore;
-
-            currentLength = nextIndex;
-            nextIndex = 0;
-        }
-
-        return current[0];
-    }
-
-    private RectangleBVH rectangleOfPixel(RectangleBVH root, int x, int y) {
-        if (root == null) {
-            return null;
-        }
-
-        if (root.rectangle.containsPoint(x, y)) {
-            RectangleBVH left = rectangleOfPixel(root.left, x, y);
-            RectangleBVH right = rectangleOfPixel(root.right, x, y);
-
-            if (left != null && right != null) {
-                int minLeft = Math.min(left.left.rectangle.lengthX(), left.left.rectangle.lengthY());
-                int minRight = Math.min(left.right.rectangle.lengthX(), left.right.rectangle.lengthY());
-                if (minLeft < minRight) {
-                    return left;
-                } else {
-                    return right;
-                }
-            }
-
-            if (left != null) {
-                return left;
-            } else if (right != null) {
-                return right;
-            } else {
-                return root;
-            }
-        }
-
-        return null;
-    }
-
     private float lerp(Vector3fc weights, int triangle, int offset) {
         float va  = this.mesh[triangle + (VERTEX_SIZE * 0) + offset];
         float vb = this.mesh[triangle + (VERTEX_SIZE * 1) + offset];
@@ -426,8 +320,6 @@ public class Lightmapper {
     }
 
     private void rasterizeBarycentricBuffers() {
-        RectangleBVH rectangleBvh = buildRectangleBVH();
-
         Vector3f samplePosition = new Vector3f();
 
         Vector3f a = new Vector3f();
@@ -471,12 +363,22 @@ public class Lightmapper {
             maxX = clamp(maxX, 0, this.lightmapSize - 1);
             maxY = clamp(maxY, 0, this.lightmapSize - 1);
 
+            boolean ignoreEnabled = true;
+
+            Rectanglei rect = new Rectanglei(minX, minY, maxX, maxY);
+            for (Rectanglei other : this.lightmapRectangles) {
+                if (other.intersectsRectangle(rect)) {
+                    int minSize = Math.min(other.lengthX(), other.lengthY());
+                    if (minSize < IGNORE_TRIGGER_SIZE) {
+                        ignoreEnabled = false;
+                        break;
+                    }
+                }
+            }
+
             raster:
             for (int y = minY; y < maxY; y++) {
                 for (int x = minX; x < maxX; x++) {
-                    RectangleBVH rect = rectangleOfPixel(rectangleBvh, x, y);
-                    boolean ignoreEnabled = rect != null && Math.min(rect.rectangle.lengthX(), rect.rectangle.lengthY()) >= IGNORE_TRIGGER;
-
                     int sampleState = FILLED;
 
                     if (ignoreEnabled) {
@@ -517,7 +419,7 @@ public class Lightmapper {
                                 normal.y() * this.scene.getRayOffset(),
                                 normal.z() * this.scene.getRayOffset()
                         );
-                        
+
                         if (this.opaqueBVH.testSphere(
                                 position.x(), position.y(), position.z(),
                                 this.scene.getRayOffset() * 0.5f
@@ -534,10 +436,79 @@ public class Lightmapper {
         }
     }
 
+    private void prepareLightmap(int index) {
+        this.group = this.lightGroups[index];
+        this.groupIndex = index;
+    }
+
+    private void prepareLight(Scene.Light light) {
+        this.light = light;
+    }
+
+    private void bakeDirect() {
+
+    }
+
+    private void bakeShadow() {
+
+    }
+
+    private void bakeIndirect() {
+
+    }
+
+    private void generateDirectMargins() {
+
+    }
+
+    private void generateShadowMargins() {
+
+    }
+
+    private void generateIndirectMargins() {
+
+    }
+
+    private void denoiseShadow() {
+
+    }
+
+    private void denoiseIndirect() {
+
+    }
+
+    private void outputLight() {
+
+    }
+
+    private void outputLightmap() {
+
+    }
+
     public Lightmap[] bake() {
         this.service = Executors.newFixedThreadPool(NUMBER_OF_THREADS);
         try {
             rasterizeBarycentricBuffers();
+            for (int i = 0; i < this.lightGroups.length; i++) {
+                prepareLightmap(i);
+                for (Scene.Light l : this.group.lights) {
+                    prepareLight(l);
+
+                    bakeDirect();
+                    bakeShadow();
+                    bakeIndirect();
+
+                    generateDirectMargins();
+                    generateShadowMargins();
+                    generateIndirectMargins();
+
+                    denoiseShadow();
+                    denoiseIndirect();
+
+                    outputLight();
+                }
+                outputLightmap();
+            }
             return this.lightmaps;
         } finally {
             this.service.shutdownNow();

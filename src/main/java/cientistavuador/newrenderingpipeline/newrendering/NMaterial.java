@@ -47,35 +47,35 @@ public class NMaterial {
     public static final float DEFAULT_PARALLAX_HEIGHT_COEFFICIENT = 0.065f;
     public static final float DEFAULT_PARALLAX_MIN_LAYERS = 8f;
     public static final float DEFAULT_PARALLAX_MAX_LAYERS = 32f;
-    
+
     public static final NMaterial NULL_MATERIAL = new NMaterial("NULL_MATERIAL");
-    
+
     static {
         NULL_MATERIAL.getDiffuseColor().set(1f, 1f, 1f, 1f);
         NULL_MATERIAL.getSpecularColor().set(0f, 0f, 0f);
         NULL_MATERIAL.getReflectionColor().set(0f, 0f, 0f);
         NULL_MATERIAL.setParallaxHeightCoefficient(0f);
     }
-    
+
     private final String name;
-    
+
     private NTextures textures = NTextures.NULL_TEXTURE;
-    
+
     private final Vector4f diffuseColor = new Vector4f(DEFAULT_DIFFUSE_COLOR);
     private final Vector3f specularColor = new Vector3f(DEFAULT_SPECULAR_COLOR);
     private final Vector3f emissiveColor = new Vector3f(DEFAULT_EMISSIVE_COLOR);
     private final Vector3f reflectionColor = new Vector3f(DEFAULT_REFLECTION_COLOR);
-    
+
     private float minExponent = DEFAULT_MIN_EXPONENT;
     private float maxExponent = DEFAULT_MAX_EXPONENT;
     private float parallaxHeightCoefficient = DEFAULT_PARALLAX_HEIGHT_COEFFICIENT;
     private float parallaxMinLayers = DEFAULT_PARALLAX_MIN_LAYERS;
     private float parallaxMaxLayers = DEFAULT_PARALLAX_MAX_LAYERS;
-    
+
     public NMaterial(String name) {
         this(name, null);
     }
-    
+
     public NMaterial(String name, NTextures textures) {
         this.name = name;
         if (textures == null) {
@@ -114,7 +114,7 @@ public class NMaterial {
     public Vector3f getReflectionColor() {
         return reflectionColor;
     }
-    
+
     public float getMinExponent() {
         return minExponent;
     }
@@ -126,7 +126,7 @@ public class NMaterial {
     public float getMaxExponent() {
         return maxExponent;
     }
-    
+
     public void setMaxExponent(float maxExponent) {
         this.maxExponent = maxExponent;
     }
@@ -154,7 +154,7 @@ public class NMaterial {
     public void setParallaxMaxLayers(float parallaxMaxLayers) {
         this.parallaxMaxLayers = parallaxMaxLayers;
     }
-    
+
     public boolean equalsPropertiesOnly(NMaterial other) {
         if (this == other) {
             return true;
@@ -185,7 +185,22 @@ public class NMaterial {
         }
         return Objects.equals(this.emissiveColor, other.emissiveColor);
     }
+
+    public NBlendingMode getBlendingMode() {
+        NBlendingMode mode = this.textures.getBlendingMode();
+        float materialAlpha = this.diffuseColor.w();
+
+        if (materialAlpha != 1f && NBlendingMode.OPAQUE.equals(mode)) {
+            mode = NBlendingMode.ALPHA_BLENDING;
+        }
+        
+        return mode;
+    }
     
+    public boolean isInvisible() {
+        return this.diffuseColor.w() <= 0f;
+    }
+
     @Override
     public int hashCode() {
         int hash = 7;
@@ -218,5 +233,5 @@ public class NMaterial {
         }
         return equalsPropertiesOnly(other);
     }
-    
+
 }

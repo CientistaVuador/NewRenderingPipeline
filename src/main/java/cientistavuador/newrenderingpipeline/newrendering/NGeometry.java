@@ -37,12 +37,12 @@ import org.joml.Vector3fc;
  * @author Cien
  */
 public class NGeometry {
-    
+
     private N3DModel model = null;
     private int globalId = -1;
     private N3DModelNode parent = null;
     private int localId = -1;
-    
+
     private final String name;
     private final NMesh mesh;
 
@@ -85,7 +85,7 @@ public class NGeometry {
     public NGeometry(String name, NMesh mesh) {
         this(name, mesh, null);
     }
-    
+
     protected void configure(N3DModel model, int globalId, N3DModelNode parent, int localId) {
         if (this.model != null || this.globalId != -1 || this.parent != null || this.localId != -1) {
             throw new IllegalStateException("This geometry was already configured! Geometry not unique exception.");
@@ -95,15 +95,15 @@ public class NGeometry {
         this.parent = parent;
         this.localId = localId;
     }
-    
+
     public N3DModel getModel() {
         return model;
     }
-    
+
     public int getGlobalId() {
         return globalId;
     }
-    
+
     public N3DModelNode getParent() {
         return parent;
     }
@@ -111,7 +111,7 @@ public class NGeometry {
     public int getLocalId() {
         return localId;
     }
-    
+
     public String getName() {
         return name;
     }
@@ -141,7 +141,7 @@ public class NGeometry {
         if (node == null) {
             throw new IllegalArgumentException("This geometry has no parent node/not inside a 3d model");
         }
-        
+
         float[] vertices = this.mesh.getVertices();
 
         float minX = Float.POSITIVE_INFINITY;
@@ -242,5 +242,5 @@ public class NGeometry {
     public boolean isAnimatedAabbGenerated() {
         return animatedAabbGenerated;
     }
-    
+
 }

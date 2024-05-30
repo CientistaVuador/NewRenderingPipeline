@@ -29,8 +29,9 @@ package cientistavuador.newrenderingpipeline.newrendering;
 import cientistavuador.newrenderingpipeline.util.MeshUtils;
 import cientistavuador.newrenderingpipeline.util.Pair;
 import cientistavuador.newrenderingpipeline.util.bakedlighting.LightmapUVs;
+import cientistavuador.newrenderingpipeline.util.bakedlighting.Lightmapper;
+import cientistavuador.newrenderingpipeline.util.bakedlighting.Scene;
 import cientistavuador.newrenderingpipeline.util.raycast.UserMesh;
-import java.awt.Rectangle;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -47,30 +48,31 @@ import org.joml.primitives.Rectanglei;
 public class NMap {
 
     public static final int DEFAULT_LIGHTMAP_MARGIN = 5;
-    
+
     public static String mapObjectPrefix(String mapName, int objectIndex, String objectName) {
-        return "map_"+mapName+"_"+objectIndex+"_"+objectName;
+        return "map_" + mapName + "_" + objectIndex + "_" + objectName;
     }
-    
+
     private final String name;
     private final N3DObject[] objects;
-    
+
     private final int lightmapMargin;
     private final float lightmapPixelToWorldRatio;
     private final int lightmapSize;
     private final Rectanglei[] lightmapRectangles;
-    
+
     private final UserMesh userMesh;
-    
+
     public NMap(String name, Collection<N3DObject> objects, int lightmapMargin, float lightmapPixelToWorldRatio) {
         this.name = name;
         this.lightmapMargin = lightmapMargin;
         this.lightmapPixelToWorldRatio = lightmapPixelToWorldRatio;
-        
+
         float[] transformedVertices = new float[NMesh.VERTEX_SIZE * 64];
         int transformedVerticesIndex = 0;
-        
+
         class GeometryOffset {
+
             NGeometry geometry;
             int offset;
             int length;
@@ -81,43 +83,43 @@ public class NMap {
                 this.length = length;
             }
         }
-        
+
         class ObjectGeometries {
+
             N3DObject object;
             List<GeometryOffset> offsets;
         }
-        
+
         List<ObjectGeometries> objectsGeometries = new ArrayList<>();
-        
+
         Matrix4f modelMatrix = new Matrix4f();
-        
+
         Matrix4f transformation = new Matrix4f();
         Matrix3f transformationNormal = new Matrix3f();
-        
+
         Vector3f position = new Vector3f();
         Vector3f normal = new Vector3f();
         Vector3f tangent = new Vector3f();
-        
-        for (N3DObject obj:objects) {
+
+        for (N3DObject obj : objects) {
             ObjectGeometries objectGeometries = new ObjectGeometries();
             objectGeometries.object = obj;
             objectGeometries.offsets = new ArrayList<>();
-            
+
             obj.calculateModelMatrix(modelMatrix, null);
-            
+
             N3DModel model = obj.getN3DModel();
             for (int i = 0; i < model.getNumberOfGeometries(); i++) {
                 NGeometry geometry = model.getGeometry(i);
                 NMesh mesh = geometry.getMesh();
-                
+
                 transformation
                         .set(modelMatrix)
-                        .mul(geometry.getParent().getToRootSpace())
-                        ;
+                        .mul(geometry.getParent().getToRootSpace());
                 transformation.normal(transformationNormal);
-                
+
                 float[] unindexed = MeshUtils.unindex(mesh.getVertices(), mesh.getIndices(), NMesh.VERTEX_SIZE).getA();
-                
+
                 for (int v = 0; v < unindexed.length; v += NMesh.VERTEX_SIZE) {
                     position.set(
                             unindexed[v + NMesh.OFFSET_POSITION_XYZ + 0],
@@ -134,11 +136,11 @@ public class NMap {
                             unindexed[v + NMesh.OFFSET_TANGENT_XYZ + 1],
                             unindexed[v + NMesh.OFFSET_TANGENT_XYZ + 2]
                     );
-                    
+
                     transformation.transformProject(position);
                     transformationNormal.transform(normal);
                     transformationNormal.transform(tangent);
-                    
+
                     unindexed[v + NMesh.OFFSET_POSITION_XYZ + 0] = position.x();
                     unindexed[v + NMesh.OFFSET_POSITION_XYZ + 1] = position.y();
                     unindexed[v + NMesh.OFFSET_POSITION_XYZ + 2] = position.z();
@@ -157,11 +159,11 @@ public class NMap {
                     unindexed[v + NMesh.OFFSET_BONE_WEIGHTS_XYZW + 2] = 0f;
                     unindexed[v + NMesh.OFFSET_BONE_WEIGHTS_XYZW + 3] = 0f;
                 }
-                
+
                 if ((transformedVertices.length - transformedVerticesIndex) < unindexed.length) {
                     transformedVertices = Arrays.copyOf(transformedVertices, (transformedVertices.length * 2) + unindexed.length);
                 }
-                
+
                 System.arraycopy(
                         unindexed, 0,
                         transformedVertices, transformedVerticesIndex, unindexed.length
@@ -169,18 +171,18 @@ public class NMap {
                 objectGeometries.offsets.add(new GeometryOffset(geometry, transformedVerticesIndex, unindexed.length));
                 transformedVerticesIndex += unindexed.length;
             }
-            
+
             objectsGeometries.add(objectGeometries);
         }
         transformedVertices = Arrays.copyOf(transformedVertices, transformedVerticesIndex);
-        
+
         LightmapUVs.GeneratorOutput output = MeshUtils.generateLightmapUVs(
                 transformedVertices, NMesh.VERTEX_SIZE, NMesh.OFFSET_POSITION_XYZ,
                 this.lightmapMargin, this.lightmapPixelToWorldRatio, 1f, 1f, 1f
         );
-        
+
         this.lightmapSize = output.getLightmapSize();
-        
+
         LightmapUVs.LightmapperQuad[] quads = output.getQuads();
         this.lightmapRectangles = new Rectanglei[quads.length];
         for (int i = 0; i < this.lightmapRectangles.length; i++) {
@@ -190,31 +192,31 @@ public class NMap {
                     quad.getX() + quad.getWidth(), quad.getY() + quad.getHeight()
             );
         }
-        
+
         float[] uvs = output.getUVs();
         for (int i = 0; i < transformedVertices.length; i += NMesh.VERTEX_SIZE) {
             transformedVertices[i + NMesh.OFFSET_LIGHTMAP_TEXTURE_XY + 0] = uvs[((i / NMesh.VERTEX_SIZE) * 2) + 0];
             transformedVertices[i + NMesh.OFFSET_LIGHTMAP_TEXTURE_XY + 1] = uvs[((i / NMesh.VERTEX_SIZE) * 2) + 1];
         }
-        
+
         List<N3DObject> resultObjects = new ArrayList<>();
-        
+
         List<Pair<N3DObject, NGeometry>> userObjects = new ArrayList<>();
         List<float[]> userVertices = new ArrayList<>();
         List<int[]> userIndices = new ArrayList<>();
-        
+
         int objectCounter = 0;
-        for (ObjectGeometries obj:objectsGeometries) {
+        for (ObjectGeometries obj : objectsGeometries) {
             List<NGeometry> newGeometries = new ArrayList<>();
             int geometryCounter = 0;
-            for (GeometryOffset geo:obj.offsets) {
+            for (GeometryOffset geo : obj.offsets) {
                 float[] unindexedVertices = Arrays.copyOfRange(transformedVertices, geo.offset, geo.offset + geo.length);
-                
+
                 Pair<float[], int[]> pair = MeshUtils.generateIndices(unindexedVertices, NMesh.VERTEX_SIZE);
-                
+
                 float[] vertices = pair.getA();
                 int[] indices = pair.getB();
-                
+
                 NMesh mesh = new NMesh(geo.geometry.getMesh().getName(), vertices, indices);
                 mesh.generateBVH();
                 newGeometries.add(new NGeometry(
@@ -236,14 +238,14 @@ public class NMap {
             );
             resultObjects.add(object);
             objectCounter++;
-            
-            for (NGeometry g:newGeometries) {
+
+            for (NGeometry g : newGeometries) {
                 userObjects.add(new Pair<>(object, g));
                 userVertices.add(g.getMesh().getVertices());
                 userIndices.add(g.getMesh().getIndices());
             }
         }
-        
+
         this.objects = resultObjects.toArray(N3DObject[]::new);
         this.userMesh = UserMesh.create(
                 userVertices.toArray(float[][]::new),
@@ -257,15 +259,15 @@ public class NMap {
     public String getName() {
         return name;
     }
-    
+
     public int getNumberOfObjects() {
         return this.objects.length;
     }
-    
+
     public N3DObject getObject(int index) {
         return this.objects[index];
     }
-    
+
     public int getLightmapMargin() {
         return lightmapMargin;
     }
@@ -277,17 +279,114 @@ public class NMap {
     public int getLightmapSize() {
         return lightmapSize;
     }
-    
+
     public int getNumberOfLightmapRectangles() {
         return this.lightmapRectangles.length;
     }
-    
+
     public Rectanglei getLightmapRectangle(int index) {
         return this.lightmapRectangles[index];
     }
-    
+
     public UserMesh getUserMesh() {
         return userMesh;
     }
-    
+
+    public void bake() {
+        float[] opaqueMesh = new float[Lightmapper.VERTEX_SIZE * 64];
+        int opaqueMeshIndex = 0;
+
+        float[] alphaMesh = new float[Lightmapper.VERTEX_SIZE * 64];
+        int alphaMeshIndex = 0;
+
+        for (int objectIndex = 0; objectIndex < this.objects.length; objectIndex++) {
+            N3DObject obj = this.objects[objectIndex];
+            
+            N3DModel model = obj.getN3DModel();
+            for (int i = 0; i < model.getNumberOfGeometries(); i++) {
+                NGeometry geometry = model.getGeometry(i);
+
+                if (geometry.getMaterial().isInvisible()) {
+                    continue;
+                }
+
+                NBlendingMode blending = geometry.getMaterial().getBlendingMode();
+
+                NMesh mesh = geometry.getMesh();
+
+                float[] vertices = mesh.getVertices();
+                int[] indices = mesh.getIndices();
+
+                for (int j = 0; j < indices.length; j++) {
+                    int v = indices[j] * NMesh.VERTEX_SIZE;
+
+                    float x = vertices[v + NMesh.OFFSET_POSITION_XYZ + 0];
+                    float y = vertices[v + NMesh.OFFSET_POSITION_XYZ + 1];
+                    float z = vertices[v + NMesh.OFFSET_POSITION_XYZ + 2];
+
+                    float nx = vertices[v + NMesh.OFFSET_NORMAL_XYZ + 0];
+                    float ny = vertices[v + NMesh.OFFSET_NORMAL_XYZ + 1];
+                    float nz = vertices[v + NMesh.OFFSET_NORMAL_XYZ + 2];
+
+                    float tx = vertices[v + NMesh.OFFSET_TEXTURE_XY + 0];
+                    float ty = vertices[v + NMesh.OFFSET_TEXTURE_XY + 1];
+
+                    float lx = vertices[v + NMesh.OFFSET_LIGHTMAP_TEXTURE_XY + 0];
+                    float ly = vertices[v + NMesh.OFFSET_LIGHTMAP_TEXTURE_XY + 1];
+                    
+                    float[] meshArray;
+                    int currentIndex;
+                    
+                    if (NBlendingMode.OPAQUE.equals(blending)) {
+                        if ((opaqueMeshIndex + Lightmapper.VERTEX_SIZE) > opaqueMesh.length) {
+                            opaqueMesh = Arrays.copyOf(opaqueMesh, (opaqueMesh.length * 2) + Lightmapper.VERTEX_SIZE);
+                        }
+                        meshArray = opaqueMesh;
+                        currentIndex = opaqueMeshIndex;
+                    } else {
+                        if ((alphaMeshIndex + Lightmapper.VERTEX_SIZE) > alphaMesh.length) {
+                            alphaMesh = Arrays.copyOf(alphaMesh, (alphaMesh.length * 2) + Lightmapper.VERTEX_SIZE);
+                        }
+                        meshArray = alphaMesh;
+                        currentIndex = alphaMeshIndex;
+                    }
+                    
+                    meshArray[currentIndex + Lightmapper.OFFSET_POSITION_XYZ + 0] = x;
+                    meshArray[currentIndex + Lightmapper.OFFSET_POSITION_XYZ + 1] = y;
+                    meshArray[currentIndex + Lightmapper.OFFSET_POSITION_XYZ + 2] = z;
+                    
+                    meshArray[currentIndex + Lightmapper.OFFSET_NORMAL_XYZ + 0] = nx;
+                    meshArray[currentIndex + Lightmapper.OFFSET_NORMAL_XYZ + 1] = ny;
+                    meshArray[currentIndex + Lightmapper.OFFSET_NORMAL_XYZ + 2] = nz;
+                    
+                    meshArray[currentIndex + Lightmapper.OFFSET_TEXTURE_XY + 0] = tx;
+                    meshArray[currentIndex + Lightmapper.OFFSET_TEXTURE_XY + 1] = ty;
+                    
+                    meshArray[currentIndex + Lightmapper.OFFSET_LIGHTMAP_XY + 0] = lx;
+                    meshArray[currentIndex + Lightmapper.OFFSET_LIGHTMAP_XY + 1] = ly;
+                    
+                    meshArray[currentIndex + Lightmapper.OFFSET_USER_XY + 0] = Float.intBitsToFloat(objectIndex);
+                    meshArray[currentIndex + Lightmapper.OFFSET_USER_XY + 1] = Float.intBitsToFloat(geometry.getGlobalId());
+                    
+                    if (NBlendingMode.OPAQUE.equals(blending)) {
+                        opaqueMeshIndex += Lightmapper.VERTEX_SIZE;
+                    } else {
+                        alphaMeshIndex += Lightmapper.VERTEX_SIZE;
+                    }
+                }
+            }
+        }
+        
+        opaqueMesh = Arrays.copyOf(opaqueMesh, opaqueMeshIndex);
+        alphaMesh = Arrays.copyOf(alphaMesh, alphaMeshIndex);
+        
+        Scene scene = new Scene();
+        Lightmapper lightmapper = new Lightmapper(
+                scene,
+                this.lightmapSize, this.lightmapRectangles,
+                opaqueMesh, alphaMesh
+        );
+        lightmapper.bake();
+    }
+
 }

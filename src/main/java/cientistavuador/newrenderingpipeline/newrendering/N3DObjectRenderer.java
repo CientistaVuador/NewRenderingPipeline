@@ -291,17 +291,12 @@ public class N3DObjectRenderer {
         List<ToRender> blendList = new ArrayList<>();
 
         for (ToRender toRender : toRenderList) {
-            NBlendingMode mode = toRender.geometry.getMaterial().getTextures().getBlendingMode();
-            float materialAlpha = toRender.geometry.getMaterial().getDiffuseColor().w();
-
-            if (materialAlpha <= 0f) {
+            if (toRender.geometry.getMaterial().isInvisible()) {
                 continue;
             }
-
-            if (materialAlpha != 1f && NBlendingMode.OPAQUE.equals(mode)) {
-                mode = NBlendingMode.ALPHA_BLENDING;
-            }
-
+            
+            NBlendingMode mode = toRender.geometry.getMaterial().getBlendingMode();
+            
             switch (mode) {
                 case OPAQUE ->
                     opaqueList.add(toRender);
