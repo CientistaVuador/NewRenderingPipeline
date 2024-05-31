@@ -1115,7 +1115,7 @@ public class BakedLighting {
         if (this.fastMode) {
             rays = 1;
         }
-
+        
         float shadowValue = 0f;
         for (int i = 0; i < rays; i++) {
             randomLightDirection(state.position, shadow.randomDirection, state.random);

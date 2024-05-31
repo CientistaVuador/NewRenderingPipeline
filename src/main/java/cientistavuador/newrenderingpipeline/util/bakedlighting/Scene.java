@@ -29,6 +29,7 @@ package cientistavuador.newrenderingpipeline.util.bakedlighting;
 import cientistavuador.newrenderingpipeline.geometry.Geometry;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
 import org.joml.Vector3f;
 import org.joml.Vector3fc;
 
@@ -38,21 +39,21 @@ import org.joml.Vector3fc;
  */
 public class Scene {
 
-    public static class Light {
+    public static abstract class Light {
 
-        private final Vector3f diffuse = new Vector3f(2f, 2f, 2f);
-        
+        private final Vector3f diffuse = new Vector3f(1f, 1f, 1f);
+
         private float lightSize = 0.02f;
         private String groupName = "";
-        
+
         protected Light() {
 
         }
-        
+
         public Vector3fc getDiffuse() {
             return diffuse;
         }
-        
+
         public void setDiffuse(float r, float g, float b) {
             this.diffuse.set(r, g, b);
         }
@@ -68,7 +69,7 @@ public class Scene {
         public void setLightSize(float lightSize) {
             this.lightSize = lightSize;
         }
-        
+
         public float getLuminance() {
             return getDiffuse().length();
         }
@@ -83,13 +84,27 @@ public class Scene {
             }
             this.groupName = groupName;
         }
-        
+
+        public void calculateDirect(
+                Vector3fc position, Vector3fc normal,
+                Vector3f outputDirection, Vector3f outputColor,
+                float directAttenuation
+        ) {
+            outputDirection.set(0f, 1f, 0f);
+            outputColor.set(0f, 0f, 0f);
+        }
+
+        public void randomLightDirection(
+                Vector3fc position, Vector3f outDirection
+        ) {
+            outDirection.set(0f, 1f, 0f);
+        }
     }
 
     public static class DirectionalLight extends Light {
 
         private final Vector3f ambient = new Vector3f(0.2f, 0.3f, 0.4f);
-        
+
         private final Vector3f direction = new Vector3f(0.5f, -2f, -1f).normalize();
         private final Vector3f directionNegated = new Vector3f(this.direction).negate();
 
@@ -126,6 +141,80 @@ public class Scene {
             setAmbient(ambient.x(), ambient.y(), ambient.z());
         }
 
+        @Override
+        public void calculateDirect(
+                Vector3fc position, Vector3fc normal,
+                Vector3f outputDirection, Vector3f outputColor,
+                float directAttenuation
+        ) {
+            float diffuseFactor = Math.max(normal.dot(outputDirection.set(this.directionNegated)), 0f);
+            outputColor.set(this.getDiffuse()).mul(diffuseFactor);
+        }
+
+        @Override
+        public void randomLightDirection(
+                Vector3fc position, Vector3f outDirection
+        ) {
+            ThreadLocalRandom random = ThreadLocalRandom.current();
+
+            float x;
+            float y;
+            float z;
+            float dist;
+
+            do {
+                x = (random.nextFloat() * 2f) - 1f;
+                y = (random.nextFloat() * 2f) - 1f;
+                z = (random.nextFloat() * 2f) - 1f;
+                dist = (x * x) + (y * y) + (z * z);
+            } while (dist > 1f);
+
+            outDirection.set(
+                    x,
+                    y,
+                    z
+            )
+                    .mul(getLightSize())
+                    .add(getDirectionNegated())
+                    .normalize();
+        }
+    }
+
+    private static void pointSpotLightDirection(
+            Vector3fc lightPosition, float lightSize,
+            Vector3fc position, Vector3f outDirection
+    ) {
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+
+        float dirX = lightPosition.x() - position.x();
+        float dirY = lightPosition.y() - position.y();
+        float dirZ = lightPosition.z() - position.z();
+        float invlength = (float) (1f / Math.sqrt((dirX * dirX) + (dirY * dirY) + (dirZ * dirZ)));
+        dirX *= invlength;
+        dirY *= invlength;
+        dirZ *= invlength;
+
+        do {
+            float x;
+            float y;
+            float z;
+            float dist;
+
+            do {
+                x = (random.nextFloat() * 2f) - 1f;
+                y = (random.nextFloat() * 2f) - 1f;
+                z = (random.nextFloat() * 2f) - 1f;
+                dist = (x * x) + (y * y) + (z * z);
+            } while (dist > 1f);
+
+            outDirection.set(x, y, z).normalize();
+
+        } while (outDirection.dot(-dirX, -dirY, -dirZ) < 0f);
+
+        outDirection
+                .mul(lightSize)
+                .add(lightPosition)
+                .sub(position);
     }
 
     public static class PointLight extends Light {
@@ -156,21 +245,68 @@ public class Scene {
         public void setBakeCutoff(float bakeCutoff) {
             this.bakeCutoff = bakeCutoff;
         }
-        
+
+        @Override
+        public void calculateDirect(
+                Vector3fc position, Vector3fc normal,
+                Vector3f outputDirection, Vector3f outputColor,
+                float directAttenuation
+        ) {
+            outputDirection.set(this.position).sub(position).normalize();
+            float diffuseFactor = Math.max(normal.dot(outputDirection), 0f);
+
+            float distance = this.position.distance(position);
+            float attenuation = 1f / ((distance * distance) + directAttenuation);
+
+            diffuseFactor *= attenuation;
+
+            outputColor.set(this.getDiffuse()).mul(diffuseFactor);
+        }
+
+        @Override
+        public void randomLightDirection(
+                Vector3fc position, Vector3f outDirection
+        ) {
+            pointSpotLightDirection(getPosition(), getLightSize(), position, outDirection);
+        }
     }
-    
-    public static class SpotLight extends PointLight {
-        
+
+    public static class SpotLight extends Light {
+
+        private final Vector3f position = new Vector3f(-1f, 2f, 6f);
+        private float bakeCutoff = 1f / 255f;
+
         private final Vector3f direction = new Vector3f(0, -1, 0);
-        private float cutoffAngle = 30f;
-        private float outerCutoffAngle = 50f;
+        private final Vector3f directionNegated = new Vector3f(this.direction).negate();
+        private float cutoffAngle = 25f;
+        private float outerCutoffAngle = 65f;
         private float cutoffAngleRadiansCosine = calculateRadiansCosine(this.cutoffAngle);
         private float outerCutoffAngleRadiansCosine = calculateRadiansCosine(this.outerCutoffAngle);
-        
+
         public SpotLight() {
-            
+
         }
-        
+
+        public Vector3fc getPosition() {
+            return position;
+        }
+
+        public void setPosition(float x, float y, float z) {
+            this.position.set(x, y, z);
+        }
+
+        public void setPosition(Vector3fc position) {
+            setPosition(position.x(), position.y(), position.z());
+        }
+
+        public float getBakeCutoff() {
+            return bakeCutoff;
+        }
+
+        public void setBakeCutoff(float bakeCutoff) {
+            this.bakeCutoff = bakeCutoff;
+        }
+
         private float calculateRadiansCosine(float angle) {
             return (float) Math.cos(Math.toRadians(angle));
         }
@@ -200,24 +336,58 @@ public class Scene {
         public float getOuterCutoffAngleRadiansCosine() {
             return outerCutoffAngleRadiansCosine;
         }
-        
+
         public Vector3fc getDirection() {
             return direction;
         }
-        
+
+        public Vector3fc getDirectionNegated() {
+            return directionNegated;
+        }
+
         public void setDirection(float x, float y, float z) {
             this.direction.set(x, y, z).normalize();
+            this.directionNegated.set(this.direction).negate();
         }
-        
+
         public void setDirection(Vector3fc dir) {
             setDirection(dir.x(), dir.y(), dir.z());
         }
-        
+
+        @Override
+        public void calculateDirect(
+                Vector3fc position, Vector3fc normal,
+                Vector3f outputDirection, Vector3f outputColor,
+                float directAttenuation
+        ) {
+            outputDirection.set(this.position).sub(position).normalize();
+            float diffuseFactor = Math.max(normal.dot(outputDirection), 0f);
+
+            float distance = this.position.distance(position);
+            float attenuation = 1f / ((distance * distance) + directAttenuation);
+
+            diffuseFactor *= attenuation;
+
+            float theta = outputDirection.dot(this.directionNegated);
+            float epsilon = this.cutoffAngleRadiansCosine - this.outerCutoffAngleRadiansCosine;
+            float intensity = (theta - this.outerCutoffAngleRadiansCosine) / epsilon;
+
+            diffuseFactor *= intensity;
+
+            outputColor.set(this.getDiffuse()).mul(diffuseFactor);
+        }
+
+        @Override
+        public void randomLightDirection(
+                Vector3fc position, Vector3f outDirection
+        ) {
+            pointSpotLightDirection(getPosition(), getLightSize(), position, outDirection);
+        }
     }
-    
+
     private float pixelToWorldRatio = 6f;
     private final List<Geometry> geometries = new ArrayList<>();
-    
+
     private final List<Light> lights = new ArrayList<>();
 
     private SamplingMode samplingMode = SamplingMode.SAMPLE_9;
@@ -251,7 +421,7 @@ public class Scene {
     public void setPixelToWorldRatio(float pixelToWorldRatio) {
         this.pixelToWorldRatio = pixelToWorldRatio;
     }
-    
+
     public List<Geometry> getGeometries() {
         return geometries;
     }

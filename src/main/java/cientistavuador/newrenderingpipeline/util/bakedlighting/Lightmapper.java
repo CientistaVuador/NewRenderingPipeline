@@ -31,10 +31,14 @@ import cientistavuador.newrenderingpipeline.util.RasterUtils;
 import cientistavuador.newrenderingpipeline.util.raycast.BVH;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.ThreadLocalRandom;
 import org.joml.Vector3f;
 import org.joml.Vector3fc;
+import org.joml.Vector4f;
 import org.joml.primitives.Rectanglei;
 
 /**
@@ -42,7 +46,11 @@ import org.joml.primitives.Rectanglei;
  * @author Cien
  */
 public class Lightmapper {
-
+    
+    public static interface TextureIO {
+        public void color(float u, float v, int triangle, Vector4f outputColor);
+    }
+    
     public static final int OFFSET_POSITION_XYZ = 0;
     public static final int OFFSET_LIGHTMAP_XY = OFFSET_POSITION_XYZ + 3;
     public static final int OFFSET_TEXTURE_XY = OFFSET_LIGHTMAP_XY + 2;
@@ -172,6 +180,11 @@ public class Lightmapper {
                     this.data[2 + (sample * this.sampleSize) + (x * this.vectorSize) + (y * this.lineSize)]
             );
         }
+
+        public float[] getData() {
+            return data;
+        }
+
     }
 
     private static class Float3ImageBuffer extends Float3Buffer {
@@ -179,6 +192,15 @@ public class Lightmapper {
         public Float3ImageBuffer(int size) {
             super(size, 1);
         }
+
+        public void write(Vector3f vec, int x, int y) {
+            this.write(vec, x, y, 0);
+        }
+
+        public void read(Vector3f vec, int x, int y) {
+            this.read(vec, x, y, 0);
+        }
+
     }
 
     private static class IntegerBuffer {
@@ -204,7 +226,7 @@ public class Lightmapper {
         }
     }
 
-    public static volatile int NUMBER_OF_THREADS = Runtime.getRuntime().availableProcessors() * 2;
+    public static volatile int NUMBER_OF_THREADS = 1;
     public static final int IGNORE_TRIGGER_SIZE = 32;
 
     private static final int EMPTY = 0;
@@ -213,6 +235,7 @@ public class Lightmapper {
     private static final int IGNORE_AMBIENT = 0b00000100;
 
     //lightmapper geometry/scene state
+    private final TextureIO textureIO;
     private final Scene scene;
     private final int lightmapSize;
     private final Rectanglei[] lightmapRectangles;
@@ -232,6 +255,7 @@ public class Lightmapper {
     private final IntegerBuffer sampleStates;
 
     //threads
+    private int numberOfThreads;
     private ExecutorService service;
 
     //light group
@@ -248,12 +272,14 @@ public class Lightmapper {
     private Float3ImageBuffer ambient;
 
     public Lightmapper(
+            TextureIO textureIO,
             Scene scene,
             int lightmapSize,
             Rectanglei[] lightmapRectangles,
             float[] opaqueMesh,
             float[] alphaMesh
     ) {
+        this.textureIO = textureIO;
         this.scene = scene;
         this.lightmapSize = lightmapSize;
         this.lightmapRectangles = lightmapRectangles;
@@ -439,18 +465,190 @@ public class Lightmapper {
     private void prepareLightmap(int index) {
         this.group = this.lightGroups[index];
         this.groupIndex = index;
+
+        this.lightmap = new Float3ImageBuffer(this.lightmapSize);
     }
 
     private void prepareLight(Scene.Light light) {
         this.light = light;
+
+        this.direct = new Float3ImageBuffer(this.lightmapSize);
+        this.shadow = new Float3ImageBuffer(this.lightmapSize);
+        this.ambient = new Float3ImageBuffer(this.lightmapSize);
     }
 
     private void bakeDirect() {
+        for (int i = 0; i < this.lightmapSize; i += this.numberOfThreads) {
+            List<Future<?>> tasks = new ArrayList<>();
 
+            for (int j = 0; j < this.numberOfThreads; j++) {
+                final int y = i + j;
+                if (y >= this.lightmapSize) {
+                    break;
+                }
+                tasks.add(this.service.submit(() -> {
+                    Vector3f totalColor = new Vector3f();
+
+                    Vector3f sampleWeights = new Vector3f();
+                    Vector3f position = new Vector3f();
+                    Vector3f normal = new Vector3f();
+
+                    Vector3f outLightDirection = new Vector3f();
+                    Vector3f outLightDirectColor = new Vector3f();
+
+                    int numSamples = this.scene.getSamplingMode().numSamples();
+                    for (int x = 0; x < this.lightmapSize; x++) {
+                        totalColor.zero();
+                        int samplesPassed = 0;
+                        for (int s = 0; s < numSamples; s++) {
+                            int sampleState = this.sampleStates.read(x, y, s);
+                            if ((sampleState & FILLED) == 0) {
+                                continue;
+                            }
+
+                            this.weights.read(sampleWeights, x, y, s);
+                            int triangle = this.triangles.read(x, y, s);
+
+                            position.set(
+                                    lerp(sampleWeights, triangle, OFFSET_POSITION_XYZ + 0),
+                                    lerp(sampleWeights, triangle, OFFSET_POSITION_XYZ + 1),
+                                    lerp(sampleWeights, triangle, OFFSET_POSITION_XYZ + 2)
+                            );
+                            normal.set(
+                                    lerp(sampleWeights, triangle, OFFSET_NORMAL_XYZ + 0),
+                                    lerp(sampleWeights, triangle, OFFSET_NORMAL_XYZ + 1),
+                                    lerp(sampleWeights, triangle, OFFSET_NORMAL_XYZ + 2)
+                            ).normalize();
+
+                            this.light.calculateDirect(
+                                    position, normal,
+                                    outLightDirection, outLightDirectColor,
+                                    this.scene.getDirectLightingAttenuation()
+                            );
+                            
+                            totalColor.add(outLightDirectColor);
+                            samplesPassed++;
+                        }
+                        if (samplesPassed != 0) {
+                            totalColor.div(samplesPassed);
+                        }
+                        this.direct.write(totalColor, x, y);
+                    }
+                }));
+            }
+
+            for (Future<?> t : tasks) {
+                try {
+                    t.get();
+                } catch (InterruptedException | ExecutionException ex) {
+                    throw new RuntimeException(ex);
+                }
+            }
+            tasks.clear();
+        }
     }
-
+    
     private void bakeShadow() {
+        for (int i = 0; i < this.lightmapSize; i += this.numberOfThreads) {
+            List<Future<?>> tasks = new ArrayList<>();
 
+            for (int j = 0; j < this.numberOfThreads; j++) {
+                final int y = i + j;
+                if (y >= this.lightmapSize) {
+                    break;
+                }
+                tasks.add(this.service.submit(() -> {
+                    Vector3f totalShadow = new Vector3f();
+
+                    Vector3f sampleWeights = new Vector3f();
+                    Vector3f position = new Vector3f();
+                    Vector3f normal = new Vector3f();
+
+                    Vector3f outLightDirection = new Vector3f();
+
+                    int numSamples = this.scene.getSamplingMode().numSamples();
+                    for (int x = 0; x < this.lightmapSize; x++) {
+                        totalShadow.zero();
+                        int samplesPassed = 0;
+                        for (int s = 0; s < numSamples; s++) {
+                            int sampleState = this.sampleStates.read(x, y, s);
+                            if ((sampleState & FILLED) == 0 || (sampleState & IGNORE_SHADOW) != 0) {
+                                continue;
+                            }
+
+                            this.weights.read(sampleWeights, x, y, s);
+                            int triangle = this.triangles.read(x, y, s);
+
+                            position.set(
+                                    lerp(sampleWeights, triangle, OFFSET_POSITION_XYZ + 0),
+                                    lerp(sampleWeights, triangle, OFFSET_POSITION_XYZ + 1),
+                                    lerp(sampleWeights, triangle, OFFSET_POSITION_XYZ + 2)
+                            );
+                            normal.set(
+                                    this.mesh[triangle + OFFSET_TRIANGLE_NORMAL_XYZ + 0],
+                                    this.mesh[triangle + OFFSET_TRIANGLE_NORMAL_XYZ + 1],
+                                    this.mesh[triangle + OFFSET_TRIANGLE_NORMAL_XYZ + 2]
+                            ).mul(this.scene.getRayOffset());
+
+                            position.add(normal);
+
+                            for (int k = 0; k < this.scene.getShadowRaysPerSample(); k++) {
+                                this.light.randomLightDirection(position, outLightDirection);
+                                float length = outLightDirection.length();
+                                outLightDirection.div(length);
+                                
+                                if (this.light instanceof Scene.DirectionalLight) {
+                                    length = Float.POSITIVE_INFINITY;
+                                }
+                                
+                                if (!this.opaqueBVH.fastTestRay(position, outLightDirection, length)) {
+                                    
+                                    totalShadow.add(1f, 1f, 1f);
+                                }
+                            }
+                            
+                            samplesPassed += this.scene.getShadowRaysPerSample();
+                        }
+                        if (samplesPassed != 0) {
+                            totalShadow.div(samplesPassed);
+                        }
+                        this.shadow.write(totalShadow, x, y);
+                    }
+                }));
+            }
+
+            for (Future<?> t : tasks) {
+                try {
+                    t.get();
+                } catch (InterruptedException | ExecutionException ex) {
+                    throw new RuntimeException(ex);
+                }
+            }
+            tasks.clear();
+        }
+    }
+    
+    private void randomTangentDirection(Vector3f outDirection) {
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+
+        float x;
+        float y;
+        float z;
+        float dist;
+
+        do {
+            x = (random.nextFloat() * 2f) - 1f;
+            y = (random.nextFloat() * 2f) - 1f;
+            z = random.nextFloat();
+            dist = (x * x) + (y * y) + (z * z);
+        } while (dist > 1f);
+
+        outDirection.set(
+                x,
+                y,
+                z
+        )
+                .normalize();
     }
 
     private void bakeIndirect() {
@@ -478,15 +676,40 @@ public class Lightmapper {
     }
 
     private void outputLight() {
+        Vector3f directLight = new Vector3f();
+        Vector3f shadowLight = new Vector3f();
+        Vector3f ambientLight = new Vector3f();
 
+        Vector3f resultLight = new Vector3f();
+        Vector3f currentLight = new Vector3f();
+
+        for (int y = 0; y < this.lightmapSize; y++) {
+            for (int x = 0; x < this.lightmapSize; x++) {
+                this.direct.read(directLight, x, y);
+                this.shadow.read(shadowLight, x, y);
+                this.ambient.read(ambientLight, x, y);
+                this.lightmap.read(currentLight, x, y);
+                
+                resultLight.set(directLight).mul(shadowLight).add(ambientLight).add(currentLight);
+                this.lightmap.write(resultLight, x, y);
+            }
+        }
+
+        this.direct = null;
+        this.shadow = null;
+        this.ambient = null;
     }
 
     private void outputLightmap() {
+        Lightmap m = new Lightmap(this.group.groupName, this.lightmapSize, this.lightmap.getData());
+        this.lightmaps[this.groupIndex] = m;
 
+        this.lightmap = null;
     }
 
     public Lightmap[] bake() {
-        this.service = Executors.newFixedThreadPool(NUMBER_OF_THREADS);
+        this.numberOfThreads = NUMBER_OF_THREADS;
+        this.service = Executors.newFixedThreadPool(this.numberOfThreads);
         try {
             rasterizeBarycentricBuffers();
             for (int i = 0; i < this.lightGroups.length; i++) {

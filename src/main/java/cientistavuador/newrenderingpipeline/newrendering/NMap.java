@@ -39,6 +39,7 @@ import java.util.List;
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
+import org.joml.Vector4f;
 import org.joml.primitives.Rectanglei;
 
 /**
@@ -381,12 +382,52 @@ public class NMap {
         alphaMesh = Arrays.copyOf(alphaMesh, alphaMeshIndex);
         
         Scene scene = new Scene();
+        
+        Scene.DirectionalLight dir = new Scene.DirectionalLight();
+        //scene.getLights().add(dir);
+        
+        Scene.PointLight point = new Scene.PointLight();
+        point.setPosition(0f, 2f, -4f);
+        point.setDiffuse(30f, 30f, 30f);
+        point.setLightSize(1f);
+        scene.getLights().add(point);
+        
+        Scene.SpotLight spot = new Scene.SpotLight();
+        spot.setPosition(0f, 2f, -4f);
+        spot.setDiffuse(3f, 3f, 3f);
+        //scene.getLights().add(spot);
+        
+        Lightmapper.TextureIO texio = (float u, float v, int triangle, Vector4f outputColor) -> {
+            outputColor.set(1f, 1f, 1f, 1f);
+        };
+        
         Lightmapper lightmapper = new Lightmapper(
+                texio,
                 scene,
                 this.lightmapSize, this.lightmapRectangles,
                 opaqueMesh, alphaMesh
         );
-        lightmapper.bake();
+        Lightmapper.Lightmap[] lightmaps = lightmapper.bake();
+        
+        String[] names = new String[lightmaps.length];
+        float[] totalLightmaps = new float[this.lightmapSize * this.lightmapSize * 3 * lightmaps.length];
+        
+        for (int i = 0; i < lightmaps.length; i++) {
+            Lightmapper.Lightmap lightmap = lightmaps[i];
+            
+            names[i] = lightmap.getName();
+            System.arraycopy(
+                    lightmap.getLightmap(), 0,
+                    totalLightmaps, i * this.lightmapSize * this.lightmapSize * 3,
+                    lightmap.getLightmap().length
+            );
+        }
+        
+        NLightmaps finalLightmaps = new NLightmaps(this.name, names, totalLightmaps, this.lightmapSize, this.lightmapSize, this.lightmapMargin);
+        
+        for (N3DObject obj:this.objects) {
+            obj.setLightmaps(finalLightmaps);
+        }
     }
 
 }

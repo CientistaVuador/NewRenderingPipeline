@@ -87,11 +87,7 @@ public class Game {
 
             {
                 N3DModel waterBottle3DModel = N3DModelImporter.importFromJarFile("cientistavuador/newrenderingpipeline/nrp.glb");
-                
                 N3DObject nrp = new N3DObject("nrp", waterBottle3DModel);
-                nrp.getPosition().set(0f, 25f, -15f);
-                nrp.getScale().set(1f);
-                
                 mapObjects.add(nrp);
             }
             
@@ -124,8 +120,7 @@ public class Game {
                 this.fox.setAnimator(foxAnimator);
             }
             
-            this.map = new NMap("map", mapObjects, NMap.DEFAULT_LIGHTMAP_MARGIN, 1f/0.02f);
-            this.map.bake();
+            this.map = new NMap("map", mapObjects, NMap.DEFAULT_LIGHTMAP_MARGIN, 1f/0.1f);
             
             System.out.println(this.map.getLightmapSize());
 
@@ -135,7 +130,7 @@ public class Game {
                 sun.getDiffuse().set(1f);
                 sun.getSpecular().set(1f);
                 sun.getAmbient().set(0.1f);
-                this.lights.add(sun);
+                //this.lights.add(sun);
 
                 NLight.NPointLight point = new NLight.NPointLight("point");
                 point.getPosition().set(13f, 11f, -17f);
@@ -194,6 +189,9 @@ public class Game {
         }
         if (key == GLFW_KEY_P && action == GLFW_PRESS) {
             N3DObjectRenderer.PARALLAX_ENABLED = !N3DObjectRenderer.PARALLAX_ENABLED;
+        }
+        if (key == GLFW_KEY_B && action == GLFW_PRESS) {
+            this.map.bake();
         }
     }
 
