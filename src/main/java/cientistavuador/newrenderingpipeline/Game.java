@@ -70,8 +70,6 @@ public class Game {
     private final N3DObject testModel;
     private final N3DObject fox;
     
-    private final NLight.NSpotLight flashlight = new NLight.NSpotLight("flashlight");
-    
     private final List<NLight> lights = new ArrayList<>();
 
     {
@@ -138,7 +136,6 @@ public class Game {
                 point.getPosition().set(13f, 11f, -17f);
                 //this.lights.add(point);
                 
-                this.lights.add(this.flashlight);
             }
         } catch (IOException ex) {
             throw new UncheckedIOException(ex);
@@ -167,9 +164,6 @@ public class Game {
         N3DObjectRenderer.queueRender(this.fox);
         N3DObjectRenderer.queueRender(this.testModel);
         N3DObjectRenderer.queueRender(this.myBalls);
-        
-        this.flashlight.getDirection().set(this.camera.getFront());
-        this.flashlight.getPosition().set(this.camera.getPosition());
         
         N3DObjectRenderer.render(this.camera, this.lights, this.cubemap);
 

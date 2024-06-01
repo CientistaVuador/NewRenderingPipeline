@@ -88,7 +88,7 @@ public class NGeometry {
 
     protected void configure(N3DModel model, int globalId, N3DModelNode parent, int localId) {
         if (this.model != null || this.globalId != -1 || this.parent != null || this.localId != -1) {
-            throw new IllegalStateException("This geometry was already configured! Geometry not unique exception.");
+            throw new IllegalStateException("This geometry was already configured! Geometry instance not unique exception.");
         }
         this.model = model;
         this.globalId = globalId;

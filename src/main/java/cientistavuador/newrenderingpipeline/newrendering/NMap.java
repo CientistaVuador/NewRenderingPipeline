@@ -384,9 +384,6 @@ public class NMap {
         Scene scene = new Scene();
         
         Scene.EmissiveLight emissiveLight = new Scene.EmissiveLight();
-        emissiveLight.setDiffuse(10f, 10f, 10f);
-        emissiveLight.setEmissiveRaysPerSample(20);
-        emissiveLight.setEmissiveBlurArea(6f);
         scene.getLights().add(emissiveLight);
         
         Scene.DirectionalLight dir = new Scene.DirectionalLight();

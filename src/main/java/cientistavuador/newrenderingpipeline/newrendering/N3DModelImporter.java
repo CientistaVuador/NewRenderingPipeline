@@ -971,7 +971,9 @@ public class N3DModelImporter {
             for (int i = 0; i < amountOfGeometries; i++) {
                 List<NGeometry> geometriesList = this.loadedGeometries.get(geometriesIndex.get(i));
                 if (geometriesList != null) {
-                    geometries.addAll(geometriesList);
+                    for (NGeometry geo:geometriesList) {
+                        geometries.add(new NGeometry(geo.getName(), geo.getMesh(), geo.getMaterial()));
+                    }
                 }
             }
         }

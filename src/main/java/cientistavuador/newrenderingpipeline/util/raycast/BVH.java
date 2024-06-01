@@ -395,9 +395,7 @@ public class BVH implements Aab {
                     if (tested.contains(triangle)) {
                         continue;
                     }
-
-                    tested.add(triangle);
-
+                    
                     int i0 = this.indices[(triangle * 3) + 0];
                     int i1 = this.indices[(triangle * 3) + 1];
                     int i2 = this.indices[(triangle * 3) + 2];
@@ -424,6 +422,8 @@ public class BVH implements Aab {
 
                     float hit = IntersectionUtils.intersectRayTriangle(localOrigin, localDirection, a, b, c);
                     if (hit >= 0f) {
+                        tested.add(triangle);
+                        
                         MeshUtils.calculateTriangleNormal(
                                 this.vertices,
                                 this.vertexSize,
@@ -462,7 +462,7 @@ public class BVH implements Aab {
         Vector3f a = new Vector3f();
         Vector3f b = new Vector3f();
         Vector3f c = new Vector3f();
-
+        
         testRay(localOrigin, localDirection, resultsOutput, this, tested, normal, hitposition, a, b, c);
 
         return resultsOutput;

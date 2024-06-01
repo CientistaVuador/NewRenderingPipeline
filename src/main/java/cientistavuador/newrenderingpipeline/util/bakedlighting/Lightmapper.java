@@ -594,6 +594,69 @@ public class Lightmapper {
         tbn.set(tangent, bitangent, normal).transform(outDirection);
     }
 
+    private Vector3f shadowBlend(Vector3fc position, Vector3fc direction, float length) {
+        List<LocalRayResult> alphaResults = this.alphaBVH.testRaySorted(position, direction, true);
+        
+        if (alphaResults.isEmpty()) {
+            return null;
+        }
+        
+        Vector3f rayWeights = new Vector3f();
+        
+        List<Vector4f> colors = new ArrayList<>();
+        for (LocalRayResult ray : alphaResults) {
+            if (Float.isFinite(length) && ray.getLocalDistance() > length) {
+                break;
+            }
+            
+            ray.weights(rayWeights);
+            
+            float u = ray.lerp(rayWeights, OFFSET_TEXTURE_XY + 0);
+            float v = ray.lerp(rayWeights, OFFSET_TEXTURE_XY + 1);
+            
+            Vector4f textureColor = new Vector4f();
+            this.textureInput.textureColor(
+                    this.alphaMesh,
+                    u, v, ray.triangle() * 3 * VERTEX_SIZE,
+                    false, textureColor
+            );
+            
+            colors.add(textureColor);
+        }
+        
+        if (colors.isEmpty()) {
+            return null;
+        }
+        
+        Vector3f finalShadowColor = new Vector3f(1f);
+        for (int l = 0; l < colors.size(); l++) {
+            Vector4f color = colors.get(l);
+
+            if (l == 0) {
+                finalShadowColor.set(
+                        color.x() * color.w(),
+                        color.y() * color.w(),
+                        color.z() * color.w()
+                ).add(
+                        1f - color.w(),
+                        1f - color.w(),
+                        1f - color.w()
+                );
+                continue;
+            }
+
+            finalShadowColor
+                    .mul(1f - color.w())
+                    .add(
+                            color.x() * color.w(),
+                            color.y() * color.w(),
+                            color.z() * color.w()
+                    );
+        }
+        
+        return finalShadowColor;
+    }
+
     private void bakeShadow() {
         for (int i = 0; i < this.lightmapSize; i += this.numberOfThreads) {
             List<Future<?>> tasks = new ArrayList<>();
@@ -669,8 +732,19 @@ public class Lightmapper {
                                                 u, v, closest.triangle() * 3 * VERTEX_SIZE,
                                                 true, emissiveColor
                                         );
-
-                                        totalShadow.add(emissiveColor.x(), emissiveColor.y(), emissiveColor.z());
+                                        
+                                        if (emissiveColor.x() != 0f || emissiveColor.y() != 0f || emissiveColor.z() != 0f) {
+                                            Vector3f blend = shadowBlend(position, outLightDirection, closest.getLocalDistance());
+                                            if (blend != null) {
+                                                emissiveColor.mul(
+                                                        blend.x(),
+                                                        blend.y(),
+                                                        blend.z(),
+                                                        1f
+                                                );
+                                            }
+                                            totalShadow.add(emissiveColor.x(), emissiveColor.y(), emissiveColor.z());
+                                        }
                                     }
                                 }
                                 samplesPassed += emissiveLight.getEmissiveRays();
@@ -685,7 +759,12 @@ public class Lightmapper {
                                     }
 
                                     if (!this.opaqueBVH.fastTestRay(position, outLightDirection, length)) {
-                                        totalShadow.add(1f, 1f, 1f);
+                                        Vector3f blend = shadowBlend(position, outLightDirection, length);
+                                        if (blend != null) {
+                                            totalShadow.add(blend);
+                                        } else {
+                                            totalShadow.add(1f, 1f, 1f);
+                                        }
                                     }
                                 }
                                 samplesPassed += this.scene.getShadowRaysPerSample();
@@ -889,7 +968,7 @@ public class Lightmapper {
                 this.lightmap.write(directLight, x, y);
             }
         }
-        
+
         this.lightmapIndirect = null;
     }
 
