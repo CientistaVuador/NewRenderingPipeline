@@ -93,7 +93,7 @@ public class Scene {
             outputDirection.set(0f, 1f, 0f);
             outputColor.set(0f, 0f, 0f);
         }
-
+        
         public void randomLightDirection(
                 Vector3fc position, Vector3f outDirection
         ) {
@@ -371,7 +371,8 @@ public class Scene {
             float theta = outputDirection.dot(this.directionNegated);
             float epsilon = this.cutoffAngleRadiansCosine - this.outerCutoffAngleRadiansCosine;
             float intensity = (theta - this.outerCutoffAngleRadiansCosine) / epsilon;
-
+            intensity = Math.min(Math.max(intensity, 0f), 1f);
+            
             diffuseFactor *= intensity;
 
             outputColor.set(this.getDiffuse()).mul(diffuseFactor);
@@ -382,6 +383,43 @@ public class Scene {
                 Vector3fc position, Vector3f outDirection
         ) {
             pointSpotLightDirection(getPosition(), getLightSize(), position, outDirection);
+        }
+    }
+    
+    public static class EmissiveLight extends Light {
+        
+        private int emissiveRays = 50;
+        private float emissiveBlurArea = 4f;
+        
+        public EmissiveLight() {
+            setDiffuse(10f, 10f, 10f);
+        }
+
+        public int getEmissiveRays() {
+            return emissiveRays;
+        }
+
+        public void setEmissiveRaysPerSample(int emissiveRays) {
+            this.emissiveRays = emissiveRays;
+        }
+
+        public float getEmissiveBlurArea() {
+            return emissiveBlurArea;
+        }
+        
+        public void setEmissiveBlurArea(float emissiveBlurArea) {
+            this.emissiveBlurArea = emissiveBlurArea;
+        }
+
+        @Override
+        public void calculateDirect(Vector3fc position, Vector3fc normal, Vector3f outputDirection, Vector3f outputColor, float directAttenuation) {
+            outputColor.set(getDiffuse());
+            outputDirection.set(0f, 1f, 0f);
+        }
+
+        @Override
+        public void randomLightDirection(Vector3fc position, Vector3f outDirection) {
+            outDirection.set(0f, 1f, 0f);
         }
     }
 

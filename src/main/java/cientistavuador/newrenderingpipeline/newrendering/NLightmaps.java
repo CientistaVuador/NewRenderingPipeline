@@ -35,6 +35,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import org.lwjgl.opengl.ARBTextureCompressionBPTC;
+import org.lwjgl.opengl.EXTTextureFilterAnisotropic;
 import org.lwjgl.opengl.GL;
 import static org.lwjgl.opengl.GL33C.*;
 import org.lwjgl.opengl.GL42C;
@@ -156,7 +157,7 @@ public class NLightmaps {
     public int getMargin() {
         return margin;
     }
-    
+
     public float getIntensity(int index) {
         return this.intensities[index];
     }
@@ -202,9 +203,9 @@ public class NLightmaps {
         int maxLod = (int) Math.abs(
                 Math.log(this.margin) / Math.log(2.0)
         );
-        
+
         glActiveTexture(GL_TEXTURE0);
-        
+
         int lightmap = glGenTextures();
         glBindTexture(GL_TEXTURE_2D_ARRAY, lightmap);
         glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, internalFormat, this.width, this.height, this.names.length, 0, GL_RGB, GL_FLOAT, this.lightmaps);
@@ -218,6 +219,14 @@ public class NLightmaps {
 
         glTexParameterf(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAX_LOD, maxLod);
         glGenerateMipmap(GL_TEXTURE_2D_ARRAY);
+
+        if (GL.getCapabilities().GL_EXT_texture_filter_anisotropic) {
+            glTexParameterf(
+                    GL_TEXTURE_2D_ARRAY,
+                    EXTTextureFilterAnisotropic.GL_TEXTURE_MAX_ANISOTROPY_EXT,
+                    glGetFloat(EXTTextureFilterAnisotropic.GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT)
+            );
+        }
 
         glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
 

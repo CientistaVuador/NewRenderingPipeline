@@ -26,6 +26,7 @@
  */
 package cientistavuador.newrenderingpipeline.util.raycast;
 
+import cientistavuador.newrenderingpipeline.util.RasterUtils;
 import org.joml.Vector3f;
 import org.joml.Vector3fc;
 
@@ -85,6 +86,53 @@ public class LocalRayResult {
     
     public boolean frontFace() {
         return frontFace;
+    }
+    
+    public float lerp(Vector3fc weights, int componentOffset) {
+        int[] indices = this.originBVH.getIndices();
+        
+        int v0 = indices[(this.triangle() * 3) + 0] * this.originBVH.getVertexSize();
+        int v1 = indices[(this.triangle() * 3) + 1] * this.originBVH.getVertexSize();
+        int v2 = indices[(this.triangle() * 3) + 2] * this.originBVH.getVertexSize();
+        
+        float[] vertices = this.originBVH.getVertices();
+        
+        float a = vertices[v0 + componentOffset];
+        float b = vertices[v1 + componentOffset];
+        float c = vertices[v2 + componentOffset];
+        
+        return (a * weights.x()) + (b * weights.y()) + (c * weights.z());
+    }
+    
+    public void weights(Vector3f weights) {
+        int[] indices = this.originBVH.getIndices();
+        float[] vertices = this.originBVH.getVertices();
+        
+        int v0 = (indices[(this.triangle() * 3) + 0] * this.originBVH.getVertexSize()) + this.originBVH.getXYZOffset();
+        int v1 = (indices[(this.triangle() * 3) + 1] * this.originBVH.getVertexSize()) + this.originBVH.getXYZOffset();
+        int v2 = (indices[(this.triangle() * 3) + 2] * this.originBVH.getVertexSize()) + this.originBVH.getXYZOffset();
+        
+        float v0x = vertices[v0 + 0];
+        float v0y = vertices[v0 + 1];
+        float v0z = vertices[v0 + 2];
+        
+        float v1x = vertices[v1 + 0];
+        float v1y = vertices[v1 + 1];
+        float v1z = vertices[v1 + 2];
+        
+        float v2x = vertices[v2 + 0];
+        float v2y = vertices[v2 + 1];
+        float v2z = vertices[v2 + 2];
+        
+        Vector3fc localHitpoint = getLocalHitPosition();
+        
+        RasterUtils.barycentricWeights(
+                localHitpoint.x(), localHitpoint.y(), localHitpoint.z(),
+                v0x, v0y, v0z,
+                v1x, v1y, v1z,
+                v2x, v2y, v2z,
+                weights
+        );
     }
 
 }

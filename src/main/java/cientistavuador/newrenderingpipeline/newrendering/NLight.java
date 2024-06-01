@@ -94,7 +94,7 @@ public abstract class NLight {
         private final Vector3f direction = new Vector3f();
         
         private float innerCone = (float) Math.cos(Math.toRadians(25f));
-        private float outerCone = (float) Math.cos(Math.toRadians(75f));
+        private float outerCone = (float) Math.cos(Math.toRadians(65f));
         
         public NSpotLight(String name) {
             super(name);

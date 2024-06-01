@@ -383,8 +383,15 @@ public class NMap {
         
         Scene scene = new Scene();
         
+        Scene.EmissiveLight emissiveLight = new Scene.EmissiveLight();
+        emissiveLight.setDiffuse(10f, 10f, 10f);
+        emissiveLight.setEmissiveRaysPerSample(20);
+        emissiveLight.setEmissiveBlurArea(6f);
+        scene.getLights().add(emissiveLight);
+        
         Scene.DirectionalLight dir = new Scene.DirectionalLight();
-        //scene.getLights().add(dir);
+        dir.setDiffuse(2f, 2f, 2f);
+        scene.getLights().add(dir);
         
         Scene.PointLight point = new Scene.PointLight();
         point.setPosition(0f, 2f, -4f);
@@ -393,12 +400,62 @@ public class NMap {
         scene.getLights().add(point);
         
         Scene.SpotLight spot = new Scene.SpotLight();
-        spot.setPosition(0f, 2f, -4f);
+        spot.setPosition(0f, 2f, 4f);
         spot.setDiffuse(3f, 3f, 3f);
-        //scene.getLights().add(spot);
+        scene.getLights().add(spot);
         
-        Lightmapper.TextureIO texio = (float u, float v, int triangle, Vector4f outputColor) -> {
-            outputColor.set(1f, 1f, 1f, 1f);
+        Lightmapper.TextureInput texio = (
+                float[] mesh,
+                float u, float v,
+                int triangle,
+                boolean emissive,
+                Vector4f outputColor
+        ) -> {
+            int objectIndex = Float.floatToRawIntBits(mesh[triangle + Lightmapper.OFFSET_USER_XY + 0]);
+            int geometryIndex = Float.floatToRawIntBits(mesh[triangle + Lightmapper.OFFSET_USER_XY + 1]);
+            
+            NMaterial material = this.objects[objectIndex].getN3DModel().getGeometry(geometryIndex).getMaterial();
+            NTextures textures = material.getTextures();
+            
+            int pixelX = Math.abs(((int)Math.floor(u * textures.getWidth()))) % textures.getWidth();
+            int pixelY = Math.abs(((int)Math.floor(v * textures.getHeight()))) % textures.getHeight();
+            
+            if (u < 0f) {
+                pixelX = (textures.getWidth() - 1) - pixelX;
+            }
+            if (v < 0f) {
+                pixelY = (textures.getHeight() - 1) - pixelY;
+            }
+            
+            int pixelIndex = (pixelX * 4) + (pixelY * textures.getWidth() * 4);
+            
+            byte[] textureData;
+            if (emissive) {
+                textureData = textures.getEmissiveRedGreenBlueNormalY();
+            } else {
+                textureData = textures.getRedGreenBlueAlpha();
+            }
+            
+            float r = ((textureData[pixelIndex + 0] & 0xFF) / 255f);
+            float g = ((textureData[pixelIndex + 1] & 0xFF) / 255f);
+            float b = ((textureData[pixelIndex + 2] & 0xFF) / 255f);
+            float a = 1f;
+            
+            r = (float) Math.pow(r, 2.2);
+            g = (float) Math.pow(g, 2.2);
+            b = (float) Math.pow(b, 2.2);
+            
+            if (emissive) {
+                Vector3f materialEmissive = material.getEmissiveColor();
+                
+                r *= materialEmissive.x();
+                g *= materialEmissive.y();
+                b *= materialEmissive.z();
+            } else {
+                a = ((textureData[pixelIndex + 3] & 0xFF) / 255f);
+            }
+            
+            outputColor.set(r, g, b, a);
         };
         
         Lightmapper lightmapper = new Lightmapper(

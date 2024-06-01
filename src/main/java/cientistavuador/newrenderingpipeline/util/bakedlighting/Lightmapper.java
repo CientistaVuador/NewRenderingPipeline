@@ -28,7 +28,10 @@ package cientistavuador.newrenderingpipeline.util.bakedlighting;
 
 import cientistavuador.newrenderingpipeline.util.MeshUtils;
 import cientistavuador.newrenderingpipeline.util.RasterUtils;
+import cientistavuador.newrenderingpipeline.util.postprocess.GaussianBlur;
+import cientistavuador.newrenderingpipeline.util.postprocess.MarginAutomata;
 import cientistavuador.newrenderingpipeline.util.raycast.BVH;
+import cientistavuador.newrenderingpipeline.util.raycast.LocalRayResult;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
@@ -36,6 +39,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadLocalRandom;
+import org.joml.Matrix3f;
 import org.joml.Vector3f;
 import org.joml.Vector3fc;
 import org.joml.Vector4f;
@@ -46,11 +50,15 @@ import org.joml.primitives.Rectanglei;
  * @author Cien
  */
 public class Lightmapper {
-    
-    public static interface TextureIO {
-        public void color(float u, float v, int triangle, Vector4f outputColor);
+
+    public static interface TextureInput {
+
+        public void textureColor(float[] mesh, float u, float v, int triangle, boolean emissive, Vector4f outputColor);
     }
-    
+
+    public static final float EPSILON = 0.0001f;
+    public static final int DEFAULT_GAUSSIAN_BLUR_KERNEL_SIZE = 51;
+
     public static final int OFFSET_POSITION_XYZ = 0;
     public static final int OFFSET_LIGHTMAP_XY = OFFSET_POSITION_XYZ + 3;
     public static final int OFFSET_TEXTURE_XY = OFFSET_LIGHTMAP_XY + 2;
@@ -226,7 +234,7 @@ public class Lightmapper {
         }
     }
 
-    public static volatile int NUMBER_OF_THREADS = 1;
+    public static volatile int NUMBER_OF_THREADS = Runtime.getRuntime().availableProcessors() * 2;
     public static final int IGNORE_TRIGGER_SIZE = 32;
 
     private static final int EMPTY = 0;
@@ -235,7 +243,7 @@ public class Lightmapper {
     private static final int IGNORE_AMBIENT = 0b00000100;
 
     //lightmapper geometry/scene state
-    private final TextureIO textureIO;
+    private final TextureInput textureInput;
     private final Scene scene;
     private final int lightmapSize;
     private final Rectanglei[] lightmapRectangles;
@@ -264,22 +272,22 @@ public class Lightmapper {
 
     //lightmap
     private Float3ImageBuffer lightmap;
+    private Float3ImageBuffer lightmapIndirect;
 
     //light buffers
     private Scene.Light light;
     private Float3ImageBuffer direct;
     private Float3ImageBuffer shadow;
-    private Float3ImageBuffer ambient;
 
     public Lightmapper(
-            TextureIO textureIO,
+            TextureInput textureIO,
             Scene scene,
             int lightmapSize,
             Rectanglei[] lightmapRectangles,
             float[] opaqueMesh,
             float[] alphaMesh
     ) {
-        this.textureIO = textureIO;
+        this.textureInput = textureIO;
         this.scene = scene;
         this.lightmapSize = lightmapSize;
         this.lightmapRectangles = lightmapRectangles;
@@ -467,6 +475,7 @@ public class Lightmapper {
         this.groupIndex = index;
 
         this.lightmap = new Float3ImageBuffer(this.lightmapSize);
+        this.lightmapIndirect = new Float3ImageBuffer(this.lightmapSize);
     }
 
     private void prepareLight(Scene.Light light) {
@@ -474,7 +483,6 @@ public class Lightmapper {
 
         this.direct = new Float3ImageBuffer(this.lightmapSize);
         this.shadow = new Float3ImageBuffer(this.lightmapSize);
-        this.ambient = new Float3ImageBuffer(this.lightmapSize);
     }
 
     private void bakeDirect() {
@@ -525,7 +533,7 @@ public class Lightmapper {
                                     outLightDirection, outLightDirectColor,
                                     this.scene.getDirectLightingAttenuation()
                             );
-                            
+
                             totalColor.add(outLightDirectColor);
                             samplesPassed++;
                         }
@@ -547,7 +555,45 @@ public class Lightmapper {
             tasks.clear();
         }
     }
-    
+
+    private void randomDirection(
+            Vector3fc normal,
+            Vector3f worldUp, Vector3f tangent, Vector3f bitangent, Matrix3f tbn,
+            Vector3f outDirection
+    ) {
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+
+        float x;
+        float y;
+        float z;
+        float dist;
+
+        do {
+            x = (random.nextFloat() * 2f) - 1f;
+            y = (random.nextFloat() * 2f) - 1f;
+            z = random.nextFloat();
+            dist = (x * x) + (y * y) + (z * z);
+        } while (dist > 1f);
+
+        outDirection.set(
+                x,
+                y,
+                z
+        )
+                .normalize();
+
+        worldUp.set(0f, 1f, 0f);
+
+        if (Math.abs(normal.dot(worldUp)) >= (1f - EPSILON)) {
+            worldUp.set(1f, 0f, 0f);
+        }
+
+        normal.cross(worldUp, tangent).normalize();
+        normal.cross(tangent, bitangent).normalize();
+
+        tbn.set(tangent, bitangent, normal).transform(outDirection);
+    }
+
     private void bakeShadow() {
         for (int i = 0; i < this.lightmapSize; i += this.numberOfThreads) {
             List<Future<?>> tasks = new ArrayList<>();
@@ -565,6 +611,16 @@ public class Lightmapper {
                     Vector3f normal = new Vector3f();
 
                     Vector3f outLightDirection = new Vector3f();
+
+                    Vector3f worldUp = new Vector3f();
+
+                    Vector3f tangent = new Vector3f();
+                    Vector3f bitangent = new Vector3f();
+                    Matrix3f tbn = new Matrix3f();
+
+                    Vector3f rayWeights = new Vector3f();
+
+                    Vector4f emissiveColor = new Vector4f();
 
                     int numSamples = this.scene.getSamplingMode().numSamples();
                     for (int x = 0; x < this.lightmapSize; x++) {
@@ -588,26 +644,52 @@ public class Lightmapper {
                                     this.mesh[triangle + OFFSET_TRIANGLE_NORMAL_XYZ + 0],
                                     this.mesh[triangle + OFFSET_TRIANGLE_NORMAL_XYZ + 1],
                                     this.mesh[triangle + OFFSET_TRIANGLE_NORMAL_XYZ + 2]
-                            ).mul(this.scene.getRayOffset());
+                            );
 
-                            position.add(normal);
+                            position.add(
+                                    normal.x() * this.scene.getRayOffset(),
+                                    normal.y() * this.scene.getRayOffset(),
+                                    normal.z() * this.scene.getRayOffset()
+                            );
 
-                            for (int k = 0; k < this.scene.getShadowRaysPerSample(); k++) {
-                                this.light.randomLightDirection(position, outLightDirection);
-                                float length = outLightDirection.length();
-                                outLightDirection.div(length);
-                                
-                                if (this.light instanceof Scene.DirectionalLight) {
-                                    length = Float.POSITIVE_INFINITY;
+                            if (this.light instanceof Scene.EmissiveLight emissiveLight) {
+                                for (int k = 0; k < emissiveLight.getEmissiveRays(); k++) {
+                                    randomDirection(normal, worldUp, tangent, bitangent, tbn, outLightDirection);
+
+                                    List<LocalRayResult> results = this.opaqueBVH.testRaySorted(position, outLightDirection, true);
+                                    if (!results.isEmpty()) {
+                                        LocalRayResult closest = results.get(0);
+                                        closest.weights(rayWeights);
+
+                                        float u = closest.lerp(rayWeights, OFFSET_TEXTURE_XY + 0);
+                                        float v = closest.lerp(rayWeights, OFFSET_TEXTURE_XY + 1);
+
+                                        this.textureInput.textureColor(
+                                                this.opaqueMesh,
+                                                u, v, closest.triangle() * 3 * VERTEX_SIZE,
+                                                true, emissiveColor
+                                        );
+
+                                        totalShadow.add(emissiveColor.x(), emissiveColor.y(), emissiveColor.z());
+                                    }
                                 }
-                                
-                                if (!this.opaqueBVH.fastTestRay(position, outLightDirection, length)) {
-                                    
-                                    totalShadow.add(1f, 1f, 1f);
+                                samplesPassed += emissiveLight.getEmissiveRays();
+                            } else {
+                                for (int k = 0; k < this.scene.getShadowRaysPerSample(); k++) {
+                                    this.light.randomLightDirection(position, outLightDirection);
+                                    float length = outLightDirection.length();
+                                    outLightDirection.div(length);
+
+                                    if (this.light instanceof Scene.DirectionalLight) {
+                                        length = Float.POSITIVE_INFINITY;
+                                    }
+
+                                    if (!this.opaqueBVH.fastTestRay(position, outLightDirection, length)) {
+                                        totalShadow.add(1f, 1f, 1f);
+                                    }
                                 }
+                                samplesPassed += this.scene.getShadowRaysPerSample();
                             }
-                            
-                            samplesPassed += this.scene.getShadowRaysPerSample();
                         }
                         if (samplesPassed != 0) {
                             totalShadow.div(samplesPassed);
@@ -627,58 +709,140 @@ public class Lightmapper {
             tasks.clear();
         }
     }
-    
-    private void randomTangentDirection(Vector3f outDirection) {
-        ThreadLocalRandom random = ThreadLocalRandom.current();
 
-        float x;
-        float y;
-        float z;
-        float dist;
+    private MarginAutomata.MarginAutomataIO createAutomataIO(
+            final Rectanglei rectangle,
+            final Float3ImageBuffer buffer,
+            final int ignoreFlag
+    ) {
+        MarginAutomata.MarginAutomataIO marginIO = new MarginAutomata.MarginAutomataIO() {
+            @Override
+            public int width() {
+                return rectangle.lengthX();
+            }
 
-        do {
-            x = (random.nextFloat() * 2f) - 1f;
-            y = (random.nextFloat() * 2f) - 1f;
-            z = random.nextFloat();
-            dist = (x * x) + (y * y) + (z * z);
-        } while (dist > 1f);
+            @Override
+            public int height() {
+                return rectangle.lengthY();
+            }
 
-        outDirection.set(
-                x,
-                y,
-                z
-        )
-                .normalize();
-    }
+            @Override
+            public boolean empty(int x, int y) {
+                int absX = x + rectangle.minX;
+                int absY = y + rectangle.minY;
 
-    private void bakeIndirect() {
+                boolean empty = true;
+                int numSamples = Lightmapper.this.scene.getSamplingMode().numSamples();
+                for (int s = 0; s < numSamples; s++) {
+                    int state = Lightmapper.this.sampleStates.read(absX, absY, s);
+                    if ((state & Lightmapper.FILLED) != 0 && (state & ignoreFlag) == 0) {
+                        empty = false;
+                        break;
+                    }
+                }
 
+                return empty;
+            }
+
+            final Vector3f colorVector = new Vector3f();
+
+            @Override
+            public void read(int x, int y, MarginAutomata.MarginAutomataColor color) {
+                int absX = x + rectangle.minX;
+                int absY = y + rectangle.minY;
+
+                buffer.read(this.colorVector, absX, absY);
+                color.r = this.colorVector.x();
+                color.g = this.colorVector.y();
+                color.b = this.colorVector.z();
+            }
+
+            @Override
+            public void write(int x, int y, MarginAutomata.MarginAutomataColor color) {
+                int absX = x + rectangle.minX;
+                int absY = y + rectangle.minY;
+
+                this.colorVector.set(color.r, color.g, color.b);
+                buffer.write(this.colorVector, absX, absY);
+            }
+        };
+
+        return marginIO;
     }
 
     private void generateDirectMargins() {
-
+        for (int i = 0; i < this.lightmapRectangles.length; i++) {
+            MarginAutomata.MarginAutomataIO io = createAutomataIO(
+                    this.lightmapRectangles[i], this.direct, Lightmapper.EMPTY
+            );
+            MarginAutomata.generateMargin(io, -1);
+        }
     }
 
     private void generateShadowMargins() {
-
+        for (int i = 0; i < this.lightmapRectangles.length; i++) {
+            MarginAutomata.MarginAutomataIO io = createAutomataIO(
+                    this.lightmapRectangles[i], this.shadow, Lightmapper.IGNORE_SHADOW
+            );
+            MarginAutomata.generateMargin(io, -1);
+        }
     }
 
-    private void generateIndirectMargins() {
+    private GaussianBlur.GaussianIO createGaussianIO(
+            final Rectanglei rectangle,
+            final Float3ImageBuffer buffer
+    ) {
+        GaussianBlur.GaussianIO gaussianIO = new GaussianBlur.GaussianIO() {
+            @Override
+            public int width() {
+                return rectangle.lengthX();
+            }
 
+            @Override
+            public int height() {
+                return rectangle.lengthY();
+            }
+
+            final Vector3f colorVector = new Vector3f();
+
+            @Override
+            public void read(int x, int y, GaussianBlur.GaussianColor color) {
+                int absX = x + rectangle.minX;
+                int absY = y + rectangle.minY;
+
+                buffer.read(this.colorVector, absX, absY);
+                color.r = this.colorVector.x();
+                color.g = this.colorVector.y();
+                color.b = this.colorVector.z();
+            }
+
+            @Override
+            public void write(int x, int y, GaussianBlur.GaussianColor color) {
+                int absX = x + rectangle.minX;
+                int absY = y + rectangle.minY;
+
+                this.colorVector.set(color.r, color.g, color.b);
+                buffer.write(this.colorVector, absX, absY);
+            }
+        };
+
+        return gaussianIO;
     }
 
     private void denoiseShadow() {
-
-    }
-
-    private void denoiseIndirect() {
-
+        float blurArea = this.scene.getShadowBlurArea();
+        if (this.light instanceof Scene.EmissiveLight emissiveLight) {
+            blurArea = emissiveLight.getEmissiveBlurArea();
+        }
+        for (int i = 0; i < this.lightmapRectangles.length; i++) {
+            GaussianBlur.GaussianIO io = createGaussianIO(this.lightmapRectangles[i], this.shadow);
+            GaussianBlur.blur(io, DEFAULT_GAUSSIAN_BLUR_KERNEL_SIZE, blurArea);
+        }
     }
 
     private void outputLight() {
         Vector3f directLight = new Vector3f();
         Vector3f shadowLight = new Vector3f();
-        Vector3f ambientLight = new Vector3f();
 
         Vector3f resultLight = new Vector3f();
         Vector3f currentLight = new Vector3f();
@@ -687,17 +851,46 @@ public class Lightmapper {
             for (int x = 0; x < this.lightmapSize; x++) {
                 this.direct.read(directLight, x, y);
                 this.shadow.read(shadowLight, x, y);
-                this.ambient.read(ambientLight, x, y);
                 this.lightmap.read(currentLight, x, y);
-                
-                resultLight.set(directLight).mul(shadowLight).add(ambientLight).add(currentLight);
+
+                resultLight.set(directLight).mul(shadowLight).add(currentLight);
+
                 this.lightmap.write(resultLight, x, y);
             }
         }
 
         this.direct = null;
         this.shadow = null;
-        this.ambient = null;
+    }
+
+    private void bakeIndirect() {
+
+    }
+
+    private void generateIndirectMargins() {
+
+    }
+
+    private void denoiseIndirect() {
+
+    }
+
+    private void outputIndirect() {
+        Vector3f directLight = new Vector3f();
+        Vector3f indirectLight = new Vector3f();
+
+        for (int y = 0; y < this.lightmapSize; y++) {
+            for (int x = 0; x < this.lightmapSize; x++) {
+                this.lightmap.read(directLight, x, y);
+                this.lightmapIndirect.read(indirectLight, x, y);
+
+                directLight.add(indirectLight);
+
+                this.lightmap.write(directLight, x, y);
+            }
+        }
+        
+        this.lightmapIndirect = null;
     }
 
     private void outputLightmap() {
@@ -714,22 +907,26 @@ public class Lightmapper {
             rasterizeBarycentricBuffers();
             for (int i = 0; i < this.lightGroups.length; i++) {
                 prepareLightmap(i);
+
                 for (Scene.Light l : this.group.lights) {
                     prepareLight(l);
 
                     bakeDirect();
                     bakeShadow();
-                    bakeIndirect();
 
                     generateDirectMargins();
                     generateShadowMargins();
-                    generateIndirectMargins();
 
                     denoiseShadow();
-                    denoiseIndirect();
 
                     outputLight();
                 }
+
+                bakeIndirect();
+                generateIndirectMargins();
+                denoiseIndirect();
+                outputIndirect();
+
                 outputLightmap();
             }
             return this.lightmaps;

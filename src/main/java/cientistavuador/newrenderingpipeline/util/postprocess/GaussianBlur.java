@@ -44,8 +44,10 @@ public class GaussianBlur {
         public int width();
 
         public int height();
-
-        public boolean outOfBounds(int x, int y);
+        
+        public default boolean outOfBounds(int x, int y) {
+            return x < 0 || y < 0 || x >= width() || y >= height();
+        }
 
         public default boolean ignore(int x, int y) {
             return false;
@@ -94,7 +96,7 @@ public class GaussianBlur {
                 if (this.io.outOfBounds(x, y)) {
                     continue;
                 }
-
+                
                 if (this.io.ignore(x, y)) {
                     this.io.read(x, y, readGaussian);
                     colorMap[0 + (x * 3) + (y * this.io.width() * 3)] = readGaussian.r;
@@ -102,7 +104,7 @@ public class GaussianBlur {
                     colorMap[2 + (x * 3) + (y * this.io.width() * 3)] = readGaussian.b;
                     continue;
                 }
-
+                
                 float r = 0f;
                 float g = 0f;
                 float b = 0f;

@@ -269,11 +269,15 @@ public class BVH implements Aab {
         return vertices;
     }
 
+    public int[] getIndices() {
+        return indices;
+    }
+    
     public int getVertexSize() {
         return vertexSize;
     }
 
-    public int getXyzOffset() {
+    public int getXYZOffset() {
         return xyzOffset;
     }
 
@@ -464,8 +468,17 @@ public class BVH implements Aab {
         return resultsOutput;
     }
 
-    public List<LocalRayResult> testRaySorted(Vector3fc localOrigin, Vector3fc localDirection) {
+    public List<LocalRayResult> testRaySorted(Vector3fc localOrigin, Vector3fc localDirection, boolean frontFaceOnly) {
         List<LocalRayResult> results = testRay(localOrigin, localDirection);
+        if (frontFaceOnly) {
+            List<LocalRayResult> filtered = new ArrayList<>();
+            for (LocalRayResult e:results) {
+                if (e.frontFace()) {
+                    filtered.add(e);
+                }
+            }
+            results = filtered;
+        }
         results.sort((o1, o2) -> Float.compare(o1.getLocalDistance(), o2.getLocalDistance()));
         return results;
     }

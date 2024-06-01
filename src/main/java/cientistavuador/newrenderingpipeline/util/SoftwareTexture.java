@@ -64,7 +64,7 @@ public interface SoftwareTexture {
         }
         return TextureWrapping.REPEAT;
     }
-    
+
     private static TextureFiltering fromGLFilteringEnum(int en) {
         switch (en) {
             case GL_LINEAR, GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR_MIPMAP_NEAREST -> {
@@ -76,7 +76,7 @@ public interface SoftwareTexture {
         }
         return TextureFiltering.BILINEAR;
     }
-    
+
     public static SoftwareTexture fromGLTexture2D(int texture) {
         if (texture == 0) {
             return EMPTY;
@@ -88,13 +88,13 @@ public interface SoftwareTexture {
         int height = glGetTexLevelParameteri(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT);
         int[] pixels = new int[width * height];
         glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, pixels);
-        
+
         TextureWrapping wX = fromGLWrappingEnum(glGetTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S));
         TextureWrapping wY = fromGLWrappingEnum(glGetTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T));
         TextureFiltering f = fromGLFilteringEnum(glGetTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER));
-        
+
         glBindTexture(GL_TEXTURE_2D, 0);
-        
+
         return new SoftwareTexture() {
             private final int w = width;
             private final int h = height;
@@ -127,7 +127,7 @@ public interface SoftwareTexture {
             public TextureFiltering getPreferredFiltering() {
                 return this.filter;
             }
-            
+
             @Override
             public void fetch(int x, int y, float[] result, int offset) {
                 int pixel = this.p[x + (y * height())];
@@ -179,7 +179,11 @@ public interface SoftwareTexture {
         int axisSize = (xAxis ? width() : height());
         switch (wrapping) {
             case REPEAT -> {
-                return Math.abs(p % axisSize);
+                int v = Math.abs(p) % axisSize;
+                if (p < 0) {
+                    v = (axisSize - 1) - v;
+                }
+                return v;
             }
             case MIRRORED_REPEAT -> {
                 int repeatValue = (int) Math.floor(((double) p) / axisSize);
@@ -198,8 +202,10 @@ public interface SoftwareTexture {
                 }
                 return p;
             }
+            default -> {
+                return wrap(p, TextureWrapping.REPEAT, xAxis);
+            }
         }
-        return Math.abs(p % axisSize);
     }
 
     public default void sampleNearest(float x, float y, float[] result, int offset) {
@@ -215,7 +221,7 @@ public interface SoftwareTexture {
         int height = height();
         float pX = (x * width) - 0.5f;
         float pY = (y * height) - 0.5f;
-        
+
         int bottomLeftX = (int) Math.floor(pX);
         int bottomLeftY = (int) Math.floor(pY);
         float weightX = pX - bottomLeftX;
