@@ -630,8 +630,8 @@ public class Lightmapper {
         
         Vector3f finalShadowColor = new Vector3f(1f);
         for (int l = 0; l < colors.size(); l++) {
-            Vector4f color = colors.get(l);
-
+            Vector4f color = colors.get((colors.size() - 1) - l);
+            
             if (l == 0) {
                 finalShadowColor.set(
                         color.x() * color.w(),
