@@ -27,6 +27,7 @@
 package cientistavuador.newrenderingpipeline.util.bakedlighting;
 
 import cientistavuador.newrenderingpipeline.util.MeshUtils;
+import cientistavuador.newrenderingpipeline.util.Pair;
 import cientistavuador.newrenderingpipeline.util.RasterUtils;
 import cientistavuador.newrenderingpipeline.util.postprocess.GaussianBlur;
 import cientistavuador.newrenderingpipeline.util.postprocess.MarginAutomata;
@@ -596,42 +597,42 @@ public class Lightmapper {
 
     private Vector3f shadowBlend(Vector3fc position, Vector3fc direction, float length) {
         List<LocalRayResult> alphaResults = this.alphaBVH.testRaySorted(position, direction, true);
-        
+
         if (alphaResults.isEmpty()) {
             return null;
         }
-        
+
         Vector3f rayWeights = new Vector3f();
-        
+
         List<Vector4f> colors = new ArrayList<>();
         for (LocalRayResult ray : alphaResults) {
             if (Float.isFinite(length) && ray.getLocalDistance() > length) {
                 break;
             }
-            
+
             ray.weights(rayWeights);
-            
+
             float u = ray.lerp(rayWeights, OFFSET_TEXTURE_XY + 0);
             float v = ray.lerp(rayWeights, OFFSET_TEXTURE_XY + 1);
-            
+
             Vector4f textureColor = new Vector4f();
             this.textureInput.textureColor(
                     this.alphaMesh,
                     u, v, ray.triangle() * 3 * VERTEX_SIZE,
                     false, textureColor
             );
-            
+
             colors.add(textureColor);
         }
-        
+
         if (colors.isEmpty()) {
             return null;
         }
-        
+
         Vector3f finalShadowColor = new Vector3f(1f);
         for (int l = 0; l < colors.size(); l++) {
             Vector4f color = colors.get((colors.size() - 1) - l);
-            
+
             if (l == 0) {
                 finalShadowColor.set(
                         color.x() * color.w(),
@@ -653,7 +654,7 @@ public class Lightmapper {
                             color.z() * color.w()
                     );
         }
-        
+
         return finalShadowColor;
     }
 
@@ -732,7 +733,7 @@ public class Lightmapper {
                                                 u, v, closest.triangle() * 3 * VERTEX_SIZE,
                                                 true, emissiveColor
                                         );
-                                        
+
                                         if (emissiveColor.x() != 0f || emissiveColor.y() != 0f || emissiveColor.z() != 0f) {
                                             Vector3f blend = shadowBlend(position, outLightDirection, closest.getLocalDistance());
                                             if (blend != null) {
@@ -943,15 +944,167 @@ public class Lightmapper {
     }
 
     private void bakeIndirect() {
+        for (int i = 0; i < this.lightmapSize; i += this.numberOfThreads) {
+            List<Future<?>> tasks = new ArrayList<>();
 
+            for (int j = 0; j < this.numberOfThreads; j++) {
+                final int y = i + j;
+                if (y >= this.lightmapSize) {
+                    break;
+                }
+                tasks.add(this.service.submit(() -> {
+                    Vector3f totalIndirect = new Vector3f();
+
+                    Vector3f sampleWeights = new Vector3f();
+                    
+                    Vector3f normal = new Vector3f();
+                    Vector3f position = new Vector3f();
+                    Vector3f direction = new Vector3f();
+
+                    Vector3f worldUp = new Vector3f();
+
+                    Vector3f tangent = new Vector3f();
+                    Vector3f bitangent = new Vector3f();
+                    Matrix3f tbn = new Matrix3f();
+
+                    Vector3f rayWeights = new Vector3f();
+
+                    Vector4f texture = new Vector4f();
+                    
+                    Vector3f rayNormal = new Vector3f();
+                    Vector3f rayPosition = new Vector3f();
+                    Vector3f rayDirection = new Vector3f();
+                    
+                    Vector3f indirectLight = new Vector3f();
+                    
+                    int numSamples = this.scene.getSamplingMode().numSamples();
+                    for (int x = 0; x < this.lightmapSize; x++) {
+                        totalIndirect.zero();
+                        int samplesPassed = 0;
+                        for (int s = 0; s < numSamples; s++) {
+                            int sampleState = this.sampleStates.read(x, y, s);
+                            if ((sampleState & FILLED) == 0 || (sampleState & IGNORE_AMBIENT) != 0) {
+                                continue;
+                            }
+
+                            this.weights.read(sampleWeights, x, y, s);
+                            int triangle = this.triangles.read(x, y, s);
+
+                            position.set(
+                                    lerp(sampleWeights, triangle, OFFSET_POSITION_XYZ + 0),
+                                    lerp(sampleWeights, triangle, OFFSET_POSITION_XYZ + 1),
+                                    lerp(sampleWeights, triangle, OFFSET_POSITION_XYZ + 2)
+                            );
+                            normal.set(
+                                    this.mesh[triangle + OFFSET_TRIANGLE_NORMAL_XYZ + 0],
+                                    this.mesh[triangle + OFFSET_TRIANGLE_NORMAL_XYZ + 1],
+                                    this.mesh[triangle + OFFSET_TRIANGLE_NORMAL_XYZ + 2]
+                            );
+
+                            position.add(
+                                    normal.x() * this.scene.getRayOffset(),
+                                    normal.y() * this.scene.getRayOffset(),
+                                    normal.z() * this.scene.getRayOffset()
+                            );
+                            
+                            for (int k = 0; k < this.scene.getIndirectRaysPerSample(); k++) {
+                                randomDirection(normal, worldUp, tangent, bitangent, tbn, direction);
+                                
+                                rayPosition.set(position);
+                                rayDirection.set(direction);
+                                
+                                List<Pair<Vector3f, Vector3f>> rays = new ArrayList<>();
+                                for (int l = 0; l < this.scene.getIndirectBounces(); l++) {
+                                    List<LocalRayResult> results = this.opaqueBVH.testRaySorted(
+                                            rayPosition,
+                                            rayDirection,
+                                            false
+                                    );
+                                    if (results.isEmpty()) {
+                                        break;
+                                    }
+                                    LocalRayResult closest = results.get(0);
+                                    closest.weights(rayWeights);
+                                    
+                                    float u = closest.lerp(rayWeights, OFFSET_TEXTURE_XY + 0);
+                                    float v = closest.lerp(rayWeights, OFFSET_TEXTURE_XY + 1);
+                                    
+                                    float lu = closest.lerp(rayWeights, OFFSET_LIGHTMAP_XY + 0);
+                                    float lv = closest.lerp(rayWeights, OFFSET_LIGHTMAP_XY + 1);
+                                    
+                                    Vector3f textureColor = new Vector3f();
+                                    Vector3f lightColor = new Vector3f();
+                                    
+                                    this.textureInput.textureColor(this.opaqueMesh, u, v, (closest.triangle() * 3) * VERTEX_SIZE, false, texture);
+                                    textureColor.set(texture.x(), texture.y(), texture.z());
+                                    this.lightmap.read(lightColor,
+                                            clamp((int) (lu * this.lightmapSize), 0, this.lightmapSize - 1),
+                                            clamp((int) (lv * this.lightmapSize), 0, this.lightmapSize - 1)
+                                    );
+                                    
+                                    rays.add(new Pair<>(textureColor, lightColor));
+                                    
+                                    rayPosition.set(closest.getLocalHitPosition());
+                                    rayNormal.set(
+                                            closest.lerp(rayWeights, OFFSET_TRIANGLE_NORMAL_XYZ + 0),
+                                            closest.lerp(rayWeights, OFFSET_TRIANGLE_NORMAL_XYZ + 1),
+                                            closest.lerp(rayWeights, OFFSET_TRIANGLE_NORMAL_XYZ + 2)
+                                    );
+                                    if (!closest.frontFace()) {
+                                        rayNormal.negate();
+                                    }
+                                    rayDirection.reflect(rayNormal);
+                                    
+                                    rayPosition.add(rayNormal.mul(this.scene.getRayOffset()));
+                                }
+                                
+                                for (int l = 0; l < rays.size(); l++) {
+                                    Pair<Vector3f, Vector3f> currentRay = rays.get(l);
+                                    indirectLight.set(currentRay.getA()).mul(currentRay.getB());
+                                    
+                                    for (int m = 0; m < l; m++) {
+                                        indirectLight.mul(rays.get(m).getA());
+                                    }
+                                    
+                                    totalIndirect.add(indirectLight.mul(this.scene.getIndirectLightReflectionFactor()));
+                                }
+                            }
+                            samplesPassed += this.scene.getShadowRaysPerSample();
+                        }
+                        if (samplesPassed != 0) {
+                            totalIndirect.div(samplesPassed);
+                        }
+                        this.lightmapIndirect.write(totalIndirect, x, y);
+                    }
+                }));
+            }
+
+            for (Future<?> t : tasks) {
+                try {
+                    t.get();
+                } catch (InterruptedException | ExecutionException ex) {
+                    throw new RuntimeException(ex);
+                }
+            }
+            tasks.clear();
+        }
     }
 
     private void generateIndirectMargins() {
-
+        for (int i = 0; i < this.lightmapRectangles.length; i++) {
+            MarginAutomata.MarginAutomataIO io = createAutomataIO(
+                    this.lightmapRectangles[i], this.lightmapIndirect, Lightmapper.IGNORE_AMBIENT
+            );
+            MarginAutomata.generateMargin(io, -1);
+        }
     }
 
     private void denoiseIndirect() {
-
+        float blurArea = this.scene.getIndirectLightingBlurArea();
+        for (int i = 0; i < this.lightmapRectangles.length; i++) {
+            GaussianBlur.GaussianIO io = createGaussianIO(this.lightmapRectangles[i], this.lightmapIndirect);
+            GaussianBlur.blur(io, DEFAULT_GAUSSIAN_BLUR_KERNEL_SIZE, blurArea);
+        }
     }
 
     private void outputIndirect() {
@@ -968,8 +1121,6 @@ public class Lightmapper {
                 this.lightmap.write(directLight, x, y);
             }
         }
-
-        this.lightmapIndirect = null;
     }
 
     private void outputLightmap() {
@@ -977,6 +1128,7 @@ public class Lightmapper {
         this.lightmaps[this.groupIndex] = m;
 
         this.lightmap = null;
+        this.lightmapIndirect = null;
     }
 
     public Lightmap[] bake() {
