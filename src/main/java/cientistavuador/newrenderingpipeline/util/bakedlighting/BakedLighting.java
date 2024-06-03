@@ -1085,8 +1085,8 @@ public class BakedLighting {
                 float intensity = 1f;
                 if (this.lightType == 2) {
                     float theta = this.spot.getDirection().dot(-dirX, -dirY, -dirZ);
-                    float epsilon = this.spot.getCutoffAngleRadiansCosine() - this.spot.getOuterCutoffAngleRadiansCosine();
-                    intensity = Math.min(Math.max((theta - this.spot.getOuterCutoffAngleRadiansCosine()) / epsilon, 0f), 1f);
+                    float epsilon = this.spot.getInnerCutoff() - this.spot.getOuterCutoff();
+                    intensity = Math.min(Math.max((theta - this.spot.getOuterCutoff()) / epsilon, 0f), 1f);
                 }
                 output
                         .set(this.point.getDiffuse())

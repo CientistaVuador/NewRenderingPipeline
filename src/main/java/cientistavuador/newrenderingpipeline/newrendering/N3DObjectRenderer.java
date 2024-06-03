@@ -30,6 +30,7 @@ import cientistavuador.newrenderingpipeline.Main;
 import cientistavuador.newrenderingpipeline.camera.Camera;
 import cientistavuador.newrenderingpipeline.util.BetterUniformSetter;
 import cientistavuador.newrenderingpipeline.util.GPUOcclusion;
+import cientistavuador.newrenderingpipeline.util.Pair;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -86,7 +87,7 @@ public class N3DObjectRenderer {
     }
 
     public static void render(Camera camera, List<NLight> lights, NCubemap skybox) {
-        List<NProgram.NProgramLight> renderableLightsList = new ArrayList<>();
+        List<Pair<NProgram.NProgramLight, Boolean>> renderableLightsList = new ArrayList<>();
         for (NLight indexLight : lights) {
             if (indexLight != null) {
                 if (indexLight instanceof NLight.NDirectionalLight d) {
@@ -99,7 +100,7 @@ public class N3DObjectRenderer {
                             d.getSpecular().x(), d.getSpecular().y(), d.getSpecular().z(),
                             d.getAmbient().x(), d.getAmbient().y(), d.getAmbient().z()
                     );
-                    renderableLightsList.add(light);
+                    renderableLightsList.add(new Pair<>(light, indexLight.isDynamic()));
                 }
                 if (indexLight instanceof NLight.NPointLight p) {
                     float relativeX = (float) (p.getPosition().x() - camera.getPosition().x());
@@ -114,7 +115,7 @@ public class N3DObjectRenderer {
                             p.getSpecular().x(), p.getSpecular().y(), p.getSpecular().z(),
                             p.getAmbient().x(), p.getAmbient().y(), p.getAmbient().z()
                     );
-                    renderableLightsList.add(light);
+                    renderableLightsList.add(new Pair<>(light, indexLight.isDynamic()));
                 }
                 if (indexLight instanceof NLight.NSpotLight s) {
                     float relativeX = (float) (s.getPosition().x() - camera.getPosition().x());
@@ -129,11 +130,14 @@ public class N3DObjectRenderer {
                             s.getSpecular().x(), s.getSpecular().y(), s.getSpecular().z(),
                             s.getAmbient().x(), s.getAmbient().y(), s.getAmbient().z()
                     );
-                    renderableLightsList.add(light);
+                    renderableLightsList.add(new Pair<>(light, indexLight.isDynamic()));
                 }
             }
         }
-        renderableLightsList.sort((o1, o2) -> {
+        renderableLightsList.sort((o1Pair, o2Pair) -> {
+            NProgram.NProgramLight o1 = o1Pair.getA();
+            NProgram.NProgramLight o2 = o2Pair.getA();
+            
             float o1Dist = (o1.x * o1.x) + (o1.y * o1.y) + (o1.z * o1.z);
             float o2Dist = (o2.x * o2.x) + (o2.y * o2.y) + (o2.z * o2.z);
             if (o1.type == NProgram.DIRECTIONAL_LIGHT_TYPE) {
@@ -146,12 +150,30 @@ public class N3DObjectRenderer {
         });
 
         NProgram.NProgramLight[] renderableLights = new NProgram.NProgramLight[NProgram.MAX_AMOUNT_OF_LIGHTS];
-        for (int i = 0; i < renderableLights.length; i++) {
-            NProgram.NProgramLight light = null;
-            if (i < renderableLightsList.size()) {
-                light = renderableLightsList.get(i);
+        NProgram.NProgramLight[] renderableDynamicLights = new NProgram.NProgramLight[NProgram.MAX_AMOUNT_OF_LIGHTS];
+        
+        int renderableLightsIndex = 0;
+        for (int i = 0; i < renderableLightsList.size(); i++) {
+            NProgram.NProgramLight light = renderableLightsList.get(i).getA();
+            renderableLights[renderableLightsIndex] = light;
+            renderableLightsIndex++;
+            if (renderableLightsIndex >= renderableLights.length) {
+                break;
             }
-            renderableLights[i] = light;
+        }
+        
+        int renderableDynamicLightsIndex = 0;
+        for (int i = 0; i < renderableLightsList.size(); i++) {
+            Pair<NProgram.NProgramLight, Boolean> pair = renderableLightsList.get(i);
+            if (!pair.getB()) {
+                continue;
+            }
+            NProgram.NProgramLight light = pair.getA();
+            renderableLights[renderableDynamicLightsIndex] = light;
+            renderableDynamicLightsIndex++;
+            if (renderableDynamicLightsIndex >= renderableDynamicLights.length) {
+                break;
+            }
         }
 
         List<N3DObject> objectsToRender = new ArrayList<>();
@@ -318,10 +340,10 @@ public class N3DObjectRenderer {
         if (!opaqueList.isEmpty() || !testedList.isEmpty()) {
             glDisable(GL_BLEND);
             if (!opaqueList.isEmpty()) {
-                renderVariant(NProgram.VARIANT_ALPHA_BLENDING, camera, skybox, renderableLights, opaqueList);
+                renderVariant(NProgram.VARIANT_ALPHA_BLENDING, camera, skybox, renderableLights, renderableDynamicLights, opaqueList);
             }
             if (!testedList.isEmpty()) {
-                renderVariant(NProgram.VARIANT_ALPHA_TESTING, camera, skybox, renderableLights, testedList);
+                renderVariant(NProgram.VARIANT_ALPHA_TESTING, camera, skybox, renderableLights, renderableDynamicLights, testedList);
             }
             glEnable(GL_BLEND);
         }
@@ -333,7 +355,7 @@ public class N3DObjectRenderer {
         GPUOcclusion.executeQueries();
 
         if (!blendList.isEmpty()) {
-            renderVariant(NProgram.VARIANT_ALPHA_BLENDING, camera, skybox, renderableLights, blendList);
+            renderVariant(NProgram.VARIANT_ALPHA_BLENDING, camera, skybox, renderableLights, renderableDynamicLights, blendList);
         }
 
     }
@@ -369,6 +391,7 @@ public class N3DObjectRenderer {
             Camera camera,
             NCubemap skybox,
             NProgram.NProgramLight[] lights,
+            NProgram.NProgramLight[] dynamicLights,
             List<ToRender> toRender
     ) {
         glUseProgram(variant.getProgram());
@@ -416,22 +439,23 @@ public class N3DObjectRenderer {
                         .scale(width * 0.5f, height * 0.5f, depth * 0.5f)
                         .invert()
         );
-
-        for (int i = 0; i < lights.length; i++) {
-            NProgram.sendLight(variant, lights[i], i);
-        }
-
+        
         glUniform1i(variant.locationOf(NProgram.UNIFORM_R_G_B_A), 1);
         glUniform1i(variant.locationOf(NProgram.UNIFORM_HT_RG_MT_NX), 2);
         glUniform1i(variant.locationOf(NProgram.UNIFORM_ER_EG_EB_NY), 3);
         glUniform1i(variant.locationOf(NProgram.UNIFORM_LIGHTMAPS), 4);
 
-        render(variant, toRender);
+        render(variant, toRender, lights, dynamicLights);
 
         glUseProgram(0);
     }
 
-    private static void render(BetterUniformSetter variant, List<ToRender> list) {
+    private static void render(
+            BetterUniformSetter variant,
+            List<ToRender> list,
+            NProgram.NProgramLight[] lights,
+            NProgram.NProgramLight[] dynamicLights
+    ) {
         Matrix4f transformedBone = new Matrix4f();
         
         NLightmaps lastLightmaps = null;
@@ -484,6 +508,16 @@ public class N3DObjectRenderer {
                 
                 for (int i = 0; i < lightmaps.getNumberOfLightmaps(); i++) {
                     NProgram.sendLightmapIntensity(variant, lightmaps.getIntensity(i), i);
+                }
+                
+                if (lightmaps == NLightmaps.NULL_LIGHTMAPS) {
+                    for (int i = 0; i < lights.length; i++) {
+                        NProgram.sendLight(variant, lights[i], i);
+                    }
+                } else {
+                    for (int i = 0; i < dynamicLights.length; i++) {
+                        NProgram.sendLight(variant, dynamicLights[i], i);
+                    }
                 }
                 
                 lastLightmaps = lightmaps;

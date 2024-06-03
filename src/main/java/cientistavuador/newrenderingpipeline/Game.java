@@ -39,8 +39,11 @@ import cientistavuador.newrenderingpipeline.newrendering.NCubemap;
 import cientistavuador.newrenderingpipeline.newrendering.NCubemapIO;
 import cientistavuador.newrenderingpipeline.newrendering.NLight;
 import cientistavuador.newrenderingpipeline.newrendering.NMap;
+import cientistavuador.newrenderingpipeline.text.GLFontRenderer;
+import cientistavuador.newrenderingpipeline.text.GLFontSpecifications;
 import cientistavuador.newrenderingpipeline.ubo.CameraUBO;
 import cientistavuador.newrenderingpipeline.ubo.UBOBindingPoints;
+import cientistavuador.newrenderingpipeline.util.bakedlighting.Scene;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -62,14 +65,13 @@ public class Game {
     }
 
     private final FreeCamera camera = new FreeCamera();
+    private NMap.BakeStatus status = null;
 
     private final NCubemap cubemap;
-    
+
     private final NMap map;
-    private final N3DObject myBalls;
-    private final N3DObject testModel;
-    private final N3DObject fox;
-    
+    private final N3DObject triceratops;
+
     private final List<NLight> lights = new ArrayList<>();
 
     {
@@ -79,63 +81,70 @@ public class Game {
             List<N3DObject> mapObjects = new ArrayList<>();
             
             {
-                N3DModel model = N3DModelImporter.importFromJarFile("cientistavuador/newrenderingpipeline/my_metallic_balls.glb");
-
-                this.myBalls = new N3DObject("my balls", model);
-                this.myBalls.getPosition().set(0f, 20f, -15f);
-            }
-
-            {
                 N3DModel waterBottle3DModel = N3DModelImporter.importFromJarFile("cientistavuador/newrenderingpipeline/nrp.glb");
                 N3DObject nrp = new N3DObject("nrp", waterBottle3DModel);
                 mapObjects.add(nrp);
             }
-            
+
             {
                 N3DModel model = N3DModelImporter.importFromJarFile("cientistavuador/newrenderingpipeline/cc0_zacxophone_triceratops.glb");
-
-                FileOutputStream out = new FileOutputStream("model.n3dm");
-                N3DModelStore.writeModel(model, out);
-                out.close();
-
-                FileInputStream in = new FileInputStream("model.n3dm");
-                model = N3DModelStore.readModel(in);
-                in.close();
-
-                this.testModel = new N3DObject("test model", model);
-
-                this.testModel.getPosition().set(8f, 10.75f, -25f);
-                this.testModel.getRotation().rotateY((float) Math.toRadians(-90f + -45f));
-
-                this.testModel.setAnimator(new NAnimator(model, "Armature|Armature|Fall"));
+                
+                this.triceratops = new N3DObject("test model", model);
+                this.triceratops.getPosition().set(-15f, 0.9f, 3f);
+                this.triceratops.setAnimator(new NAnimator(model, "Armature|Armature|Fall"));
             }
             
-            {
-                N3DModel fox3DModel = N3DModelImporter.importFromJarFile("cientistavuador/newrenderingpipeline/cc0_Fox.glb");
-                this.fox = new N3DObject("fox", fox3DModel);
-                this.fox.getPosition().set(0f, 10f, -20f);
-                this.fox.getScale().set(0.02f);
+            this.map = new NMap("map", mapObjects, NMap.DEFAULT_LIGHTMAP_MARGIN, 1f / 0.2f);
 
-                NAnimator foxAnimator = new NAnimator(fox3DModel, "Run");
-                this.fox.setAnimator(foxAnimator);
-            }
-            
-            this.map = new NMap("map", mapObjects, NMap.DEFAULT_LIGHTMAP_MARGIN, 1f/0.1f);
-            
             System.out.println(this.map.getLightmapSize());
 
             {
                 NLight.NDirectionalLight sun = new NLight.NDirectionalLight("sun");
                 sun.getDirection().set(1f, -1f, 1f).normalize();
-                sun.getDiffuse().set(1f);
-                sun.getSpecular().set(1f);
-                sun.getAmbient().set(0.1f);
-                //this.lights.add(sun);
-
-                NLight.NPointLight point = new NLight.NPointLight("point");
-                point.getPosition().set(13f, 11f, -17f);
-                //this.lights.add(point);
+                sun.setDynamic(false);
+                sun.setDiffuseSpecularAmbient(2f);
+                this.lights.add(sun);
                 
+                {
+                    NLight.NPointLight point = new NLight.NPointLight("point");
+                    point.getPosition().set(-15.55f, 4.41f, 3.15f);
+                    point.setDynamic(false);
+                    point.setDiffuseSpecularAmbient(10f);
+                    this.lights.add(point);
+                }
+                
+                {
+                    NLight.NPointLight point = new NLight.NPointLight("point");
+                    point.getPosition().set(-15.47f, 4.71f, -9.44f);
+                    point.setDynamic(false);
+                    point.setDiffuseSpecularAmbient(10f);
+                    this.lights.add(point);
+                }
+                
+                {
+                    NLight.NPointLight point = new NLight.NPointLight("point");
+                    point.getPosition().set(-0.35f, 4.58f, -23.48f);
+                    point.setDynamic(false);
+                    point.setDiffuseSpecularAmbient(10f);
+                    this.lights.add(point);
+                }
+                
+                {
+                    NLight.NSpotLight spot = new NLight.NSpotLight("spot");
+                    spot.getPosition().set(11.10f, 3.94f, -9.56f);
+                    spot.getDirection().set(0.89f, -0.45f, 0.02f);
+                    spot.setDynamic(false);
+                    spot.setDiffuseSpecularAmbient(10f);
+                    this.lights.add(spot);
+                }
+                
+                {
+                    NLight.NPointLight point = new NLight.NPointLight("point");
+                    point.getPosition().set(-0.28f, 4.61f, 2.53f);
+                    point.setDynamic(false);
+                    point.setDiffuseSpecularAmbient(20f);
+                    this.lights.add(point);
+                }
             }
         } catch (IOException ex) {
             throw new UncheckedIOException(ex);
@@ -154,24 +163,30 @@ public class Game {
         this.camera.updateMovement();
         this.camera.updateUBO();
         
-        this.fox.getAnimator().update(Main.TPF);
-        this.testModel.getAnimator().update(Main.TPF);
-        
+        this.triceratops.getAnimator().update(Main.TPF);
+
         for (int i = 0; i < this.map.getNumberOfObjects(); i++) {
             N3DObjectRenderer.queueRender(this.map.getObject(i));
         }
-        
-        N3DObjectRenderer.queueRender(this.fox);
-        N3DObjectRenderer.queueRender(this.testModel);
-        N3DObjectRenderer.queueRender(this.myBalls);
+
+        N3DObjectRenderer.queueRender(this.triceratops);
         
         N3DObjectRenderer.render(this.camera, this.lights, this.cubemap);
 
         AabRender.renderQueue(this.camera);
         LineRender.renderQueue(this.camera);
-        
+
+        if (this.status != null && !this.status.getTask().isDone()) {
+            String text = this.status.getStatus() + '\n'
+                    + String.format("%,.2f", this.status.getRaysPerSecond()) + " Rays Per Second" + '\n'
+                    + String.format("%,.2f", this.status.getProgress() * 100.0) + "%";
+            GLFontRenderer.render(-0.94f, 0.94f, GLFontSpecifications.SPACE_MONO_REGULAR_0_035_BLACK, text);
+            GLFontRenderer.render(-0.95f, 0.95f, GLFontSpecifications.SPACE_MONO_REGULAR_0_035_WHITE, text);
+        }
+
         Main.WINDOW_TITLE += " (DrawCalls: " + Main.NUMBER_OF_DRAWCALLS + ", Vertices: " + Main.NUMBER_OF_VERTICES + ")";
-        Main.WINDOW_TITLE += " (x:" + (int) Math.floor(this.camera.getPosition().x()) + ",y:" + (int) Math.floor(this.camera.getPosition().y()) + ",z:" + (int) Math.ceil(this.camera.getPosition().z()) + ")";
+        Main.WINDOW_TITLE += " (x:" + String.format("%,.2f", this.camera.getPosition().x()) + ",y:" + String.format("%,.2f", this.camera.getPosition().y()) + ",z:" + String.format("%,.2f", this.camera.getPosition().z()) + ")";
+        Main.WINDOW_TITLE += " (dx:" + String.format("%,.2f", this.camera.getFront().x()) + ",dy:" + String.format("%,.2f", this.camera.getFront().y()) + ",dz:" + String.format("%,.2f", this.camera.getFront().z()) + ")";
     }
 
     public void mouseCursorMoved(double x, double y) {
@@ -190,11 +205,20 @@ public class Game {
             N3DObjectRenderer.PARALLAX_ENABLED = !N3DObjectRenderer.PARALLAX_ENABLED;
         }
         if (key == GLFW_KEY_B && action == GLFW_PRESS) {
-            this.map.bake();
+            Scene scene = new Scene();
+            
+            Scene.EmissiveLight emissive = new Scene.EmissiveLight();
+            scene.getLights().add(emissive);
+            
+            for (NLight light:this.lights) {
+                scene.getLights().add(NMap.convertLight(light));
+            }
+            
+            this.status = this.map.bake(scene);
         }
     }
 
     public void mouseCallback(long window, int button, int action, int mods) {
-        
+
     }
 }

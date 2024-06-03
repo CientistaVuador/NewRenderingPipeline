@@ -39,7 +39,10 @@ public abstract class NLight {
     
     private final Vector3f diffuse = new Vector3f(1f);
     private final Vector3f specular = new Vector3f(1f);
-    private final Vector3f ambient = new Vector3f(0.05f);
+    private final Vector3f ambient = new Vector3f(0.03f);
+    
+    private float lightSize = 0.02f;
+    private boolean dynamic = true;
     
     public NLight(String name) {
         this.name = name;
@@ -59,6 +62,32 @@ public abstract class NLight {
 
     public Vector3f getAmbient() {
         return ambient;
+    }
+    
+    public void setDiffuseSpecularAmbient(float r, float g, float b) {
+        this.diffuse.set(r, g, b);
+        this.specular.set(r, g, b);
+        this.ambient.set(r, g, b).mul(0.05f);
+    }
+    
+    public void setDiffuseSpecularAmbient(float value) {
+        setDiffuseSpecularAmbient(value, value, value);
+    }
+
+    public float getLightSize() {
+        return lightSize;
+    }
+
+    public void setLightSize(float lightSize) {
+        this.lightSize = lightSize;
+    }
+
+    public boolean isDynamic() {
+        return dynamic;
+    }
+
+    public void setDynamic(boolean dynamic) {
+        this.dynamic = dynamic;
     }
     
     public static class NDirectionalLight extends NLight {
@@ -107,13 +136,17 @@ public abstract class NLight {
         public Vector3f getDirection() {
             return direction;
         }
-
+        
         public float getInnerCone() {
             return innerCone;
         }
 
         public void setInnerCone(float innerCone) {
             this.innerCone = innerCone;
+        }
+        
+        public void setInnerConeAngle(float innerConeAngle) {
+            this.innerCone = (float) Math.cos(Math.toRadians(innerConeAngle));
         }
 
         public float getOuterCone() {
@@ -122,6 +155,10 @@ public abstract class NLight {
 
         public void setOuterCone(float outerCone) {
             this.outerCone = outerCone;
+        }
+        
+        public void setOuterConeAngle(float outerConeAngle) {
+            this.outerCone = (float) Math.cos(Math.toRadians(outerConeAngle));
         }
         
     }

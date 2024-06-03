@@ -272,7 +272,7 @@ public class BVH implements Aab {
     public int[] getIndices() {
         return indices;
     }
-    
+
     public int getVertexSize() {
         return vertexSize;
     }
@@ -319,7 +319,17 @@ public class BVH implements Aab {
         max.set(this.max);
     }
 
-    private boolean fastTestRay(Vector3f a, Vector3f b, Vector3f c, Set<Integer> tested, BVH e, Vector3fc localOrigin, Vector3fc localDirection, float maxLength) {
+    private boolean fastTestRay(
+            Vector3f a, Vector3f b, Vector3f c,
+            Set<Integer> tested, BVH e,
+            Vector3fc localOrigin, Vector3fc localDirection,
+            float maxLength, Vector3f rayMin, Vector3f rayMax
+    ) {
+        if (rayMin != null && rayMax != null) {
+            if (!IntersectionUtils.testAabAab(rayMin, rayMax, e.getMin(), e.getMax())) {
+                return false;
+            }
+        }
         if (IntersectionUtils.testRayAab(localOrigin, localDirection, e.getMin(), e.getMax())) {
             if (e.getLeft() == null && e.getRight() == null) {
                 int[] nodeTriangles = e.getTriangles();
@@ -358,12 +368,12 @@ public class BVH implements Aab {
             }
 
             if (e.getLeft() != null) {
-                if (fastTestRay(a, b, c, tested, e.getLeft(), localOrigin, localDirection, maxLength)) {
+                if (fastTestRay(a, b, c, tested, e.getLeft(), localOrigin, localDirection, maxLength, rayMin, rayMax)) {
                     return true;
                 }
             }
             if (e.getRight() != null) {
-                if (fastTestRay(a, b, c, tested, e.getRight(), localOrigin, localDirection, maxLength)) {
+                if (fastTestRay(a, b, c, tested, e.getRight(), localOrigin, localDirection, maxLength, rayMin, rayMax)) {
                     return true;
                 }
             }
@@ -376,9 +386,28 @@ public class BVH implements Aab {
         Vector3f b = new Vector3f();
         Vector3f c = new Vector3f();
 
+        Vector3f rayMin = null;
+        Vector3f rayMax = null;
+
+        if (Float.isFinite(maxLength)) {
+            rayMin = new Vector3f(localOrigin);
+            rayMax = new Vector3f(localDirection).mul(maxLength).add(localOrigin);
+
+            float minX = Math.min(rayMin.x(), rayMax.x());
+            float minY = Math.min(rayMin.y(), rayMax.y());
+            float minZ = Math.min(rayMin.z(), rayMax.z());
+
+            float maxX = Math.max(rayMin.x(), rayMax.x());
+            float maxY = Math.max(rayMin.y(), rayMax.y());
+            float maxZ = Math.max(rayMin.z(), rayMax.z());
+
+            rayMin.set(minX, minY, minZ);
+            rayMax.set(maxX, maxY, maxZ);
+        }
+
         Set<Integer> tested = new HashSet<>();
 
-        return fastTestRay(a, b, c, tested, this, localOrigin, localDirection, maxLength);
+        return fastTestRay(a, b, c, tested, this, localOrigin, localDirection, maxLength, rayMin, rayMax);
     }
 
     private void testRay(
@@ -395,7 +424,7 @@ public class BVH implements Aab {
                     if (tested.contains(triangle)) {
                         continue;
                     }
-                    
+
                     int i0 = this.indices[(triangle * 3) + 0];
                     int i1 = this.indices[(triangle * 3) + 1];
                     int i2 = this.indices[(triangle * 3) + 2];
@@ -423,7 +452,7 @@ public class BVH implements Aab {
                     float hit = IntersectionUtils.intersectRayTriangle(localOrigin, localDirection, a, b, c);
                     if (hit >= 0f) {
                         tested.add(triangle);
-                        
+
                         MeshUtils.calculateTriangleNormal(
                                 this.vertices,
                                 this.vertexSize,
@@ -462,7 +491,7 @@ public class BVH implements Aab {
         Vector3f a = new Vector3f();
         Vector3f b = new Vector3f();
         Vector3f c = new Vector3f();
-        
+
         testRay(localOrigin, localDirection, resultsOutput, this, tested, normal, hitposition, a, b, c);
 
         return resultsOutput;
@@ -472,7 +501,7 @@ public class BVH implements Aab {
         List<LocalRayResult> results = testRay(localOrigin, localDirection);
         if (frontFaceOnly) {
             List<LocalRayResult> filtered = new ArrayList<>();
-            for (LocalRayResult e:results) {
+            for (LocalRayResult e : results) {
                 if (e.frontFace()) {
                     filtered.add(e);
                 }
@@ -506,19 +535,19 @@ public class BVH implements Aab {
                 int v0xyz = (i0 * this.vertexSize) + this.xyzOffset;
                 int v1xyz = (i1 * this.vertexSize) + this.xyzOffset;
                 int v2xyz = (i2 * this.vertexSize) + this.xyzOffset;
-                
+
                 float v0x = this.vertices[v0xyz + 0];
                 float v0y = this.vertices[v0xyz + 1];
                 float v0z = this.vertices[v0xyz + 2];
-                
+
                 float v1x = this.vertices[v1xyz + 0];
                 float v1y = this.vertices[v1xyz + 1];
                 float v1z = this.vertices[v1xyz + 2];
-                
+
                 float v2x = this.vertices[v2xyz + 0];
                 float v2y = this.vertices[v2xyz + 1];
                 float v2z = this.vertices[v2xyz + 2];
-                
+
                 int result = Intersectionf.intersectSphereTriangle(
                         x, y, z, radius,
                         v0x, v0y, v0z,
@@ -526,7 +555,7 @@ public class BVH implements Aab {
                         v2x, v2y, v2z,
                         resultVector
                 );
-                
+
                 if (result != 0) {
                     return true;
                 }

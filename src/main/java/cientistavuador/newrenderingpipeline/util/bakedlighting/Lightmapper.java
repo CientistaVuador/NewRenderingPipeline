@@ -242,7 +242,14 @@ public class Lightmapper {
     private static final int FILLED = 0b00000001;
     private static final int IGNORE_SHADOW = 0b00000010;
     private static final int IGNORE_AMBIENT = 0b00000100;
-
+    
+    //lightmapper status
+    private String status = "Idle";
+    private long progressCount = 0;
+    private long progressMax = 0;
+    private long raysCount = 0;
+    private long raysTime = System.currentTimeMillis();
+    
     //lightmapper geometry/scene state
     private final TextureInput textureInput;
     private final Scene scene;
@@ -277,6 +284,7 @@ public class Lightmapper {
 
     //light buffers
     private Scene.Light light;
+    private int lightIndex;
     private Float3ImageBuffer direct;
     private Float3ImageBuffer shadow;
 
@@ -336,7 +344,23 @@ public class Lightmapper {
         this.triangles = new IntegerBuffer(lightmapSize, this.scene.getSamplingMode().numSamples());
         this.sampleStates = new IntegerBuffer(lightmapSize, this.scene.getSamplingMode().numSamples());
     }
-
+    
+    private void setStatus(String status, long progressMax) {
+        this.status = status;
+        this.progressCount = 0;
+        this.progressMax = progressMax;
+        this.raysCount = 0;
+        this.raysTime = System.currentTimeMillis();
+    }
+    
+    private void addProgress(long progress) {
+        this.progressCount += progress;
+    }
+    
+    private void addRay() {
+        this.raysCount++;
+    }
+    
     private int clamp(int v, int min, int max) {
         if (v > max) {
             return max;
@@ -367,7 +391,8 @@ public class Lightmapper {
         Vector3f normal = new Vector3f();
 
         SamplingMode mode = this.scene.getSamplingMode();
-
+        
+        setStatus("Rasterizing Barycentric Buffers", this.mesh.length);
         for (int triangle = 0; triangle < this.mesh.length; triangle += VERTEX_SIZE * 3) {
             normal.set(
                     this.mesh[triangle + OFFSET_TRIANGLE_NORMAL_XYZ + 0],
@@ -468,25 +493,40 @@ public class Lightmapper {
                     }
                 }
             }
+            
+            addProgress(VERTEX_SIZE * 3);
         }
     }
-
+    
+    private String getGroupName() {
+        if (this.group.groupName.isEmpty()) {
+            return "(Unnamed)";
+        }
+        return this.group.groupName;
+    }
+    
     private void prepareLightmap(int index) {
         this.group = this.lightGroups[index];
         this.groupIndex = index;
-
+        
+        setStatus("Preparing Lightmap "+getGroupName(), 1);
         this.lightmap = new Float3ImageBuffer(this.lightmapSize);
         this.lightmapIndirect = new Float3ImageBuffer(this.lightmapSize);
+        addProgress(1);
     }
 
-    private void prepareLight(Scene.Light light) {
-        this.light = light;
-
+    private void prepareLight(int index) {
+        this.light = this.group.lights.get(index);
+        this.lightIndex = index;
+        
+        setStatus(getGroupName()+" - Preparing Light - "+this.lightIndex+", "+this.light.getClass().getSimpleName(), 1);
         this.direct = new Float3ImageBuffer(this.lightmapSize);
         this.shadow = new Float3ImageBuffer(this.lightmapSize);
+        addProgress(1);
     }
 
     private void bakeDirect() {
+        setStatus(getGroupName()+" - Baking Direct - "+this.lightIndex+", "+this.light.getClass().getSimpleName(), this.lightmapSize);
         for (int i = 0; i < this.lightmapSize; i += this.numberOfThreads) {
             List<Future<?>> tasks = new ArrayList<>();
 
@@ -553,6 +593,8 @@ public class Lightmapper {
                     throw new RuntimeException(ex);
                 }
             }
+            
+            addProgress(tasks.size());
             tasks.clear();
         }
     }
@@ -597,7 +639,8 @@ public class Lightmapper {
 
     private Vector3f shadowBlend(Vector3fc position, Vector3fc direction, float length) {
         List<LocalRayResult> alphaResults = this.alphaBVH.testRaySorted(position, direction, true);
-
+        addRay();
+        
         if (alphaResults.isEmpty()) {
             return null;
         }
@@ -659,6 +702,7 @@ public class Lightmapper {
     }
 
     private void bakeShadow() {
+        setStatus(getGroupName()+" - Baking Shadow - "+this.lightIndex+", "+this.light.getClass().getSimpleName(), this.lightmapSize);
         for (int i = 0; i < this.lightmapSize; i += this.numberOfThreads) {
             List<Future<?>> tasks = new ArrayList<>();
 
@@ -721,6 +765,7 @@ public class Lightmapper {
                                     randomDirection(normal, worldUp, tangent, bitangent, tbn, outLightDirection);
 
                                     List<LocalRayResult> results = this.opaqueBVH.testRaySorted(position, outLightDirection, true);
+                                    addRay();
                                     if (!results.isEmpty()) {
                                         LocalRayResult closest = results.get(0);
                                         closest.weights(rayWeights);
@@ -767,6 +812,7 @@ public class Lightmapper {
                                             totalShadow.add(1f, 1f, 1f);
                                         }
                                     }
+                                    addRay();
                                 }
                                 samplesPassed += this.scene.getShadowRaysPerSample();
                             }
@@ -786,6 +832,8 @@ public class Lightmapper {
                     throw new RuntimeException(ex);
                 }
             }
+            
+            addProgress(tasks.size());
             tasks.clear();
         }
     }
@@ -851,20 +899,24 @@ public class Lightmapper {
     }
 
     private void generateDirectMargins() {
+        setStatus(getGroupName()+" - Generating Direct Margins - "+this.lightIndex+", "+this.light.getClass().getSimpleName(), this.lightmapRectangles.length);
         for (int i = 0; i < this.lightmapRectangles.length; i++) {
             MarginAutomata.MarginAutomataIO io = createAutomataIO(
                     this.lightmapRectangles[i], this.direct, Lightmapper.EMPTY
             );
             MarginAutomata.generateMargin(io, -1);
+            addProgress(1);
         }
     }
 
     private void generateShadowMargins() {
+        setStatus(getGroupName()+" - Generating Shadow Margins - "+this.lightIndex+", "+this.light.getClass().getSimpleName(), this.lightmapRectangles.length);
         for (int i = 0; i < this.lightmapRectangles.length; i++) {
             MarginAutomata.MarginAutomataIO io = createAutomataIO(
                     this.lightmapRectangles[i], this.shadow, Lightmapper.IGNORE_SHADOW
             );
             MarginAutomata.generateMargin(io, -1);
+            addProgress(1);
         }
     }
 
@@ -910,6 +962,7 @@ public class Lightmapper {
     }
 
     private void denoiseShadow() {
+        setStatus(getGroupName()+" - Denoising Shadow - "+this.lightIndex+", "+this.light.getClass().getSimpleName(), this.lightmapRectangles.length);
         float blurArea = this.scene.getShadowBlurArea();
         if (this.light instanceof Scene.EmissiveLight emissiveLight) {
             blurArea = emissiveLight.getEmissiveBlurArea();
@@ -917,6 +970,7 @@ public class Lightmapper {
         for (int i = 0; i < this.lightmapRectangles.length; i++) {
             GaussianBlur.GaussianIO io = createGaussianIO(this.lightmapRectangles[i], this.shadow);
             GaussianBlur.blur(io, DEFAULT_GAUSSIAN_BLUR_KERNEL_SIZE, blurArea);
+            addProgress(1);
         }
     }
 
@@ -926,7 +980,8 @@ public class Lightmapper {
 
         Vector3f resultLight = new Vector3f();
         Vector3f currentLight = new Vector3f();
-
+        
+        setStatus(getGroupName()+" - Writing to Lightmap - "+this.lightIndex+", "+this.light.getClass().getSimpleName(), this.lightmapSize);
         for (int y = 0; y < this.lightmapSize; y++) {
             for (int x = 0; x < this.lightmapSize; x++) {
                 this.direct.read(directLight, x, y);
@@ -937,6 +992,7 @@ public class Lightmapper {
 
                 this.lightmap.write(resultLight, x, y);
             }
+            addProgress(1);
         }
 
         this.direct = null;
@@ -944,6 +1000,8 @@ public class Lightmapper {
     }
 
     private void bakeIndirect() {
+        //todo: blending
+        setStatus(getGroupName()+" - Baking Indirect", this.lightmapSize);
         for (int i = 0; i < this.lightmapSize; i += this.numberOfThreads) {
             List<Future<?>> tasks = new ArrayList<>();
 
@@ -1020,6 +1078,7 @@ public class Lightmapper {
                                             rayDirection,
                                             false
                                     );
+                                    addRay();
                                     if (results.isEmpty()) {
                                         break;
                                     }
@@ -1086,31 +1145,37 @@ public class Lightmapper {
                     throw new RuntimeException(ex);
                 }
             }
+            addProgress(tasks.size());
             tasks.clear();
         }
     }
 
     private void generateIndirectMargins() {
+        setStatus(getGroupName()+" - Generating Indirect Margins", this.lightmapRectangles.length);
         for (int i = 0; i < this.lightmapRectangles.length; i++) {
             MarginAutomata.MarginAutomataIO io = createAutomataIO(
                     this.lightmapRectangles[i], this.lightmapIndirect, Lightmapper.IGNORE_AMBIENT
             );
             MarginAutomata.generateMargin(io, -1);
+            addProgress(1);
         }
     }
 
     private void denoiseIndirect() {
+        setStatus(getGroupName()+" - Denoising Indirect", this.lightmapRectangles.length);
         float blurArea = this.scene.getIndirectLightingBlurArea();
         for (int i = 0; i < this.lightmapRectangles.length; i++) {
             GaussianBlur.GaussianIO io = createGaussianIO(this.lightmapRectangles[i], this.lightmapIndirect);
             GaussianBlur.blur(io, DEFAULT_GAUSSIAN_BLUR_KERNEL_SIZE, blurArea);
+            addProgress(1);
         }
     }
 
     private void outputIndirect() {
         Vector3f directLight = new Vector3f();
         Vector3f indirectLight = new Vector3f();
-
+        
+        setStatus(getGroupName()+" - Writing Indirect to Lightmap", this.lightmapSize);
         for (int y = 0; y < this.lightmapSize; y++) {
             for (int x = 0; x < this.lightmapSize; x++) {
                 this.lightmap.read(directLight, x, y);
@@ -1120,17 +1185,20 @@ public class Lightmapper {
 
                 this.lightmap.write(directLight, x, y);
             }
+            addProgress(1);
         }
     }
 
     private void outputLightmap() {
+        setStatus(getGroupName()+" - Finishing Lightmap", 1);
         Lightmap m = new Lightmap(this.group.groupName, this.lightmapSize, this.lightmap.getData());
         this.lightmaps[this.groupIndex] = m;
 
         this.lightmap = null;
         this.lightmapIndirect = null;
+        addProgress(1);
     }
-
+    
     public Lightmap[] bake() {
         this.numberOfThreads = NUMBER_OF_THREADS;
         this.service = Executors.newFixedThreadPool(this.numberOfThreads);
@@ -1139,9 +1207,9 @@ public class Lightmapper {
             for (int i = 0; i < this.lightGroups.length; i++) {
                 prepareLightmap(i);
 
-                for (Scene.Light l : this.group.lights) {
-                    prepareLight(l);
-
+                for (int j = 0; j < this.group.lights.size(); j++) {
+                    prepareLight(j);
+                    
                     bakeDirect();
                     bakeShadow();
 
@@ -1160,10 +1228,27 @@ public class Lightmapper {
 
                 outputLightmap();
             }
+            setStatus("Done", 1);
+            addProgress(1);
             return this.lightmaps;
         } finally {
             this.service.shutdownNow();
         }
     }
 
+    public String getStatus() {
+        return status;
+    }
+
+    public double getRaysPerSecond() {
+        return (((double)this.raysCount) / (System.currentTimeMillis() - this.raysTime)) * 1000.0;
+    }
+    
+    public double getProgress() {
+        if (this.progressMax == 0) {
+            return 0.0;
+        }
+        return ((double)this.progressCount) / this.progressMax;
+    }
+    
 }

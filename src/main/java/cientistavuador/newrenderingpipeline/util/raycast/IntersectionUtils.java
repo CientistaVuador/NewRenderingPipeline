@@ -35,7 +35,11 @@ import org.joml.Vector3fc;
  * @author Cien
  */
 public class IntersectionUtils {
-
+    
+    public static boolean testAabAab(Vector3fc minA, Vector3fc maxA, Vector3fc minB, Vector3fc maxB) {
+        return Intersectionf.testAabAab(minA, maxA, minB, maxB);
+    }
+    
     public static boolean testRayAab(Vector3fc origin, Vector3fc dir, Vector3fc min, Vector3fc max) {
         return Intersectionf.testRayAab(origin, dir, min, max);
     }

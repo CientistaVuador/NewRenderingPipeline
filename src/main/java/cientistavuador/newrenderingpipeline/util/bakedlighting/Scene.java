@@ -93,7 +93,7 @@ public class Scene {
             outputDirection.set(0f, 1f, 0f);
             outputColor.set(0f, 0f, 0f);
         }
-        
+
         public void randomLightDirection(
                 Vector3fc position, Vector3f outDirection
         ) {
@@ -194,22 +194,23 @@ public class Scene {
         dirY *= invlength;
         dirZ *= invlength;
 
+        float x;
+        float y;
+        float z;
+        float dist;
+
         do {
-            float x;
-            float y;
-            float z;
-            float dist;
+            x = (random.nextFloat() * 2f) - 1f;
+            y = (random.nextFloat() * 2f) - 1f;
+            z = (random.nextFloat() * 2f) - 1f;
+            dist = (x * x) + (y * y) + (z * z);
+        } while (dist > 1f);
 
-            do {
-                x = (random.nextFloat() * 2f) - 1f;
-                y = (random.nextFloat() * 2f) - 1f;
-                z = (random.nextFloat() * 2f) - 1f;
-                dist = (x * x) + (y * y) + (z * z);
-            } while (dist > 1f);
-
-            outDirection.set(x, y, z).normalize();
-
-        } while (outDirection.dot(-dirX, -dirY, -dirZ) < 0f);
+        outDirection.set(x, y, z).normalize();
+        
+        if (outDirection.dot(-dirX, -dirY, -dirZ) < 0f) {
+            outDirection.negate();
+        }
 
         outDirection
                 .mul(lightSize)
@@ -278,13 +279,11 @@ public class Scene {
 
         private final Vector3f direction = new Vector3f(0, -1, 0);
         private final Vector3f directionNegated = new Vector3f(this.direction).negate();
-        private float cutoffAngle = 25f;
-        private float outerCutoffAngle = 65f;
-        private float cutoffAngleRadiansCosine = calculateRadiansCosine(this.cutoffAngle);
-        private float outerCutoffAngleRadiansCosine = calculateRadiansCosine(this.outerCutoffAngle);
+        private float innerCutoff = calculateRadiansCosine(25f);
+        private float outerCutoff = calculateRadiansCosine(65f);
 
         public SpotLight() {
-
+            
         }
 
         public Vector3fc getPosition() {
@@ -310,31 +309,29 @@ public class Scene {
         private float calculateRadiansCosine(float angle) {
             return (float) Math.cos(Math.toRadians(angle));
         }
-
-        public float getCutoffAngle() {
-            return cutoffAngle;
-        }
-
+        
         public void setCutoffAngle(float cutoffAngle) {
-            this.cutoffAngle = cutoffAngle;
-            this.cutoffAngleRadiansCosine = calculateRadiansCosine(this.cutoffAngle);
+            this.innerCutoff = calculateRadiansCosine(cutoffAngle);
         }
-
-        public float getCutoffAngleRadiansCosine() {
-            return cutoffAngleRadiansCosine;
-        }
-
-        public float getOuterCutoffAngle() {
-            return outerCutoffAngle;
-        }
-
+        
         public void setOuterCutoffAngle(float outerCutoffAngle) {
-            this.outerCutoffAngle = outerCutoffAngle;
-            this.outerCutoffAngleRadiansCosine = calculateRadiansCosine(this.outerCutoffAngle);
+            this.outerCutoff = calculateRadiansCosine(outerCutoffAngle);
         }
-
-        public float getOuterCutoffAngleRadiansCosine() {
-            return outerCutoffAngleRadiansCosine;
+        
+        public float getInnerCutoff() {
+            return innerCutoff;
+        }
+        
+        public float getOuterCutoff() {
+            return outerCutoff;
+        }
+        
+        public void setInnerCutoff(float innerCutoff) {
+            this.innerCutoff = innerCutoff;
+        }
+        
+        public void setOuterCutoff(float outerCutoff) {
+            this.outerCutoff = outerCutoff;
         }
 
         public Vector3fc getDirection() {
@@ -369,10 +366,10 @@ public class Scene {
             diffuseFactor *= attenuation;
 
             float theta = outputDirection.dot(this.directionNegated);
-            float epsilon = this.cutoffAngleRadiansCosine - this.outerCutoffAngleRadiansCosine;
-            float intensity = (theta - this.outerCutoffAngleRadiansCosine) / epsilon;
+            float epsilon = this.innerCutoff - this.outerCutoff;
+            float intensity = (theta - this.outerCutoff) / epsilon;
             intensity = Math.min(Math.max(intensity, 0f), 1f);
-            
+
             diffuseFactor *= intensity;
 
             outputColor.set(this.getDiffuse()).mul(diffuseFactor);
@@ -385,12 +382,12 @@ public class Scene {
             pointSpotLightDirection(getPosition(), getLightSize(), position, outDirection);
         }
     }
-    
+
     public static class EmissiveLight extends Light {
-        
-        private int emissiveRays = 50;
-        private float emissiveBlurArea = 4f;
-        
+
+        private int emissiveRays = 128;
+        private float emissiveBlurArea = 3f;
+
         public EmissiveLight() {
             setDiffuse(10f, 10f, 10f);
         }
@@ -406,7 +403,7 @@ public class Scene {
         public float getEmissiveBlurArea() {
             return emissiveBlurArea;
         }
-        
+
         public void setEmissiveBlurArea(float emissiveBlurArea) {
             this.emissiveBlurArea = emissiveBlurArea;
         }
@@ -434,11 +431,11 @@ public class Scene {
     private float directLightingAttenuation = 0.75f;
 
     private boolean shadowsEnabled = true;
-    private int shadowRaysPerSample = 12;
+    private int shadowRaysPerSample = 64;
     private float shadowBlurArea = 1f;
 
     private boolean indirectLightingEnabled = true;
-    private int indirectRaysPerSample = 8;
+    private int indirectRaysPerSample = 32;
     private int indirectBounces = 4;
     private float indirectLightingBlurArea = 4f;
     private float indirectLightReflectionFactor = 1f;
