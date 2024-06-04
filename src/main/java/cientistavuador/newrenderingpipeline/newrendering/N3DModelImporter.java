@@ -151,7 +151,7 @@ public class N3DModelImporter {
     private final List<NAnimation> loadedAnimations = new ArrayList<>();
     private final Map<Integer, String> missingMeshBones = new HashMap<>();
 
-    private final Map<String, NTexturesIO.LoadedImage> loadedImages = new HashMap<>();
+    private final Map<String, NTexturesImporter.LoadedImage> loadedImages = new HashMap<>();
     private final Map<Integer, NMaterial> loadedMaterials = new HashMap<>();
     private final Map<Integer, List<NGeometry>> loadedGeometries = new HashMap<>();
 
@@ -326,7 +326,7 @@ public class N3DModelImporter {
             return;
         }
 
-        List<Future<Pair<Pair<String, Integer>, NTexturesIO.LoadedImage>>> futureImages = new ArrayList<>();
+        List<Future<Pair<Pair<String, Integer>, NTexturesImporter.LoadedImage>>> futureImages = new ArrayList<>();
 
         int amountOfImages = this.scene.mNumTextures();
         for (int i = 0; i < amountOfImages; i++) {
@@ -344,7 +344,7 @@ public class N3DModelImporter {
                 tex.pcDataCompressed().get(data);
 
                 futureImages.add(this.service.submit(() -> {
-                    return new Pair<>(new Pair<>(fileName, imageIndex), NTexturesIO.loadImage(data));
+                    return new Pair<>(new Pair<>(fileName, imageIndex), NTexturesImporter.loadImage(data));
                 }));
             } else {
                 int width = tex.mWidth();
@@ -365,16 +365,16 @@ public class N3DModelImporter {
                     }
                 }
 
-                NTexturesIO.LoadedImage loaded = new NTexturesIO.LoadedImage(width, height, data);
+                NTexturesImporter.LoadedImage loaded = new NTexturesImporter.LoadedImage(width, height, data);
 
                 this.loadedImages.put(fileName, loaded);
                 this.loadedImages.put("*" + i, loaded);
             }
         }
 
-        for (Future<Pair<Pair<String, Integer>, NTexturesIO.LoadedImage>> futurePair : futureImages) {
+        for (Future<Pair<Pair<String, Integer>, NTexturesImporter.LoadedImage>> futurePair : futureImages) {
             try {
-                Pair<Pair<String, Integer>, NTexturesIO.LoadedImage> pair = futurePair.get();
+                Pair<Pair<String, Integer>, NTexturesImporter.LoadedImage> pair = futurePair.get();
                 this.loadedImages.put(pair.getA().getA(), pair.getB());
                 this.loadedImages.put("*" + pair.getA().getB(), pair.getB());
             } catch (InterruptedException | ExecutionException ex) {
@@ -383,7 +383,7 @@ public class N3DModelImporter {
         }
     }
 
-    private NTexturesIO.LoadedImage getMaterialTexture(AIMaterial material, int type) {
+    private NTexturesImporter.LoadedImage getMaterialTexture(AIMaterial material, int type) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             AIString pathString = AIString.calloc(stack);
 
@@ -440,7 +440,7 @@ public class N3DModelImporter {
             final int fallbackEmissiveIndex = 10;
             final int fallbackOpacityIndex = 11;
 
-            final NTexturesIO.LoadedImage[] images = new NTexturesIO.LoadedImage[12];
+            final NTexturesImporter.LoadedImage[] images = new NTexturesImporter.LoadedImage[12];
 
             images[diffuseIndex] = getMaterialTexture(aiMaterial, aiTextureType_BASE_COLOR);
 
@@ -465,7 +465,7 @@ public class N3DModelImporter {
                 int textureWidth = -1;
                 int textureHeight = -1;
 
-                for (NTexturesIO.LoadedImage image : images) {
+                for (NTexturesImporter.LoadedImage image : images) {
                     if (image != null) {
                         textureWidth = Math.max(textureWidth, image.width);
                         textureHeight = Math.max(textureHeight, image.height);
@@ -473,9 +473,9 @@ public class N3DModelImporter {
                 }
 
                 for (int j = 0; j < images.length; j++) {
-                    NTexturesIO.LoadedImage image = images[j];
+                    NTexturesImporter.LoadedImage image = images[j];
                     if (image != null && image.width != textureWidth && image.height != textureHeight) {
-                        images[j] = NTexturesIO.nearestResize(image, textureWidth, textureHeight);
+                        images[j] = NTexturesImporter.nearestResize(image, textureWidth, textureHeight);
                     }
                 }
 
@@ -588,7 +588,7 @@ public class N3DModelImporter {
                     metallicMap = newMetallicMap;
                 }
 
-                NTextures textures = NTexturesIO.load("textures_" + materialIndex,
+                NTextures textures = NTexturesImporter.load("textures_" + materialIndex,
                         textureWidth, textureHeight,
                         diffuseMap,
                         aoMap,

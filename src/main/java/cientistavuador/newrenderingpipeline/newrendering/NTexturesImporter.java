@@ -26,7 +26,6 @@
  */
 package cientistavuador.newrenderingpipeline.newrendering;
 
-import cientistavuador.newrenderingpipeline.util.CryptoUtils;
 import cientistavuador.newrenderingpipeline.util.postprocess.MarginAutomata;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -42,7 +41,7 @@ import org.lwjgl.system.MemoryStack;
  *
  * @author Cien
  */
-public class NTexturesIO {
+public class NTexturesImporter {
 
     public static final float MINIMUM_AMBIENT_OCCLUSION = 0.5f;
 
@@ -498,7 +497,7 @@ public class NTexturesIO {
         );
     }
 
-    private NTexturesIO() {
+    private NTexturesImporter() {
 
     }
 

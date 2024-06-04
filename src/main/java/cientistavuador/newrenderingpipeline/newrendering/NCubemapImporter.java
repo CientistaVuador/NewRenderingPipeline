@@ -36,7 +36,7 @@ import java.nio.ByteBuffer;
  *
  * @author Cien
  */
-public class NCubemapIO {
+public class NCubemapImporter {
 
     public static NCubemap loadFromJar(String path, boolean srgb, boolean compressed) {
         String[] split = path.split("/");
@@ -54,7 +54,7 @@ public class NCubemapIO {
     }
 
     public static NCubemap loadFromImage(String name, byte[] image, boolean srgb, boolean compressed) {
-        NTexturesIO.LoadedImage img = NTexturesIO.loadImage(image);
+        NTexturesImporter.LoadedImage img = NTexturesImporter.loadImage(image);
         return load(name, img.width, img.height, img.pixelData, srgb, compressed);
     }
 
@@ -113,13 +113,25 @@ public class NCubemapIO {
         getSide(true, true, size * 1, size * 1, size, cubemap, width, cubemapSides, size * size * 4 * NCubemap.NEGATIVE_Z);
         getSide(true, true, size * 3, size * 1, size, cubemap, width, cubemapSides, size * size * 4 * NCubemap.POSITIVE_Z);
 
-        ByteBuffer totalData = ByteBuffer.allocate(cubemapSides.length + 4).putInt(size).put(cubemapSides).flip();
-        String sha256 = CryptoUtils.sha256(totalData);
+        float[] cubemapFloat = new float[size * size * 3 * NCubemap.SIDES];
+        
+        for (int i = 0; i < cubemapSides.length; i += 4) {
+            float r = (cubemapSides[i + 0] & 0xFF) / 255f;
+            float g = (cubemapSides[i + 1] & 0xFF) / 255f;
+            float b = (cubemapSides[i + 2] & 0xFF) / 255f;
+            r = (float) Math.pow(r, 2.2);
+            g = (float) Math.pow(g, 2.2);
+            b = (float) Math.pow(b, 2.2);
+            int floatIndex = (i / 4) * 3;
+            cubemapFloat[floatIndex + 0] = r;
+            cubemapFloat[floatIndex + 1] = g;
+            cubemapFloat[floatIndex + 2] = b;
+        }
 
-        return new NCubemap(name, size, cubemapSides, sha256, srgb, compressed, false, null, null, null, null);
+        return new NCubemap(name, null, null, size, cubemapFloat);
     }
 
-    private NCubemapIO() {
+    private NCubemapImporter() {
 
     }
 }

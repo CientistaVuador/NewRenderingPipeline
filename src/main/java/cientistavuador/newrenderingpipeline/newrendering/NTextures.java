@@ -87,7 +87,7 @@ public class NTextures {
             nullTextureData[(i * 4) + 3] = (byte) a;
         }
 
-        NULL_TEXTURE = NTexturesIO.load(
+        NULL_TEXTURE = NTexturesImporter.load(
                 "Error/Null/Empty Texture",
                 nullTextureSize, nullTextureSize,
                 nullTextureData,

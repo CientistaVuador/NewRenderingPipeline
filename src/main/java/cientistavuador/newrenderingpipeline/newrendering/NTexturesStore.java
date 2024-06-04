@@ -152,7 +152,7 @@ public class NTexturesStore {
     
     private static byte[] readImage(String image, Map<String, byte[]> files) {
         byte[] imageData = files.get(image);
-        return NTexturesIO.loadImage(imageData).pixelData;
+        return NTexturesImporter.loadImage(imageData).pixelData;
     }
     
     public static NTextures readTextures(InputStream input) throws IOException {

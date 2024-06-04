@@ -371,10 +371,13 @@ public class NProgram {
             ) {
                 int lightType = light.type;
                 
-                vec3 positionalLightDirection = normalize(light.position - worldPosition);
-                vec3 infiniteLightDirection = normalize(-light.direction);
+                vec3 oppositeLightDirection;
+                if (lightType == DIRECTIONAL_LIGHT_TYPE) {
+                    oppositeLightDirection = normalize(-light.direction);
+                } else {
+                    oppositeLightDirection = normalize(light.position - worldPosition);
+                }
                 
-                vec3 oppositeLightDirection = (lightType == DIRECTIONAL_LIGHT_TYPE ? infiniteLightDirection : positionalLightDirection);
                 vec3 halfwayDirection = normalize(oppositeLightDirection + fragDirection);
                 
                 float diffuseFactor = max(dot(normal, oppositeLightDirection), 0.0);
@@ -384,23 +387,23 @@ public class NProgram {
                 vec3 specular = light.specular * specularFactor * specularColor * normalizationFactor;
                 vec3 ambient = light.ambient * diffuseColor;
                 
-                float distance = length(light.position - worldPosition);
-                float attenuation = 1.0 / ((distance * distance) + LIGHT_ATTENUATION);
-                
-                float pointAttenuation = (lightType != DIRECTIONAL_LIGHT_TYPE ? attenuation : 1.0);
-                
-                diffuse *= pointAttenuation;
-                specular *= pointAttenuation;
-                ambient *= pointAttenuation;
-                
-                float theta = dot(oppositeLightDirection, normalize(-light.direction));
-                float epsilon = light.innerCone - light.outerCone;
-                float intensity = clamp((theta - light.outerCone) / epsilon, 0.0, 1.0);
-                
-                float spotIntensity = (lightType == SPOT_LIGHT_TYPE ? intensity : 1.0);
-                
-                diffuse *= spotIntensity;
-                specular *= spotIntensity;
+                if (lightType != DIRECTIONAL_LIGHT_TYPE) {
+                    float distance = length(light.position - worldPosition);
+                    float pointAttenuation = 1.0 / ((distance * distance) + LIGHT_ATTENUATION);
+                    
+                    diffuse *= pointAttenuation;
+                    specular *= pointAttenuation;
+                    ambient *= pointAttenuation;
+                    
+                    if (lightType == SPOT_LIGHT_TYPE) {
+                        float theta = dot(oppositeLightDirection, normalize(-light.direction));
+                        float epsilon = light.innerCone - light.outerCone;
+                        float spotIntensity = clamp((theta - light.outerCone) / epsilon, 0.0, 1.0);
+                        
+                        diffuse *= spotIntensity;
+                        specular *= spotIntensity;
+                    }
+                }
                 
                 return diffuse + specular + ambient;
             }

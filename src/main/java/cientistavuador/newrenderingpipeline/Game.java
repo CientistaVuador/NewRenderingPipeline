@@ -31,12 +31,11 @@ import cientistavuador.newrenderingpipeline.debug.AabRender;
 import cientistavuador.newrenderingpipeline.debug.LineRender;
 import cientistavuador.newrenderingpipeline.newrendering.N3DModel;
 import cientistavuador.newrenderingpipeline.newrendering.N3DModelImporter;
-import cientistavuador.newrenderingpipeline.newrendering.N3DModelStore;
 import cientistavuador.newrenderingpipeline.newrendering.N3DObject;
 import cientistavuador.newrenderingpipeline.newrendering.N3DObjectRenderer;
 import cientistavuador.newrenderingpipeline.newrendering.NAnimator;
 import cientistavuador.newrenderingpipeline.newrendering.NCubemap;
-import cientistavuador.newrenderingpipeline.newrendering.NCubemapIO;
+import cientistavuador.newrenderingpipeline.newrendering.NCubemapImporter;
 import cientistavuador.newrenderingpipeline.newrendering.NLight;
 import cientistavuador.newrenderingpipeline.newrendering.NMap;
 import cientistavuador.newrenderingpipeline.text.GLFontRenderer;
@@ -44,8 +43,6 @@ import cientistavuador.newrenderingpipeline.text.GLFontSpecifications;
 import cientistavuador.newrenderingpipeline.ubo.CameraUBO;
 import cientistavuador.newrenderingpipeline.ubo.UBOBindingPoints;
 import cientistavuador.newrenderingpipeline.util.bakedlighting.Scene;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
@@ -76,8 +73,9 @@ public class Game {
 
     {
         try {
-            this.cubemap = NCubemapIO.loadFromJar("cientistavuador/newrenderingpipeline/resources/image/generic_cubemap2.png", true, false);
-
+            //this.cubemap = NCubemapImporter.loadFromJar("cientistavuador/newrenderingpipeline/resources/image/generic_cubemap2.png", true, false);
+            this.cubemap = NCubemap.NULL_CUBEMAP;
+            
             List<N3DObject> mapObjects = new ArrayList<>();
             
             {
@@ -94,7 +92,7 @@ public class Game {
                 this.triceratops.setAnimator(new NAnimator(model, "Armature|Armature|Fall"));
             }
             
-            this.map = new NMap("map", mapObjects, NMap.DEFAULT_LIGHTMAP_MARGIN, 1f / 0.2f);
+            this.map = new NMap("map", mapObjects, NMap.DEFAULT_LIGHTMAP_MARGIN, 1f / 0.1f);
 
             System.out.println(this.map.getLightmapSize());
 
