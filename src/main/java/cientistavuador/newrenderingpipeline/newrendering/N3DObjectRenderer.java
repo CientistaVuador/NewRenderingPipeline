@@ -51,6 +51,7 @@ public class N3DObjectRenderer {
 
     public static boolean PARALLAX_ENABLED = true;
     public static boolean REFLECTIONS_ENABLED = true;
+    public static boolean SPECULAR_ENABLED = true;
     public static boolean HDR_OUTPUT = false;
 
     public static final int OCCLUSION_QUERY_MINIMUM_VERTICES = 1024;
@@ -501,10 +502,20 @@ public class N3DObjectRenderer {
                 Vector3fc s = material.getSpecularColor();
                 Vector3fc e = material.getEmissiveColor();
                 Vector3fc r = material.getReflectionColor();
-
+                
+                float sr = s.x();
+                float sg = s.y();
+                float sb = s.z();
+                
+                if (!SPECULAR_ENABLED) {
+                    sr = 0f;
+                    sg = 0f;
+                    sb = 0f;
+                }
+                
                 NProgram.sendMaterial(variant, new NProgram.NProgramMaterial(
                         d.x(), d.y(), d.z(), d.w(),
-                        s.x(), s.y(), s.z(),
+                        sr, sg, sb,
                         e.x(), e.y(), e.z(),
                         r.x(), r.y(), r.z(),
                         material.getMinExponent(), material.getMaxExponent(),

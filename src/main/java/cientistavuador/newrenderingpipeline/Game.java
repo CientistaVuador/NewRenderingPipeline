@@ -230,6 +230,7 @@ public class Game {
             boolean reflectionsEnabled = N3DObjectRenderer.REFLECTIONS_ENABLED;
             
             N3DObjectRenderer.REFLECTIONS_ENABLED = false;
+            N3DObjectRenderer.SPECULAR_ENABLED = false;
             N3DObjectRenderer.HDR_OUTPUT = true;
             
             this.cubemap = NCubemapRenderer.render(
@@ -240,8 +241,9 @@ public class Game {
                     this.cubemap
             );
             
-            N3DObjectRenderer.HDR_OUTPUT = false;
             N3DObjectRenderer.REFLECTIONS_ENABLED = reflectionsEnabled;
+            N3DObjectRenderer.SPECULAR_ENABLED = true;
+            N3DObjectRenderer.HDR_OUTPUT = false;
         }
     }
 
