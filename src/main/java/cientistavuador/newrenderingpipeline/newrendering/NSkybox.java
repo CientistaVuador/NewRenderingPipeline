@@ -117,6 +117,7 @@ public class NSkybox {
             """
             #version 330 core
             
+            uniform bool hdrOutput;
             uniform samplerCube skybox;
             
             in vec3 sampleDirection;
@@ -139,7 +140,10 @@ public class NSkybox {
             void main() {
                 vec3 direction = normalize(sampleDirection);
                 vec4 color = texture(skybox, direction);
-                outputColor = vec4(gammaCorrection(ACESFilm(color.rgb)), 1.0);
+                if (!hdrOutput) {
+                    color.rgb = gammaCorrection(ACESFilm(color.rgb));
+                }
+                outputColor = vec4(color.rgb, 1.0);
             }
             """;
     
@@ -148,6 +152,7 @@ public class NSkybox {
     public static final String UNIFORM_PROJECTION = "projection";
     public static final String UNIFORM_VIEW = "view";
     public static final String UNIFORM_SKYBOX = "skybox";
+    public static final String UNIFORM_HDR_OUTPUT = "hdrOutput";
     
     public static void init() {
         

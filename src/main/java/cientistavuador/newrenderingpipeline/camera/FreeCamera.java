@@ -105,10 +105,10 @@ public class FreeCamera extends PerspectiveCamera {
         float xa = currentSpeed * diagonal * directionX;
         float za = currentSpeed * diagonal * directionZ;
         
-        super.setPosition(
-            super.getPosition().x() + ((super.getRight().x() * xa + super.getFront().x() * za) * Main.TPF),
-            super.getPosition().y() + ((super.getRight().y() * xa + super.getFront().y() * za) * Main.TPF),
-            super.getPosition().z() + ((super.getRight().z() * xa + super.getFront().z() * za) * Main.TPF)
+        setPosition(
+            getPosition().x() + ((getRight().x() * xa + getFront().x() * za) * Main.TPF),
+            getPosition().y() + ((getRight().y() * xa + getFront().y() * za) * Main.TPF),
+            getPosition().z() + ((getRight().z() * xa + getFront().z() * za) * Main.TPF)
         );
     }
     
@@ -118,18 +118,22 @@ public class FreeCamera extends PerspectiveCamera {
             double x = lastX - mx;
             double y = lastY - my;
             
-            super.setRotation(
-                    super.getRotation().x() + (float) (y * sensitivity),
-                    super.getRotation().y() + (float) (x * -sensitivity),
-                    0
-            );
+            float pitch = getRotation().x() + (float) (y * sensitivity);
+            float yaw = getRotation().y() + (float) (x * -sensitivity);
+            float roll = getRotation().z();
             
-            if (super.getRotation().x() >= 90) {
-                super.setRotation(89.9f, super.getRotation().y(), 0);
+            if (pitch > 90f) {
+                pitch = 90f;
             }
-            if (super.getRotation().x() <= -90) {
-                super.setRotation(-89.9f, super.getRotation().y(), 0);
+            if (pitch < -90f) {
+                pitch = -90f;
             }
+            
+            if (yaw > 360f || yaw < -360f) {
+                yaw = 0f;
+            }
+            
+            setRotation(pitch, yaw, roll);
         }
         lastX = mx;
         lastY = my;

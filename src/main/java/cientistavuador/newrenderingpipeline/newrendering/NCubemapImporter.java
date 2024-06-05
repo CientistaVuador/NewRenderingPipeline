@@ -26,11 +26,9 @@
  */
 package cientistavuador.newrenderingpipeline.newrendering;
 
-import cientistavuador.newrenderingpipeline.util.CryptoUtils;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
-import java.nio.ByteBuffer;
 
 /**
  *
@@ -128,7 +126,7 @@ public class NCubemapImporter {
             cubemapFloat[floatIndex + 2] = b;
         }
 
-        return new NCubemap(name, null, null, size, cubemapFloat);
+        return new NCubemap(name, null, null, null, size, cubemapFloat);
     }
 
     private NCubemapImporter() {

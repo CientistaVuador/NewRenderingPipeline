@@ -36,6 +36,8 @@ import cientistavuador.newrenderingpipeline.newrendering.N3DObjectRenderer;
 import cientistavuador.newrenderingpipeline.newrendering.NAnimator;
 import cientistavuador.newrenderingpipeline.newrendering.NCubemap;
 import cientistavuador.newrenderingpipeline.newrendering.NCubemapImporter;
+import cientistavuador.newrenderingpipeline.newrendering.NCubemapInfo;
+import cientistavuador.newrenderingpipeline.newrendering.NCubemapRenderer;
 import cientistavuador.newrenderingpipeline.newrendering.NLight;
 import cientistavuador.newrenderingpipeline.newrendering.NMap;
 import cientistavuador.newrenderingpipeline.text.GLFontRenderer;
@@ -47,6 +49,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
+import org.joml.Vector3d;
 import static org.lwjgl.glfw.GLFW.*;
 
 /**
@@ -64,7 +67,7 @@ public class Game {
     private final FreeCamera camera = new FreeCamera();
     private NMap.BakeStatus status = null;
 
-    private final NCubemap cubemap;
+    private NCubemap cubemap;
 
     private final NMap map;
     private final N3DObject triceratops;
@@ -73,8 +76,7 @@ public class Game {
 
     {
         try {
-            //this.cubemap = NCubemapImporter.loadFromJar("cientistavuador/newrenderingpipeline/resources/image/generic_cubemap2.png", true, false);
-            this.cubemap = NCubemap.NULL_CUBEMAP;
+            this.cubemap = NCubemapImporter.loadFromJar("cientistavuador/newrenderingpipeline/resources/image/generic_cubemap2.png", true, false);
             
             List<N3DObject> mapObjects = new ArrayList<>();
             
@@ -185,6 +187,7 @@ public class Game {
         Main.WINDOW_TITLE += " (DrawCalls: " + Main.NUMBER_OF_DRAWCALLS + ", Vertices: " + Main.NUMBER_OF_VERTICES + ")";
         Main.WINDOW_TITLE += " (x:" + String.format("%,.2f", this.camera.getPosition().x()) + ",y:" + String.format("%,.2f", this.camera.getPosition().y()) + ",z:" + String.format("%,.2f", this.camera.getPosition().z()) + ")";
         Main.WINDOW_TITLE += " (dx:" + String.format("%,.2f", this.camera.getFront().x()) + ",dy:" + String.format("%,.2f", this.camera.getFront().y()) + ",dz:" + String.format("%,.2f", this.camera.getFront().z()) + ")";
+        Main.WINDOW_TITLE += " (p:" + String.format("%,.2f", this.camera.getRotation().x()) + ",y:" + String.format("%,.2f", this.camera.getRotation().y()) + ",r:" + String.format("%,.2f", this.camera.getRotation().z()) + ")";
     }
 
     public void mouseCursorMoved(double x, double y) {
@@ -213,6 +216,32 @@ public class Game {
             }
             
             this.status = this.map.bake(scene);
+        }
+        if (key == GLFW_KEY_C && action == GLFW_PRESS) {
+            for (int i = 0; i < this.map.getNumberOfObjects(); i++) {
+                N3DObjectRenderer.queueRender(this.map.getObject(i));
+            }
+            
+            NCubemapInfo info = new NCubemapInfo(
+                    this.camera.getPosition(),
+                    false, null, null, null
+            );
+            
+            boolean reflectionsEnabled = N3DObjectRenderer.REFLECTIONS_ENABLED;
+            
+            N3DObjectRenderer.REFLECTIONS_ENABLED = false;
+            N3DObjectRenderer.HDR_OUTPUT = true;
+            
+            this.cubemap = NCubemapRenderer.render(
+                    this.cubemap.getName(),
+                    info,
+                    256,
+                    this.lights,
+                    this.cubemap
+            );
+            
+            N3DObjectRenderer.HDR_OUTPUT = false;
+            N3DObjectRenderer.REFLECTIONS_ENABLED = reflectionsEnabled;
         }
     }
 

@@ -51,6 +51,7 @@ public class N3DObjectRenderer {
 
     public static boolean PARALLAX_ENABLED = true;
     public static boolean REFLECTIONS_ENABLED = true;
+    public static boolean HDR_OUTPUT = false;
 
     public static final int OCCLUSION_QUERY_MINIMUM_VERTICES = 1024;
     public static final int OCCLUSION_QUERY_MINIMUM_SAMPLES = 8;
@@ -58,7 +59,11 @@ public class N3DObjectRenderer {
     public static final Matrix4fc IDENTITY = new Matrix4f();
 
     private static final ConcurrentLinkedQueue<N3DObject> renderQueue = new ConcurrentLinkedQueue<>();
-
+    
+    public static N3DObject[] copyQueueObjects() {
+        return renderQueue.toArray(N3DObject[]::new);
+    }
+    
     public static void queueRender(N3DObject obj) {
         renderQueue.add(obj);
     }
@@ -378,6 +383,10 @@ public class N3DObjectRenderer {
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_CUBE_MAP, skybox.cubemap());
         glUniform1i(program.locationOf(NSkybox.UNIFORM_SKYBOX), 0);
+        
+        glUniform1i(program.locationOf(NSkybox.UNIFORM_HDR_OUTPUT), 
+                (N3DObjectRenderer.HDR_OUTPUT ? 1 : 0)
+        );
 
         glBindVertexArray(NSkybox.VAO);
         glDrawElements(GL_TRIANGLES, NSkybox.AMOUNT_OF_INDICES, GL_UNSIGNED_INT, 0);
@@ -402,7 +411,11 @@ public class N3DObjectRenderer {
         BetterUniformSetter.uniformMatrix4fv(variant.locationOf(NProgram.UNIFORM_VIEW),
                 camera.getView()
         );
-
+        
+        glUniform1i(variant.locationOf(NProgram.UNIFORM_HDR_OUTPUT),
+                (HDR_OUTPUT ? 1 : 0)
+        );
+        
         NProgram.sendBoneMatrix(variant, IDENTITY, -1);
 
         glUniform1i(variant.locationOf(NProgram.UNIFORM_PARALLAX_ENABLED),

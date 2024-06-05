@@ -34,6 +34,8 @@ import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
+import org.joml.Vector3f;
+import org.joml.Vector3fc;
 import org.lwjgl.opengl.ARBSeamlessCubemapPerTexture;
 import org.lwjgl.opengl.ARBTextureCompressionBPTC;
 import org.lwjgl.opengl.EXTTextureFilterAnisotropic;
@@ -51,7 +53,7 @@ public class NCubemap {
     
     public static final NCubemap NULL_CUBEMAP = new NCubemap(
             "Null/Error Cubemap",
-            null, null,
+            null, null, null,
             4,
             new float[] {
                 0f, 0f, 0f, 1f, 0f, 1f, 0f, 0f, 0f, 1f, 0f, 1f,
@@ -83,7 +85,7 @@ public class NCubemap {
     
     public static final NCubemap EMPTY_CUBEMAP = new NCubemap(
             "Empty Cubemap",
-            null, null,
+            null, null, null,
             1,
             new float[] {
                 0f, 0f, 0f,
@@ -116,6 +118,7 @@ public class NCubemap {
     private final String name;
     private final NCubemapInfo cubemapInfo;
     private final String sha256;
+    private final Vector3f cubemapColor = new Vector3f();
     private final int size;
     private final float[] cubemap;
     private float intensity = 1f;
@@ -126,6 +129,7 @@ public class NCubemap {
             String name,
             NCubemapInfo cubemapInfo,
             String sha256,
+            Vector3fc cubemapColor,
             int size,
             float[] cubemap
     ) {
@@ -162,6 +166,25 @@ public class NCubemap {
 
         this.name = name;
         this.sha256 = sha256;
+        
+        if (cubemapColor == null) {
+            double r = 0f;
+            double g = 0f;
+            double b = 0f;
+            for (int i = 0; i < this.cubemap.length; i += 3) {
+                r += this.cubemap[i + 0];
+                g += this.cubemap[i + 1];
+                b += this.cubemap[i + 2];
+            }
+            double invcount = 1.0 / (this.cubemap.length / 3);
+            this.cubemapColor.set(
+                    r * invcount,
+                    g * invcount,
+                    b * invcount
+            );
+        } else {
+            this.cubemapColor.set(cubemapColor);
+        }
 
         this.wrappedCubemap = new WrappedCubemap();
 
@@ -192,6 +215,10 @@ public class NCubemap {
 
     public String getSha256() {
         return sha256;
+    }
+
+    public Vector3fc getCubemapColor() {
+        return cubemapColor;
     }
 
     public int getSize() {

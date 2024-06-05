@@ -249,6 +249,8 @@ public class NProgram {
             #define IS_ALPHA_BLENDING
             #endif
             
+            uniform bool hdrOutput;
+            
             //material textures
             uniform sampler2D r_g_b_a;
             uniform sampler2D ht_rg_mt_nx;
@@ -555,7 +557,10 @@ public class NProgram {
                 }
                 
                 finalColor.rgb += eregebny.rgb * material.emissiveColor;
-                finalColor.rgb = gammaCorrection(ACESFilm(finalColor.rgb));
+                
+                if (!hdrOutput) {
+                    finalColor.rgb = gammaCorrection(ACESFilm(finalColor.rgb));
+                }
                 
                 if (fresnelOutline.enabled) {
                     float fresnel = pow(1.0 - max(dot(fragDirection, vertexNormal), 0.0), fresnelOutline.exponent);
@@ -621,6 +626,7 @@ public class NProgram {
     public static final String UNIFORM_REFLECTION_CUBEMAP = "reflectionCubemap";
     public static final String UNIFORM_REFLECTIONS_SUPPORTED = "reflectionsSupported";
     public static final String UNIFORM_REFLECTIONS_ENABLED = "reflectionsEnabled";
+    public static final String UNIFORM_HDR_OUTPUT = "hdrOutput";
 
     public static void sendMaterial(BetterUniformSetter uniforms, NProgramMaterial material) {
         if (material == null) {

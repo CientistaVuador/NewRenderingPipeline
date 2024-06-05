@@ -665,21 +665,18 @@ public class Main {
             }
 
             glfwPollEvents();
+            glViewport(0, 0, Main.WIDTH, Main.HEIGHT);
             glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-
+            
             Runnable r;
             while ((r = MAIN_TASKS.poll()) != null) {
                 r.run();
             }
-
+            
             ALSourceUtil.update();
-
             Game.get().loop();
-
             glFlush();
-
             Main.checkGLError();
-
             glfwSwapBuffers(WINDOW_POINTER);
 
             frames++;

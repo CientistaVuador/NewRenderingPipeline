@@ -28,10 +28,12 @@ package cientistavuador.newrenderingpipeline.camera;
 
 import cientistavuador.newrenderingpipeline.Main;
 import cientistavuador.newrenderingpipeline.ubo.CameraUBO;
+import org.joml.Matrix3f;
 import org.joml.Matrix4d;
 import org.joml.Matrix4dc;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
+import org.joml.Quaternionf;
 import org.joml.Vector2f;
 import org.joml.Vector2fc;
 import org.joml.Vector3d;
@@ -73,6 +75,8 @@ public class PerspectiveCamera implements Camera {
     
     private final Matrix4f inverseView = new Matrix4f();
     private final Matrix4f inverseProjection = new Matrix4f();
+    
+    private final Matrix3f rollMatrix = new Matrix3f();
     
     //UBO
     private CameraUBO ubo = null;
@@ -129,8 +133,17 @@ public class PerspectiveCamera implements Camera {
                 Math.cos(pitchRadians) * Math.sin(yawRadians)
         ).normalize();
         
-        this.right.set(this.front).cross(DEFAULT_WORLD_UP).normalize();
-        this.up.set(this.right).cross(this.front).normalize();
+        this.up.set(
+                -Math.sin(pitchRadians) * Math.cos(yawRadians),
+                Math.cos(pitchRadians),
+                -Math.sin(pitchRadians) * Math.sin(yawRadians)
+        ).normalize();
+        
+        float rollRadians = (float) Math.toRadians(this.rotation.z());
+        this.rollMatrix.identity().rotate(rollRadians, this.front);
+        this.rollMatrix.transform(this.up);
+        
+        this.right.set(this.front).cross(this.up);
         
         this.view.identity().lookAt(
                 0,
