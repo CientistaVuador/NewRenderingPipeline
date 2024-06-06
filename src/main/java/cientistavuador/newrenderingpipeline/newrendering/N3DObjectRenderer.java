@@ -49,7 +49,7 @@ import static org.lwjgl.opengl.GL33C.*;
  * @author Cien
  */
 public class N3DObjectRenderer {
-    
+
     public static boolean PARALLAX_ENABLED = true;
     public static boolean REFLECTIONS_ENABLED = true;
     public static boolean SPECULAR_ENABLED = true;
@@ -60,13 +60,13 @@ public class N3DObjectRenderer {
     public static final int OCCLUSION_QUERY_MINIMUM_SAMPLES = 8;
 
     public static final Matrix4fc IDENTITY = new Matrix4f();
-    
+
     private static final ConcurrentLinkedQueue<N3DObject> renderQueue = new ConcurrentLinkedQueue<>();
-    
+
     public static N3DObject[] copyQueueObjects() {
         return renderQueue.toArray(N3DObject[]::new);
     }
-    
+
     public static void queueRender(N3DObject obj) {
         renderQueue.add(obj);
     }
@@ -101,7 +101,7 @@ public class N3DObjectRenderer {
         if (cubemaps == null) {
             cubemaps = NCubemaps.NULL_CUBEMAPS;
         }
-        
+
         List<Pair<NProgram.NProgramLight, Boolean>> renderableLightsList = new ArrayList<>();
         for (NLight indexLight : lights) {
             if (indexLight != null) {
@@ -152,7 +152,7 @@ public class N3DObjectRenderer {
         renderableLightsList.sort((o1Pair, o2Pair) -> {
             NProgram.NProgramLight o1 = o1Pair.getA();
             NProgram.NProgramLight o2 = o2Pair.getA();
-            
+
             float o1Dist = (o1.x * o1.x) + (o1.y * o1.y) + (o1.z * o1.z);
             float o2Dist = (o2.x * o2.x) + (o2.y * o2.y) + (o2.z * o2.z);
             if (o1.type == NProgram.DIRECTIONAL_LIGHT_TYPE) {
@@ -166,7 +166,7 @@ public class N3DObjectRenderer {
 
         NProgram.NProgramLight[] renderableLights = new NProgram.NProgramLight[NProgram.MAX_AMOUNT_OF_LIGHTS];
         NProgram.NProgramLight[] renderableDynamicLights = new NProgram.NProgramLight[NProgram.MAX_AMOUNT_OF_LIGHTS];
-        
+
         int renderableLightsIndex = 0;
         for (int i = 0; i < renderableLightsList.size(); i++) {
             NProgram.NProgramLight light = renderableLightsList.get(i).getA();
@@ -176,7 +176,7 @@ public class N3DObjectRenderer {
                 break;
             }
         }
-        
+
         int renderableDynamicLightsIndex = 0;
         for (int i = 0; i < renderableLightsList.size(); i++) {
             Pair<NProgram.NProgramLight, Boolean> pair = renderableLightsList.get(i);
@@ -306,25 +306,54 @@ public class N3DObjectRenderer {
                             continue;
                         }
                         
-                        List<NCubemap> toRenderCubemaps = cubemaps
-                                .getCubemapsBVH()
-                                .testRelativeAab(camera.getPosition(), transformedMin, transformedMax);
+                        List<NCubemap> toRenderCubemaps;
+                        {
+                            toRenderCubemaps = cubemaps
+                                    .getCubemapsBVH()
+                                    .testRelativeAab(camera.getPosition(), transformedMin, transformedMax);
+
+                            List<NCubemap> toRenderCubemapsFiltered = new ArrayList<>();
+                            for (NCubemap c : toRenderCubemaps) {
+                                float cubemapMinX = (float) (c.getCubemapInfo().getMin().x() - camera.getPosition().x());
+                                float cubemapMinY = (float) (c.getCubemapInfo().getMin().y() - camera.getPosition().y());
+                                float cubemapMinZ = (float) (c.getCubemapInfo().getMin().z() - camera.getPosition().z());
+                                float cubemapMaxX = (float) (c.getCubemapInfo().getMax().x() - camera.getPosition().x());
+                                float cubemapMaxY = (float) (c.getCubemapInfo().getMax().y() - camera.getPosition().y());
+                                float cubemapMaxZ = (float) (c.getCubemapInfo().getMax().z() - camera.getPosition().z());
+
+                                if (projectionView.testAab(cubemapMinX, cubemapMinY, cubemapMinZ, cubemapMaxX, cubemapMaxY, cubemapMaxZ)) {
+                                    toRenderCubemapsFiltered.add(c);
+                                }
+                            }
+                            
+                            toRenderCubemaps = toRenderCubemapsFiltered;
+                        }
                         
                         float centerX = (transformedMin.x() + transformedMax.x()) * 0.5f;
                         float centerY = (transformedMin.y() + transformedMax.y()) * 0.5f;
                         float centerZ = (transformedMin.z() + transformedMax.z()) * 0.5f;
-                        
+
                         double absCenterX = camera.getPosition().x() + centerX;
                         double absCenterY = camera.getPosition().y() + centerY;
                         double absCenterZ = camera.getPosition().z() + centerZ;
-                        
+
                         toRenderCubemaps.sort((o1, o2) -> {
-                            return Double.compare(
-                                    o1.getCubemapInfo().getCubemapPosition().distanceSquared(absCenterX, absCenterY, absCenterZ),
+                            double o1Dist = Math.min(
+                                    o1.getCubemapInfo().getCubemapPosition().distanceSquared(camera.getPosition()),
+                                    o1.getCubemapInfo().getCubemapPosition().distanceSquared(absCenterX, absCenterY, absCenterZ)
+                            );
+
+                            double o2Dist = Math.min(
+                                    o2.getCubemapInfo().getCubemapPosition().distanceSquared(camera.getPosition()),
                                     o2.getCubemapInfo().getCubemapPosition().distanceSquared(absCenterX, absCenterY, absCenterZ)
                             );
+
+                            return Double.compare(
+                                    o1Dist,
+                                    o2Dist
+                            );
                         });
-                        
+
                         NCubemap[] finalToRenderCubemaps = Arrays.copyOf(toRenderCubemaps.toArray(NCubemap[]::new), NProgram.MAX_AMOUNT_OF_CUBEMAPS);
 
                         float distanceSquared = (centerX * centerX) + (centerY * centerY) + (centerZ * centerZ);
@@ -349,9 +378,9 @@ public class N3DObjectRenderer {
             if (toRender.geometry.getMaterial().isInvisible()) {
                 continue;
             }
-            
+
             NBlendingMode mode = toRender.geometry.getMaterial().getBlendingMode();
-            
+
             switch (mode) {
                 case OPAQUE ->
                     opaqueList.add(toRender);
@@ -409,8 +438,8 @@ public class N3DObjectRenderer {
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_CUBE_MAP, skybox.cubemap());
         glUniform1i(program.locationOf(NSkybox.UNIFORM_SKYBOX), 0);
-        
-        glUniform1i(program.locationOf(NSkybox.UNIFORM_HDR_OUTPUT), 
+
+        glUniform1i(program.locationOf(NSkybox.UNIFORM_HDR_OUTPUT),
                 (N3DObjectRenderer.HDR_OUTPUT ? 1 : 0)
         );
 
@@ -428,45 +457,45 @@ public class N3DObjectRenderer {
             NProgram.NProgramLight[] dynamicLights,
             List<ToRender> toRender
     ) {
-        for (ToRender t:toRender) {
+        for (ToRender t : toRender) {
             NTextures textures = t.geometry.getMaterial().getTextures();
-            
+
             textures.r_g_b_a();
             textures.ht_rg_mt_nx();
             textures.er_eg_eb_ny();
-            
-            for (NCubemap e:t.cubemaps) {
+
+            for (NCubemap e : t.cubemaps) {
                 if (e == null) {
                     continue;
                 }
                 e.cubemap();
             }
         }
-        
+
         glUseProgram(variant.getProgram());
 
         BetterUniformSetter.uniformMatrix4fv(variant.locationOf(NProgram.UNIFORM_PROJECTION), camera.getProjection());
         BetterUniformSetter.uniformMatrix4fv(variant.locationOf(NProgram.UNIFORM_VIEW), camera.getView());
-        
+
         glUniform1i(variant.locationOf(NProgram.UNIFORM_REFLECTIONS_DEBUG), (REFLECTIONS_DEBUG ? 1 : 0));
         glUniform1i(variant.locationOf(NProgram.UNIFORM_HDR_OUTPUT), (HDR_OUTPUT ? 1 : 0));
-        
+
         NProgram.sendBoneMatrix(variant, IDENTITY, -1);
-        
+
         glUniform1i(variant.locationOf(NProgram.UNIFORM_PARALLAX_ENABLED), (PARALLAX_ENABLED ? 1 : 0));
         glUniform1i(variant.locationOf(NProgram.UNIFORM_REFLECTIONS_ENABLED), (REFLECTIONS_ENABLED ? 1 : 0));
         glUniform1i(variant.locationOf(NProgram.UNIFORM_REFLECTIONS_SUPPORTED), (REFLECTIONS_ENABLED ? 1 : 0));
-        
+
         glUniform1i(variant.locationOf(NProgram.UNIFORM_R_G_B_A), 0);
         glUniform1i(variant.locationOf(NProgram.UNIFORM_HT_RG_MT_NX), 1);
         glUniform1i(variant.locationOf(NProgram.UNIFORM_ER_EG_EB_NY), 2);
         glUniform1i(variant.locationOf(NProgram.UNIFORM_LIGHTMAPS), 3);
-        
+
         glUniform1i(variant.locationOf(NProgram.UNIFORM_REFLECTION_CUBEMAP_0), 4);
         glUniform1i(variant.locationOf(NProgram.UNIFORM_REFLECTION_CUBEMAP_1), 5);
         glUniform1i(variant.locationOf(NProgram.UNIFORM_REFLECTION_CUBEMAP_2), 6);
         glUniform1i(variant.locationOf(NProgram.UNIFORM_REFLECTION_CUBEMAP_3), 7);
-        
+
         render(variant, camera, toRender, lights, dynamicLights);
 
         glUseProgram(0);
@@ -481,9 +510,9 @@ public class N3DObjectRenderer {
     ) {
         Matrix4f worldToLocal = new Matrix4f();
         Vector3f relativePosition = new Vector3f();
-        
+
         Matrix4f transformedBone = new Matrix4f();
-        
+
         NLightmaps lastLightmaps = null;
         NMaterial lastMaterial = null;
         NTextures lastTextures = null;
@@ -492,12 +521,12 @@ public class N3DObjectRenderer {
         NMesh lastMesh = null;
         NAnimator lastAnimator = null;
         N3DObject lastFresnel = null;
-        
+
         Matrix3f normalMatrix = new Matrix3f();
-        
+
         for (ToRender render : list) {
             N3DModel n3dmodel = render.obj.getN3DModel();
-            
+
             NMaterial material = render.geometry.getMaterial();
             NTextures textures = material.getTextures();
             NCubemap[] cubemaps = render.cubemaps;
@@ -506,7 +535,7 @@ public class N3DObjectRenderer {
             NAnimator animator = render.obj.getAnimator();
             NLightmaps lightmaps = render.obj.getLightmaps();
             N3DObject fresnel = render.obj;
-            
+
             if (animator != null) {
                 transformation = render.model;
             }
@@ -516,17 +545,17 @@ public class N3DObjectRenderer {
                 Vector3fc s = material.getSpecularColor();
                 Vector3fc e = material.getEmissiveColor();
                 Vector3fc r = material.getReflectionColor();
-                
+
                 float sr = s.x();
                 float sg = s.y();
                 float sb = s.z();
-                
+
                 if (!SPECULAR_ENABLED) {
                     sr = 0f;
                     sg = 0f;
                     sb = 0f;
                 }
-                
+
                 NProgram.sendMaterial(variant, new NProgram.NProgramMaterial(
                         d.x(), d.y(), d.z(), d.w(),
                         sr, sg, sb,
@@ -537,7 +566,7 @@ public class N3DObjectRenderer {
                 ));
                 lastMaterial = material;
             }
-            
+
             if (!textures.equals(lastTextures)) {
                 int r_g_b_a = textures.r_g_b_a();
                 int ht_ie_rf_nx = textures.ht_rg_mt_nx();
@@ -559,17 +588,17 @@ public class N3DObjectRenderer {
 
                 lastTextures = textures;
             }
-            
+
             if (lastLightmaps != lightmaps) {
                 int maps = lightmaps.lightmaps();
-                
+
                 glActiveTexture(GL_TEXTURE3);
                 glBindTexture(GL_TEXTURE_2D_ARRAY, maps);
-                
+
                 for (int i = 0; i < lightmaps.getNumberOfLightmaps(); i++) {
                     NProgram.sendLightmapIntensity(variant, lightmaps.getIntensity(i), i);
                 }
-                
+
                 if (lightmaps == NLightmaps.NULL_LIGHTMAPS) {
                     for (int i = 0; i < lights.length; i++) {
                         NProgram.sendLight(variant, lights[i], i);
@@ -579,32 +608,32 @@ public class N3DObjectRenderer {
                         NProgram.sendLight(variant, dynamicLights[i], i);
                     }
                 }
-                
+
                 lastLightmaps = lightmaps;
             }
-            
+
             if (!Arrays.equals(lastCubemaps, cubemaps)) {
                 for (int i = 0; i < cubemaps.length; i++) {
                     NCubemap cubemap = cubemaps[i];
-                    
+
                     int cubemapObj = NCubemap.NULL_CUBEMAP.cubemap();
                     if (cubemap != null) {
                         cubemapObj = cubemap.cubemap();
                     }
-                    
+
                     glActiveTexture(GL_TEXTURE4 + i);
                     glBindTexture(GL_TEXTURE_CUBE_MAP, cubemapObj);
-                    
+
                     boolean enabled = false;
                     float intensity = 0f;
-                    
+
                     if (cubemap != null) {
                         enabled = true;
                         intensity = cubemap.getIntensity();
-                        
+
                         cubemap.getCubemapInfo().calculateRelative(camera.getPosition(), worldToLocal, relativePosition);
                     }
-                    
+
                     NProgram.sendParallaxCubemapInfo(
                             variant,
                             i,
@@ -614,10 +643,10 @@ public class N3DObjectRenderer {
                             worldToLocal
                     );
                 }
-                
+
                 lastCubemaps = cubemaps;
             }
-            
+
             if (!transformation.equals(lastTransformation)) {
                 BetterUniformSetter.uniformMatrix4fv(
                         variant.locationOf(NProgram.UNIFORM_MODEL),
@@ -637,7 +666,7 @@ public class N3DObjectRenderer {
                     if (animator != null) {
                         Matrix4fc boneMatrix = animator.getBoneMatrix(bone);
                         N3DModelNode boneNode = n3dmodel.getNode(bone);
-                        
+
                         transformedBone
                                 .set(boneMatrix)
                                 .mul(boneNode.getToNodeSpace())
@@ -665,9 +694,9 @@ public class N3DObjectRenderer {
                 );
                 lastFresnel = fresnel;
             }
-            
+
             glDrawElements(GL_TRIANGLES, mesh.getIndices().length, GL_UNSIGNED_INT, 0);
-            
+
             Main.NUMBER_OF_DRAWCALLS++;
             Main.NUMBER_OF_VERTICES += mesh.getIndices().length;
         }

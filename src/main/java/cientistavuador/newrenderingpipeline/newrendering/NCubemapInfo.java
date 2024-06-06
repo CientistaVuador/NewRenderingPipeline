@@ -49,7 +49,9 @@ public class NCubemapInfo {
     private final Quaternionf parallaxRotation = new Quaternionf(0f, 0f, 0f, 1f);
     private final Vector3f parallaxHalfExtents = new Vector3f(0f, 0f, 0f);
     private final Matrix4d localToWorld = new Matrix4d();
-
+    private final Vector3d min = new Vector3d();
+    private final Vector3d max = new Vector3d();
+    
     public NCubemapInfo(
             double pX, double pY, double pZ,
             double minX, double minY, double minZ,
@@ -95,6 +97,10 @@ public class NCubemapInfo {
                 .rotate(this.parallaxRotation)
                 .scale(this.parallaxHalfExtents.x(), this.parallaxHalfExtents.y(), this.parallaxHalfExtents.z())
                 ;
+        
+        this.min.set(-1.0);
+        this.max.set(1.0);
+        this.localToWorld.transformAab(this.min, this.max, this.min, this.max);
     }
 
     public NCubemapInfo() {
@@ -123,6 +129,14 @@ public class NCubemapInfo {
 
     public Matrix4dc getLocalToWorld() {
         return localToWorld;
+    }
+
+    public Vector3dc getMin() {
+        return min;
+    }
+
+    public Vector3dc getMax() {
+        return max;
     }
     
     public void calculateRelative(Vector3dc cameraPosition, Matrix4f outWorldToLocal, Vector3f outCubemapPosition) {

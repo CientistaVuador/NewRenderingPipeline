@@ -41,25 +41,26 @@ public class NCubemapBVH {
     
     public static NCubemapBVH create(List<NCubemap> cubemaps) {
         List<NCubemapBVH> current = new ArrayList<>();
-
-        Vector3d min = new Vector3d();
-        Vector3d max = new Vector3d();
-
+        
         for (NCubemap cubemap : cubemaps) {
             if (!cubemap.getCubemapInfo().isParallaxCorrected()) {
                 throw new IllegalArgumentException("Cubemap is not parallax corrected, " + cubemap.getName() + ", " + cubemap.getSha256());
             }
-
-            min.set(-1f);
-            max.set(1f);
-            cubemap.getCubemapInfo().getLocalToWorld().transformAab(min, max, min, max);
             
-            current.add(new NCubemapBVH(min, max, cubemap, null, null));
+            current.add(new NCubemapBVH(
+                    cubemap.getCubemapInfo().getMin(),
+                    cubemap.getCubemapInfo().getMax(),
+                    cubemap,
+                    null, null
+            ));
         }
         
         if (current.isEmpty()) {
             return new NCubemapBVH(null, null, null, null, null);
         }
+        
+        Vector3d min = new Vector3d();
+        Vector3d max = new Vector3d();
         
         List<NCubemapBVH> next = new ArrayList<>();
         

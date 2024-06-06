@@ -142,11 +142,12 @@ public class Game {
                 }
 
                 {
-                    NLight.NPointLight point = new NLight.NPointLight("point");
-                    point.getPosition().set(-0.35f, 4.58f, -23.48f);
-                    point.setDynamic(false);
-                    point.setDiffuseSpecularAmbient(10f);
-                    this.lights.add(point);
+                    NLight.NSpotLight spot = new NLight.NSpotLight("spot");
+                    spot.getPosition().set(-0.35f, 0.1f, -23.48f);
+                    spot.getDirection().set(0f, 1f, 0f);
+                    spot.setDynamic(false);
+                    spot.setDiffuseSpecularAmbient(100f);
+                    this.lights.add(spot);
                 }
 
                 {
