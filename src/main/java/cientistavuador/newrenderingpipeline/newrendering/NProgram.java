@@ -50,6 +50,8 @@ public class NProgram {
     public static final int DIRECTIONAL_LIGHT_TYPE = 1;
     public static final int POINT_LIGHT_TYPE = 2;
     public static final int SPOT_LIGHT_TYPE = 3;
+    
+    public static final int MAX_AMOUNT_OF_CUBEMAPS = 4;
 
     public static final class NProgramLight {
 
@@ -249,6 +251,7 @@ public class NProgram {
             #define IS_ALPHA_BLENDING
             #endif
             
+            uniform bool reflectionsDebug;
             uniform bool hdrOutput;
             
             //material textures
@@ -263,8 +266,11 @@ public class NProgram {
             uniform float lightmapIntensity[MAX_AMOUNT_OF_LIGHTMAPS];
             uniform sampler2DArray lightmaps;
             
-            //reflection cubemap
-            uniform samplerCube reflectionCubemap;
+            //reflection cubemaps
+            uniform samplerCube reflectionCubemap_0;
+            uniform samplerCube reflectionCubemap_1;
+            uniform samplerCube reflectionCubemap_2;
+            uniform samplerCube reflectionCubemap_3;
             
             uniform bool reflectionsSupported;
             uniform bool reflectionsEnabled;
@@ -279,11 +285,12 @@ public class NProgram {
             
             struct ParallaxCubemap {
                 bool enabled;
+                float intensity;
                 vec3 position;
                 mat4 worldToLocal;
             };
             
-            uniform ParallaxCubemap parallaxCubemap;
+            uniform ParallaxCubemap parallaxCubemaps[MAX_AMOUNT_OF_CUBEMAPS];
             
             struct Material {
                 vec4 diffuseColor;
@@ -410,6 +417,60 @@ public class NProgram {
                 return diffuse + specular + ambient;
             }
             
+            vec4 sampleCubemap(int index, vec3 direction, float lod) {
+                switch (index) {
+                    case 0:
+                        return textureLod(reflectionCubemap_0, direction, lod);
+                    case 1:
+                        return textureLod(reflectionCubemap_1, direction, lod);
+                    case 2:
+                        return textureLod(reflectionCubemap_2, direction, lod);
+                    case 3:
+                        return textureLod(reflectionCubemap_3, direction, lod);
+                }
+                return vec4(0.0, 0.0, 0.0, 1.0);
+            }
+            
+            float sampleCubemapMiplevels(int index) {
+                float mipLevels = 0.0;
+                ivec2 cubemapSize = ivec2(0);
+                switch (index) {
+                    case 0:
+                        #ifdef SUPPORTED_430
+                        mipLevels = float(textureQueryLevels(reflectionCubemap_0));
+                        #else
+                        cubemapSize = textureSize(reflectionCubemap_0, 0);
+                        mipLevels = 1.0 + floor(log2(max(float(cubemapSize.x), float(cubemapSize.y))));
+                        #endif
+                        return mipLevels;
+                    case 1:
+                        #ifdef SUPPORTED_430
+                        mipLevels = float(textureQueryLevels(reflectionCubemap_1));
+                        #else
+                        cubemapSize = textureSize(reflectionCubemap_1, 0);
+                        mipLevels = 1.0 + floor(log2(max(float(cubemapSize.x), float(cubemapSize.y))));
+                        #endif
+                        return mipLevels;
+                    case 2:
+                        #ifdef SUPPORTED_430
+                        mipLevels = float(textureQueryLevels(reflectionCubemap_2));
+                        #else
+                        cubemapSize = textureSize(reflectionCubemap_2, 0);
+                        mipLevels = 1.0 + floor(log2(max(float(cubemapSize.x), float(cubemapSize.y))));
+                        #endif
+                        return mipLevels;
+                    case 3:
+                        #ifdef SUPPORTED_430
+                        mipLevels = float(textureQueryLevels(reflectionCubemap_3));
+                        #else
+                        cubemapSize = textureSize(reflectionCubemap_3, 0);
+                        mipLevels = 1.0 + floor(log2(max(float(cubemapSize.x), float(cubemapSize.y))));
+                        #endif
+                        return mipLevels;
+                }
+                return 0.0;
+            }
+            
             vec3 computeReflection(
                 vec3 fragPosition,
                 vec3 fragDirection,
@@ -418,49 +479,62 @@ public class NProgram {
                 float roughness,
                 float metallic
             ) {
-                vec3 reflectedDirection = reflect(-fragDirection, normal);
+                float materialRoughness = pow(roughness, 1.0/2.41);
+                float fresnel = (1.0 - materialRoughness) * pow(1.0 - max(dot(fragDirection, normal), 0.0), 5.0);
                 
-                if (parallaxCubemap.enabled) {
-                    vec3 localDirection = mat3(parallaxCubemap.worldToLocal) * reflectedDirection;
+                vec3 totalReflection = vec3(0.0);
+                int count = 0;
+                
+                for (int i = 0; i < MAX_AMOUNT_OF_CUBEMAPS; i++) {
+                    ParallaxCubemap parallaxCubemap = parallaxCubemaps[i];
+                    
+                    if (!parallaxCubemap.enabled) {
+                        continue;
+                    }
+                    
                     vec3 localPosition = (parallaxCubemap.worldToLocal * vec4(fragPosition, 1.0)).xyz;
                     
-                    vec3 unitaryBox = vec3(1.0);
-                    vec3 firstPlane = (unitaryBox - localPosition) / localDirection;
-                    vec3 secondPlane = ((-unitaryBox) - localPosition) / localDirection;
+                    vec3 absLocalPosition = abs(localPosition);
+                    if (max(absLocalPosition.x, max(absLocalPosition.y, absLocalPosition.z)) > 1.0) {
+                        continue;
+                    }
+                    
+                    vec3 reflectedDirection = reflect(-fragDirection, normal);
+                    vec3 localDirection = mat3(parallaxCubemap.worldToLocal) * reflectedDirection;
+                    
+                    vec3 firstPlane = (vec3(-1.0) - localPosition) / localDirection;
+                    vec3 secondPlane = (vec3(1.0) - localPosition) / localDirection;
+                    
                     vec3 furthestPlane = max(firstPlane, secondPlane);
                     
                     float distance = min(furthestPlane.x, min(furthestPlane.y, furthestPlane.z));
                     
-                    if (distance >= 0.0) {
-                        vec3 intersectionPosition = fragPosition + (reflectedDirection * distance);
-                        reflectedDirection = normalize(intersectionPosition - parallaxCubemap.position);
-                    }
+                    float mipLevels = sampleCubemapMiplevels(i);
+                    
+                    float lodLevel = mipLevels * materialRoughness;
+                    float lodFactor = lodLevel - floor(lodLevel);
+                    
+                    vec3 intersectionPosition = fragPosition + (reflectedDirection * distance);
+                    reflectedDirection = normalize(intersectionPosition - parallaxCubemap.position);
+                    
+                    vec3 reflectedFloor = sampleCubemap(i, reflectedDirection, floor(lodLevel)).rgb;
+                    vec3 reflectedCeil = sampleCubemap(i, reflectedDirection, ceil(lodLevel)).rgb;
+                    vec3 reflectedColor = mix(reflectedFloor, reflectedCeil, lodFactor) * parallaxCubemap.intensity;
+                    
+                    vec3 metallicReflection = reflectedColor * metallicColor;
+                    vec3 nonmetallicReflection = reflectedColor * fresnel;
+                    
+                    vec3 reflection = material.reflectionColor * mix(nonmetallicReflection, metallicReflection, metallic);
+                    
+                    totalReflection += reflection;
+                    count++;
                 }
                 
-                #ifdef SUPPORTED_430
-                float mipLevels = float(textureQueryLevels(reflectionCubemap));
-                #else
-                ivec2 cubemapSize = textureSize(reflectionCubemap, 0);
-                float mipLevels = 1.0 + floor(log2(max(float(cubemapSize.x), float(cubemapSize.y))));
-                #endif
+                if (count != 0) {
+                    totalReflection /= float(count);
+                }
                 
-                float materialRoughness = pow(roughness, 1.0/2.41);
-                
-                float lodLevel = mipLevels * materialRoughness;
-                float lodFactor = lodLevel - floor(lodLevel);
-                
-                vec3 reflectedFloor = textureLod(reflectionCubemap, reflectedDirection, floor(lodLevel)).rgb;
-                vec3 reflectedCeil = textureLod(reflectionCubemap, reflectedDirection, ceil(lodLevel)).rgb;
-                vec3 reflectedColor = mix(reflectedFloor, reflectedCeil, lodFactor);
-                
-                float fresnel = (1.0 - materialRoughness) * pow(1.0 - max(dot(fragDirection, normal), 0.0), 5.0);
-                
-                vec3 metallicReflection = reflectedColor * metallicColor;
-                vec3 nonmetallicReflection = reflectedColor * fresnel;
-                
-                vec3 reflection = material.reflectionColor * mix(nonmetallicReflection, metallicReflection, metallic);
-                
-                return reflection;
+                return totalReflection;
             }
             
             vec3 ACESFilm(vec3 rgb) {
@@ -556,6 +630,10 @@ public class NProgram {
                     finalColor.rgb += computeReflection(worldPosition, fragDirection, normal, metallicColor, roughness, metallic);
                 }
                 
+                if (reflectionsDebug) {
+                    finalColor.rgb = computeReflection(worldPosition, fragDirection, vertexNormal, vec3(1.0), 0.0, 1.0);
+                }
+                
                 finalColor.rgb += eregebny.rgb * material.emissiveColor;
                 
                 if (!hdrOutput) {
@@ -596,7 +674,8 @@ public class NProgram {
         new ProgramCompiler.ShaderConstant("MAX_AMOUNT_OF_BONES", NMesh.MAX_AMOUNT_OF_BONES),
         new ProgramCompiler.ShaderConstant("MAX_AMOUNT_OF_BONE_WEIGHTS", NMesh.MAX_AMOUNT_OF_BONE_WEIGHTS),
         new ProgramCompiler.ShaderConstant("DIFFUSE_STRENGTH", DIFFUSE_STRENGTH),
-        new ProgramCompiler.ShaderConstant("SPECULAR_STRENGTH", SPECULAR_STRENGTH)
+        new ProgramCompiler.ShaderConstant("SPECULAR_STRENGTH", SPECULAR_STRENGTH),
+        new ProgramCompiler.ShaderConstant("MAX_AMOUNT_OF_CUBEMAPS", MAX_AMOUNT_OF_CUBEMAPS)
     };
 
     static {
@@ -623,10 +702,14 @@ public class NProgram {
     public static final String UNIFORM_LIGHTMAPS = "lightmaps";
     public static final String UNIFORM_PARALLAX_SUPPORTED = "parallaxSupported";
     public static final String UNIFORM_PARALLAX_ENABLED = "parallaxEnabled";
-    public static final String UNIFORM_REFLECTION_CUBEMAP = "reflectionCubemap";
+    public static final String UNIFORM_REFLECTION_CUBEMAP_0 = "reflectionCubemap_0";
+    public static final String UNIFORM_REFLECTION_CUBEMAP_1 = "reflectionCubemap_1";
+    public static final String UNIFORM_REFLECTION_CUBEMAP_2 = "reflectionCubemap_2";
+    public static final String UNIFORM_REFLECTION_CUBEMAP_3 = "reflectionCubemap_3";
     public static final String UNIFORM_REFLECTIONS_SUPPORTED = "reflectionsSupported";
     public static final String UNIFORM_REFLECTIONS_ENABLED = "reflectionsEnabled";
     public static final String UNIFORM_HDR_OUTPUT = "hdrOutput";
+    public static final String UNIFORM_REFLECTIONS_DEBUG = "reflectionsDebug";
 
     public static void sendMaterial(BetterUniformSetter uniforms, NProgramMaterial material) {
         if (material == null) {
@@ -673,11 +756,12 @@ public class NProgram {
         BetterUniformSetter.uniformMatrix4fv(uniforms.locationOf("boneMatrices[" + (boneId + 1) + "]"), matrix);
     }
 
-    public static void sendParallaxCubemapInfo(BetterUniformSetter uniforms, boolean enabled, float x, float y, float z, Matrix4fc worldToLocal) {
-        glUniform1i(uniforms.locationOf("parallaxCubemap.enabled"), (enabled ? 1 : 0));
+    public static void sendParallaxCubemapInfo(BetterUniformSetter uniforms, int index, boolean enabled, float intensity, float x, float y, float z, Matrix4fc worldToLocal) {
+        glUniform1i(uniforms.locationOf("parallaxCubemaps["+index+"].enabled"), (enabled ? 1 : 0));
         if (enabled) {
-            glUniform3f(uniforms.locationOf("parallaxCubemap.position"), x, y, z);
-            BetterUniformSetter.uniformMatrix4fv(uniforms.locationOf("parallaxCubemap.worldToLocal"), worldToLocal);
+            glUniform1f(uniforms.locationOf("parallaxCubemaps["+index+"].intensity"), intensity);
+            glUniform3f(uniforms.locationOf("parallaxCubemaps["+index+"].position"), x, y, z);
+            BetterUniformSetter.uniformMatrix4fv(uniforms.locationOf("parallaxCubemaps["+index+"].worldToLocal"), worldToLocal);
         }
     }
 

@@ -321,6 +321,15 @@ public class NCubemap {
     }
 
     @Override
+    public int hashCode() {
+        int hash = 7;
+        hash = 79 * hash + Objects.hashCode(this.cubemapInfo);
+        hash = 79 * hash + Objects.hashCode(this.sha256);
+        hash = 79 * hash + Float.floatToIntBits(this.intensity);
+        return hash;
+    }
+
+    @Override
     public boolean equals(Object obj) {
         if (this == obj) {
             return true;
@@ -332,14 +341,13 @@ public class NCubemap {
             return false;
         }
         final NCubemap other = (NCubemap) obj;
-        return Objects.equals(this.sha256, other.sha256);
-    }
-
-    @Override
-    public int hashCode() {
-        int hash = 3;
-        hash = 97 * hash + Objects.hashCode(this.sha256);
-        return hash;
+        if (Float.floatToIntBits(this.intensity) != Float.floatToIntBits(other.intensity)) {
+            return false;
+        }
+        if (!Objects.equals(this.sha256, other.sha256)) {
+            return false;
+        }
+        return Objects.equals(this.cubemapInfo, other.cubemapInfo);
     }
 
 }

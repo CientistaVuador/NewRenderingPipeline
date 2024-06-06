@@ -38,6 +38,7 @@ import cientistavuador.newrenderingpipeline.newrendering.NCubemap;
 import cientistavuador.newrenderingpipeline.newrendering.NCubemapImporter;
 import cientistavuador.newrenderingpipeline.newrendering.NCubemapInfo;
 import cientistavuador.newrenderingpipeline.newrendering.NCubemapRenderer;
+import cientistavuador.newrenderingpipeline.newrendering.NCubemaps;
 import cientistavuador.newrenderingpipeline.newrendering.NLight;
 import cientistavuador.newrenderingpipeline.newrendering.NMap;
 import cientistavuador.newrenderingpipeline.text.GLFontRenderer;
@@ -49,7 +50,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
-import org.joml.Vector3d;
 import static org.lwjgl.glfw.GLFW.*;
 
 /**
@@ -67,7 +67,27 @@ public class Game {
     private final FreeCamera camera = new FreeCamera();
     private NMap.BakeStatus status = null;
 
-    private NCubemap cubemap;
+    private final NCubemap skybox;
+    private final String[] cubemapNames = {
+        "gold_room",
+        "animation_room",
+        "emissive_room",
+        "water_room",
+        "white_room_0",
+        "white_room_1",
+        "main_room"
+    };
+    private final NCubemapInfo[] cubemapInfos = {
+        new NCubemapInfo(-15.62, 2.17, -9.59, -20.59, -0.14, -14.51, -10.49, 5.12, -4.47),
+        new NCubemapInfo(-15.40, 2.49, 3.93, -20.60, -0.13, -2.21, -10.50, 5.63, 7.91),
+        new NCubemapInfo(15.22, 1.48, 2.90, 10.39, -0.08, -2.19, 20.44, 5.35, 7.90),
+        new NCubemapInfo(-0.15, 1.90, -23.44, -5.30, -0.21, -28.60, 4.78, 5.24, -18.52),
+        new NCubemapInfo(12.78, 1.63, -9.40, 10.39, -0.08, -14.59, 15.44, 5.35, -4.4),
+        new NCubemapInfo(17.91, 1.63, -9.29, 15.44, -0.08, -14.59, 20.44, 5.35, -4.4),
+        new NCubemapInfo(-0.31, 3.41, 2.68, -5.59, -0.10, -13.01, 5.50, 5.42, 18.13)
+    };
+
+    private NCubemaps cubemaps;
 
     private final NMap map;
     private final N3DObject triceratops;
@@ -76,10 +96,10 @@ public class Game {
 
     {
         try {
-            this.cubemap = NCubemapImporter.loadFromJar("cientistavuador/newrenderingpipeline/resources/image/generic_cubemap2.png", true, false);
-            
+            this.skybox = NCubemapImporter.loadFromJar("cientistavuador/newrenderingpipeline/resources/image/generic_cubemap2.png", true, false);
+
             List<N3DObject> mapObjects = new ArrayList<>();
-            
+
             {
                 N3DModel waterBottle3DModel = N3DModelImporter.importFromJarFile("cientistavuador/newrenderingpipeline/nrp.glb");
                 N3DObject nrp = new N3DObject("nrp", waterBottle3DModel);
@@ -88,13 +108,13 @@ public class Game {
 
             {
                 N3DModel model = N3DModelImporter.importFromJarFile("cientistavuador/newrenderingpipeline/cc0_zacxophone_triceratops.glb");
-                
+
                 this.triceratops = new N3DObject("test model", model);
                 this.triceratops.getPosition().set(-15f, 0.9f, 3f);
                 this.triceratops.setAnimator(new NAnimator(model, "Armature|Armature|Fall"));
             }
-            
-            this.map = new NMap("map", mapObjects, NMap.DEFAULT_LIGHTMAP_MARGIN, 1f / 0.1f);
+
+            this.map = new NMap("map", mapObjects, NMap.DEFAULT_LIGHTMAP_MARGIN, 1f / 0.2f);
 
             System.out.println(this.map.getLightmapSize());
 
@@ -104,7 +124,7 @@ public class Game {
                 sun.setDynamic(false);
                 sun.setDiffuseSpecularAmbient(2f);
                 this.lights.add(sun);
-                
+
                 {
                     NLight.NPointLight point = new NLight.NPointLight("point");
                     point.getPosition().set(-15.55f, 4.41f, 3.15f);
@@ -112,7 +132,7 @@ public class Game {
                     point.setDiffuseSpecularAmbient(10f);
                     this.lights.add(point);
                 }
-                
+
                 {
                     NLight.NPointLight point = new NLight.NPointLight("point");
                     point.getPosition().set(-15.47f, 4.71f, -9.44f);
@@ -120,7 +140,7 @@ public class Game {
                     point.setDiffuseSpecularAmbient(10f);
                     this.lights.add(point);
                 }
-                
+
                 {
                     NLight.NPointLight point = new NLight.NPointLight("point");
                     point.getPosition().set(-0.35f, 4.58f, -23.48f);
@@ -128,7 +148,7 @@ public class Game {
                     point.setDiffuseSpecularAmbient(10f);
                     this.lights.add(point);
                 }
-                
+
                 {
                     NLight.NSpotLight spot = new NLight.NSpotLight("spot");
                     spot.getPosition().set(11.10f, 3.94f, -9.56f);
@@ -137,7 +157,7 @@ public class Game {
                     spot.setDiffuseSpecularAmbient(10f);
                     this.lights.add(spot);
                 }
-                
+
                 {
                     NLight.NPointLight point = new NLight.NPointLight("point");
                     point.getPosition().set(-0.28f, 4.61f, 2.53f);
@@ -149,6 +169,8 @@ public class Game {
         } catch (IOException ex) {
             throw new UncheckedIOException(ex);
         }
+
+        this.cubemaps = new NCubemaps(this.skybox, null);
     }
 
     private Game() {
@@ -162,7 +184,7 @@ public class Game {
     public void loop() {
         this.camera.updateMovement();
         this.camera.updateUBO();
-        
+
         this.triceratops.getAnimator().update(Main.TPF);
 
         for (int i = 0; i < this.map.getNumberOfObjects(); i++) {
@@ -170,8 +192,8 @@ public class Game {
         }
 
         N3DObjectRenderer.queueRender(this.triceratops);
-        
-        N3DObjectRenderer.render(this.camera, this.lights, this.cubemap);
+
+        N3DObjectRenderer.render(this.camera, this.lights, this.cubemaps);
 
         AabRender.renderQueue(this.camera);
         LineRender.renderQueue(this.camera);
@@ -207,43 +229,51 @@ public class Game {
         }
         if (key == GLFW_KEY_B && action == GLFW_PRESS) {
             Scene scene = new Scene();
-            
+
             Scene.EmissiveLight emissive = new Scene.EmissiveLight();
             scene.getLights().add(emissive);
-            
-            for (NLight light:this.lights) {
+
+            for (NLight light : this.lights) {
                 scene.getLights().add(NMap.convertLight(light));
             }
-            
+
             this.status = this.map.bake(scene);
         }
         if (key == GLFW_KEY_C && action == GLFW_PRESS) {
-            for (int i = 0; i < this.map.getNumberOfObjects(); i++) {
-                N3DObjectRenderer.queueRender(this.map.getObject(i));
-            }
-            
-            NCubemapInfo info = new NCubemapInfo(
-                    this.camera.getPosition(),
-                    false, null, null, null
-            );
-            
             boolean reflectionsEnabled = N3DObjectRenderer.REFLECTIONS_ENABLED;
-            
+            boolean reflectionsDebug = N3DObjectRenderer.REFLECTIONS_DEBUG;
+
             N3DObjectRenderer.REFLECTIONS_ENABLED = false;
             N3DObjectRenderer.SPECULAR_ENABLED = false;
             N3DObjectRenderer.HDR_OUTPUT = true;
+            N3DObjectRenderer.REFLECTIONS_DEBUG = false;
             
-            this.cubemap = NCubemapRenderer.render(
-                    this.cubemap.getName(),
-                    info,
-                    256,
-                    this.lights,
-                    this.cubemap
-            );
+            List<NCubemap> cubemapsList = new ArrayList<>();
+            for (int i = 0; i < this.cubemapNames.length; i++) {
+                String name = this.cubemapNames[i];
+                NCubemapInfo info = this.cubemapInfos[i];
+
+                for (int j = 0; j < this.map.getNumberOfObjects(); j++) {
+                    N3DObjectRenderer.queueRender(this.map.getObject(j));
+                }
+                
+                NCubemap cubemap = NCubemapRenderer.render(
+                        name,
+                        info,
+                        512,
+                        this.lights,
+                        this.cubemaps
+                );
+                
+                cubemapsList.add(cubemap);
+            }
             
+            this.cubemaps = new NCubemaps(this.skybox, cubemapsList);
+
             N3DObjectRenderer.REFLECTIONS_ENABLED = reflectionsEnabled;
             N3DObjectRenderer.SPECULAR_ENABLED = true;
             N3DObjectRenderer.HDR_OUTPUT = false;
+            N3DObjectRenderer.REFLECTIONS_DEBUG = reflectionsDebug;
         }
     }
 

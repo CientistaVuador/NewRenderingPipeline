@@ -31,7 +31,6 @@ import cientistavuador.newrenderingpipeline.camera.PerspectiveCamera;
 import java.nio.FloatBuffer;
 import java.util.List;
 import static org.lwjgl.opengl.GL33C.*;
-import org.lwjgl.system.MemoryUtil;
 import static org.lwjgl.system.MemoryUtil.memAllocFloat;
 import static org.lwjgl.system.MemoryUtil.memFree;
 
@@ -45,7 +44,7 @@ public class NCubemapRenderer {
     
     public static NCubemap render(
             String name, NCubemapInfo info, int size,
-            List<NLight> lights, NCubemap skybox
+            List<NLight> lights, NCubemaps cubemaps
     ) {
         int fboSize = size * SUPER_RESOLUTION_MULTIPLIER;
 
@@ -103,7 +102,7 @@ public class NCubemapRenderer {
                 }
                 
                 glClear(GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
-                N3DObjectRenderer.render(camera, lights, skybox);
+                N3DObjectRenderer.render(camera, lights, cubemaps);
                 glReadPixels(0, 0, fboSize, fboSize, GL_RGB, GL_FLOAT, sides);
             }
             glBindFramebuffer(GL_FRAMEBUFFER, 0);
