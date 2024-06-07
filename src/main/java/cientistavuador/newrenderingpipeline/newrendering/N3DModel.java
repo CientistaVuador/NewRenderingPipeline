@@ -56,7 +56,7 @@ public class N3DModel {
 
     private final N3DModelNode[] nodes;
     private final Map<String, Integer> nodesMap = new HashMap<>();
-
+    
     private final String[] bones;
     private final NMesh[] meshes;
     private final NTextures[] textures;

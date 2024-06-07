@@ -275,6 +275,21 @@ public class NProgram {
             uniform bool reflectionsSupported;
             uniform bool reflectionsEnabled;
             
+            //POSITIVE_X
+            //NEGATIVE_X
+            //POSITIVE_Y
+            //NEGATIVE_Y
+            //POSITIVE_Z
+            //NEGATIVE_Z
+            uniform vec3 ambientCube[NUMBER_OF_CUBE_SIDES] = vec3[] (
+                vec3(0.0),
+                vec3(0.0),
+                vec3(0.0),
+                vec3(0.0),
+                vec3(0.0),
+                vec3(0.0)
+            );
+            
             struct FresnelOutline {
                 bool enabled;
                 float exponent;
@@ -415,6 +430,15 @@ public class NProgram {
                 }
                 
                 return diffuse + specular + ambient;
+            }
+            
+            vec3 ambientLight(vec3 normal) {
+                vec3 normalSquared = normal * normal;
+                ivec3 negative = ivec3(normal.x < 0.0, normal.y < 0.0, normal.z < 0.0);
+                vec3 ambient = normalSquared.x * ambientCube[negative.x]
+                                + normalSquared.y * ambientCube[negative.y + 2]
+                                + normalSquared.z * ambientCube[negative.z + 4];
+                return ambient;
             }
             
             vec4 sampleCubemap(int index, vec3 direction, float lod) {
@@ -626,6 +650,9 @@ public class NProgram {
                     );
                 }
                 
+                finalColor.rgb += ambientLight(normal) * diffuseColor;
+                finalColor.rgb += eregebny.rgb * material.emissiveColor;
+                
                 if (reflectionsSupported && reflectionsEnabled) {
                     finalColor.rgb += computeReflection(worldPosition, fragDirection, normal, metallicColor, roughness, metallic);
                 }
@@ -633,8 +660,6 @@ public class NProgram {
                 if (reflectionsDebug) {
                     finalColor.rgb = computeReflection(worldPosition, fragDirection, vertexNormal, vec3(1.0), 0.0, 1.0);
                 }
-                
-                finalColor.rgb += eregebny.rgb * material.emissiveColor;
                 
                 if (!hdrOutput) {
                     finalColor.rgb = gammaCorrection(ACESFilm(finalColor.rgb));
@@ -675,7 +700,8 @@ public class NProgram {
         new ProgramCompiler.ShaderConstant("MAX_AMOUNT_OF_BONE_WEIGHTS", NMesh.MAX_AMOUNT_OF_BONE_WEIGHTS),
         new ProgramCompiler.ShaderConstant("DIFFUSE_STRENGTH", DIFFUSE_STRENGTH),
         new ProgramCompiler.ShaderConstant("SPECULAR_STRENGTH", SPECULAR_STRENGTH),
-        new ProgramCompiler.ShaderConstant("MAX_AMOUNT_OF_CUBEMAPS", MAX_AMOUNT_OF_CUBEMAPS)
+        new ProgramCompiler.ShaderConstant("MAX_AMOUNT_OF_CUBEMAPS", MAX_AMOUNT_OF_CUBEMAPS),
+        new ProgramCompiler.ShaderConstant("NUMBER_OF_CUBE_SIDES", NCubemap.SIDES)
     };
 
     static {

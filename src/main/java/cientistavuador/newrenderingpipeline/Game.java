@@ -41,6 +41,7 @@ import cientistavuador.newrenderingpipeline.newrendering.NCubemapRenderer;
 import cientistavuador.newrenderingpipeline.newrendering.NCubemaps;
 import cientistavuador.newrenderingpipeline.newrendering.NLight;
 import cientistavuador.newrenderingpipeline.newrendering.NMap;
+import cientistavuador.newrenderingpipeline.newrendering.NRayResult;
 import cientistavuador.newrenderingpipeline.text.GLFontRenderer;
 import cientistavuador.newrenderingpipeline.text.GLFontSpecifications;
 import cientistavuador.newrenderingpipeline.ubo.CameraUBO;
@@ -50,6 +51,9 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
+import org.joml.Vector3dc;
+import org.joml.Vector3f;
+import org.joml.Vector3fc;
 import static org.lwjgl.glfw.GLFW.*;
 
 /**
@@ -75,7 +79,12 @@ public class Game {
         "water_room",
         "white_room_0",
         "white_room_1",
-        "main_room"
+        "main_room",
+        "white_room_corridor",
+        "gold_room_corridor",
+        "water_room_corridor",
+        "emissive_room_corridor",
+        "animation_room_corridor"
     };
     private final NCubemapInfo[] cubemapInfos = {
         new NCubemapInfo(-15.62, 2.17, -9.59, -20.59, -0.14, -14.51, -10.49, 5.12, -4.47),
@@ -84,13 +93,21 @@ public class Game {
         new NCubemapInfo(-0.15, 1.90, -23.44, -5.30, -0.21, -28.60, 4.78, 5.24, -18.52),
         new NCubemapInfo(12.78, 1.63, -9.40, 10.39, -0.08, -14.59, 15.44, 5.35, -4.4),
         new NCubemapInfo(17.91, 1.63, -9.29, 15.44, -0.08, -14.59, 20.44, 5.35, -4.4),
-        new NCubemapInfo(-0.31, 3.41, 2.68, -5.59, -0.10, -13.01, 5.50, 5.42, 18.13)
+        new NCubemapInfo(-0.31, 3.41, 2.68, -5.59, -0.10, -13.01, 5.50, 5.42, 18.13),
+        new NCubemapInfo(7.62, 1.78, -9.50, 10.40, -0.11, -8.40, 5.44, 2.62, -10.50),
+        new NCubemapInfo(-7.98, 1.67, -9.65, -10.55, -0.11, -10.49, -5.55, 2.62, -8.42),
+        new NCubemapInfo(-0.19, 1.50, -15.30, -1.30, -0.21, -18.52, 0.80, 3.20, -13.03),
+        new NCubemapInfo(8.07, 1.81, 3.07, 5.40, -0.22, 1.80, 10.36, 2.68, 3.98),
+        new NCubemapInfo(-7.99, 1.48, 2.75, -10.56, -0.22, 1.80, -5.59, 2.68, 4.00)
     };
 
     private NCubemaps cubemaps;
 
+    private NRayResult raycastDebug = null;
+
     private final NMap map;
     private final N3DObject triceratops;
+    private final N3DObject bottle;
 
     private final List<NLight> lights = new ArrayList<>();
 
@@ -109,9 +126,16 @@ public class Game {
             {
                 N3DModel model = N3DModelImporter.importFromJarFile("cientistavuador/newrenderingpipeline/cc0_zacxophone_triceratops.glb");
 
-                this.triceratops = new N3DObject("test model", model);
+                this.triceratops = new N3DObject("triceratops", model);
                 this.triceratops.getPosition().set(-15f, 0.9f, 3f);
                 this.triceratops.setAnimator(new NAnimator(model, "Armature|Armature|Fall"));
+            }
+
+            {
+                N3DModel model = N3DModelImporter.importFromJarFile("cientistavuador/newrenderingpipeline/cc0_WaterBottle.glb");
+
+                this.bottle = new N3DObject("bottle", model);
+                this.bottle.getScale().set(2f);
             }
 
             this.map = new NMap("map", mapObjects, NMap.DEFAULT_LIGHTMAP_MARGIN, 1f / 0.2f);
@@ -166,6 +190,7 @@ public class Game {
                     point.setDiffuseSpecularAmbient(20f);
                     this.lights.add(point);
                 }
+                
             }
         } catch (IOException ex) {
             throw new UncheckedIOException(ex);
@@ -182,19 +207,35 @@ public class Game {
         this.camera.setUBO(CameraUBO.create(UBOBindingPoints.PLAYER_CAMERA));
     }
 
+    private final Vector3f bottleRotation = new Vector3f(0f, 0f, 1f);
+
     public void loop() {
         this.camera.updateMovement();
         this.camera.updateUBO();
 
         this.triceratops.getAnimator().update(Main.TPF);
 
+        this.bottleRotation.rotateY((float) (Main.TPF * 0.5));
+        this.bottle.getPosition().set(this.bottleRotation).mul(3f).add(15.29, 1.95, -9.52);
+
         for (int i = 0; i < this.map.getNumberOfObjects(); i++) {
             N3DObjectRenderer.queueRender(this.map.getObject(i));
         }
 
         N3DObjectRenderer.queueRender(this.triceratops);
+        N3DObjectRenderer.queueRender(this.bottle);
 
         N3DObjectRenderer.render(this.camera, this.lights, this.cubemaps);
+
+        if (this.raycastDebug != null) {
+            Vector3dc o = this.raycastDebug.getOrigin();
+            Vector3dc h = this.raycastDebug.getHitPosition();
+
+            LineRender.queueRender(
+                    o.x(), o.y(), o.z(),
+                    h.x(), h.y(), h.z()
+            );
+        }
 
         AabRender.renderQueue(this.camera);
         LineRender.renderQueue(this.camera);
@@ -222,11 +263,29 @@ public class Game {
     }
 
     public void keyCallback(long window, int key, int scancode, int action, int mods) {
-        if (key == GLFW_KEY_H && action == GLFW_PRESS) {
+        if (key == GLFW_KEY_F1 && action == GLFW_PRESS) {
             N3DObjectRenderer.REFLECTIONS_ENABLED = !N3DObjectRenderer.REFLECTIONS_ENABLED;
         }
-        if (key == GLFW_KEY_P && action == GLFW_PRESS) {
+        if (key == GLFW_KEY_F2 && action == GLFW_PRESS) {
             N3DObjectRenderer.PARALLAX_ENABLED = !N3DObjectRenderer.PARALLAX_ENABLED;
+        }
+        if (key == GLFW_KEY_F3 && action == GLFW_PRESS) {
+            N3DObjectRenderer.REFLECTIONS_DEBUG = !N3DObjectRenderer.REFLECTIONS_DEBUG;
+        }
+        if (key == GLFW_KEY_F4 && action == GLFW_PRESS) {
+            Vector3dc p = this.camera.getPosition();
+            Vector3fc d = this.camera.getFront();
+            
+            List<NRayResult> results = this.map.testRay(
+                    p.x(), p.y(), p.z(),
+                    d.x(), d.y(), d.z()
+            );
+            
+            if (results.isEmpty()) {
+                this.raycastDebug = null;
+            } else {
+                this.raycastDebug = results.get(0);
+            }
         }
         if (key == GLFW_KEY_B && action == GLFW_PRESS) {
             Scene scene = new Scene();
@@ -248,7 +307,7 @@ public class Game {
             N3DObjectRenderer.SPECULAR_ENABLED = false;
             N3DObjectRenderer.HDR_OUTPUT = true;
             N3DObjectRenderer.REFLECTIONS_DEBUG = false;
-            
+
             List<NCubemap> cubemapsList = new ArrayList<>();
             for (int i = 0; i < this.cubemapNames.length; i++) {
                 String name = this.cubemapNames[i];
@@ -257,18 +316,18 @@ public class Game {
                 for (int j = 0; j < this.map.getNumberOfObjects(); j++) {
                     N3DObjectRenderer.queueRender(this.map.getObject(j));
                 }
-                
+
                 NCubemap cubemap = NCubemapRenderer.render(
                         name,
                         info,
-                        512,
+                        256,
                         this.lights,
                         this.cubemaps
                 );
-                
+
                 cubemapsList.add(cubemap);
             }
-            
+
             this.cubemaps = new NCubemaps(this.skybox, cubemapsList);
 
             N3DObjectRenderer.REFLECTIONS_ENABLED = reflectionsEnabled;

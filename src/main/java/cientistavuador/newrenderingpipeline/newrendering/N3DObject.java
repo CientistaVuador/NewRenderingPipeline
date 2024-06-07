@@ -29,12 +29,16 @@ package cientistavuador.newrenderingpipeline.newrendering;
 import cientistavuador.newrenderingpipeline.Main;
 import cientistavuador.newrenderingpipeline.camera.Camera;
 import cientistavuador.newrenderingpipeline.util.ObjectCleaner;
+import cientistavuador.newrenderingpipeline.util.raycast.BVH;
+import cientistavuador.newrenderingpipeline.util.raycast.LocalRayResult;
+import java.util.ArrayList;
+import java.util.List;
+import org.joml.Matrix4d;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
 import org.joml.Quaternionf;
 import org.joml.Vector3d;
 import org.joml.Vector3f;
-
 import static org.lwjgl.opengl.GL33C.*;
 
 /**
@@ -42,7 +46,7 @@ import static org.lwjgl.opengl.GL33C.*;
  * @author Cien
  */
 public class N3DObject {
-
+    
     private static class WrappedQueryObject {
 
         private int object = 0;
@@ -160,7 +164,7 @@ public class N3DObject {
     public int getQueryObject() {
         return this.queryObject.object;
     }
-
+    
     public void calculateModelMatrix(Matrix4f outputModelMatrix, Camera camera) {
         double camX = 0.0;
         double camY = 0.0;
@@ -220,6 +224,76 @@ public class N3DObject {
             lightmaps = NLightmaps.NULL_LIGHTMAPS;
         }
         this.lightmaps = lightmaps;
+    }
+    
+    public List<NRayResult> testRay(
+            double pX, double pY, double pZ,
+            float dX, float dY, float dZ
+    ) {
+        List<NRayResult> results = new ArrayList<>();
+        
+        Vector3d rayPosition = new Vector3d(pX, pY, pZ);
+        Vector3f rayDirection = new Vector3f(dX, dY, dZ);
+        
+        Matrix4d toWorldSpace = new Matrix4d()
+                .translate(getPosition())
+                .rotate(getRotation())
+                .scale(getScale().x(), getScale().y(), getScale().z())
+                ;
+        new Matrix4d(getTransformation())
+                .mul(toWorldSpace, toWorldSpace)
+                ;
+        Matrix4d toObjectSpace = new Matrix4d(toWorldSpace).invert();
+        
+        Vector3d objectPosition = new Vector3d(rayPosition);
+        Vector3d objectDirection = new Vector3d(rayDirection);
+        
+        toObjectSpace.transformPosition(objectPosition);
+        toObjectSpace.transformDirection(objectDirection);
+        
+        Vector3f geometryPosition = new Vector3f();
+        Vector3f geometryDirection = new Vector3f();
+        
+        Vector3f rootSpaceHitPosition = new Vector3f();
+        Vector3d hitPosition = new Vector3d();
+        
+        for (int i = 0; i < this.n3DModel.getNumberOfGeometries(); i++) {
+            NGeometry geometry = this.n3DModel.getGeometry(i);
+            
+            Matrix4fc toGeometrySpace = geometry.getParent().getToNodeSpace();
+            Matrix4fc toRootSpace = geometry.getParent().getToRootSpace();
+            
+            toGeometrySpace.transformPosition(
+                    (float) objectPosition.x(),
+                    (float) objectPosition.y(),
+                    (float) objectPosition.z(),
+                    geometryPosition
+            );
+            toGeometrySpace.transformDirection(
+                    (float) objectDirection.x(),
+                    (float) objectDirection.y(),
+                    (float) objectDirection.z(),
+                    geometryDirection
+            ).normalize();
+            
+            BVH meshBVH = geometry.getMesh().getBVH();
+            
+            List<LocalRayResult> localRays = meshBVH.testRay(geometryPosition, geometryDirection);
+            
+            for (LocalRayResult localRay:localRays) {
+                rootSpaceHitPosition.set(localRay.getLocalHitPosition());
+                toRootSpace.transformPosition(rootSpaceHitPosition);
+                hitPosition.set(rootSpaceHitPosition);
+                toWorldSpace.transformPosition(hitPosition);
+                
+                results.add(new NRayResult(
+                        rayPosition, rayDirection, hitPosition,
+                        this, geometry, localRay
+                ));
+            }
+        }
+        
+        return results;
     }
 
 }

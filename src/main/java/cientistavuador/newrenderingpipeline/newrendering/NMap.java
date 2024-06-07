@@ -32,7 +32,6 @@ import cientistavuador.newrenderingpipeline.util.Pair;
 import cientistavuador.newrenderingpipeline.util.bakedlighting.LightmapUVs;
 import cientistavuador.newrenderingpipeline.util.bakedlighting.Lightmapper;
 import cientistavuador.newrenderingpipeline.util.bakedlighting.Scene;
-import cientistavuador.newrenderingpipeline.util.raycast.UserMesh;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -146,8 +145,6 @@ public class NMap {
     private final float lightmapPixelToWorldRatio;
     private final int lightmapSize;
     private final Rectanglei[] lightmapRectangles;
-
-    private final UserMesh userMesh;
 
     public NMap(String name, Collection<N3DObject> objects, int lightmapMargin, float lightmapPixelToWorldRatio) {
         this.name = name;
@@ -333,13 +330,6 @@ public class NMap {
         }
 
         this.objects = resultObjects.toArray(N3DObject[]::new);
-        this.userMesh = UserMesh.create(
-                userVertices.toArray(float[][]::new),
-                userIndices.toArray(int[][]::new),
-                null,
-                userObjects.toArray(Object[]::new),
-                NMesh.VERTEX_SIZE, NMesh.OFFSET_POSITION_XYZ
-        );
     }
 
     public String getName() {
@@ -373,9 +363,20 @@ public class NMap {
     public Rectanglei getLightmapRectangle(int index) {
         return this.lightmapRectangles[index];
     }
-
-    public UserMesh getUserMesh() {
-        return userMesh;
+    
+    public List<NRayResult> testRay(
+            double pX, double pY, double pZ,
+            float dX, float dY, float dZ
+    ) {
+        List<NRayResult> results = new ArrayList<>();
+        
+        for (N3DObject obj:this.objects) {
+            results.addAll(obj.testRay(pX, pY, pZ, dX, dY, dZ));
+        }
+        
+        results.sort((o1, o2) -> Double.compare(o1.getDistance(), o2.getDistance()));
+        
+        return results;
     }
     
     public BakeStatus bake(Scene scene) {

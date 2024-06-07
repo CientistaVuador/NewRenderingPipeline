@@ -27,6 +27,8 @@
 package cientistavuador.newrenderingpipeline.newrendering;
 
 import static cientistavuador.newrenderingpipeline.newrendering.NMesh.MAX_AMOUNT_OF_BONE_WEIGHTS;
+import cientistavuador.newrenderingpipeline.util.raycast.LocalRayResult;
+import java.util.List;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
 import org.joml.Vector3f;
@@ -242,5 +244,5 @@ public class NGeometry {
     public boolean isAnimatedAabbGenerated() {
         return animatedAabbGenerated;
     }
-
+    
 }

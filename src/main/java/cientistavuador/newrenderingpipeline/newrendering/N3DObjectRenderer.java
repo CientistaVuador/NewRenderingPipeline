@@ -353,9 +353,9 @@ public class N3DObjectRenderer {
                                     o2Dist
                             );
                         });
-
+                        
                         NCubemap[] finalToRenderCubemaps = Arrays.copyOf(toRenderCubemaps.toArray(NCubemap[]::new), NProgram.MAX_AMOUNT_OF_CUBEMAPS);
-
+                        
                         float distanceSquared = (centerX * centerX) + (centerY * centerY) + (centerZ * centerZ);
 
                         toRenderList.add(new ToRender(
