@@ -541,15 +541,24 @@ public class NMap {
         Lightmapper lightmapper = new Lightmapper(
                 texio,
                 scene,
-                this.lightmapSize, this.lightmapRectangles,
+                this.lightmapMargin, this.lightmapSize, this.lightmapRectangles,
                 opaqueMesh, alphaMesh
         );
         status.setLightmapper(lightmapper);
         Lightmapper.Lightmap[] lightmaps = lightmapper.bake();
-
+        
         String[] names = new String[lightmaps.length];
         float[] totalLightmaps = new float[this.lightmapSize * this.lightmapSize * 3 * lightmaps.length];
-
+        
+        Vector3f[] indirectIntensities = new Vector3f[0];
+        byte[] indirectLightmaps = new byte[0];
+        int indirectSize = 0;
+        if (lightmaps.length != 0) {
+            indirectIntensities = new Vector3f[lightmaps.length];
+            indirectSize = lightmaps[0].getIndirectSize();
+            indirectLightmaps = new byte[indirectSize * indirectSize * 3 * lightmaps.length];
+        }
+        
         for (int i = 0; i < lightmaps.length; i++) {
             Lightmapper.Lightmap lightmap = lightmaps[i];
 
@@ -559,10 +568,21 @@ public class NMap {
                     totalLightmaps, i * this.lightmapSize * this.lightmapSize * 3,
                     lightmap.getLightmap().length
             );
+            
+            indirectIntensities[i] = new Vector3f(lightmap.getIndirectIntensity());
+            System.arraycopy(
+                    lightmap.getIndirectLightmap(), 0,
+                    indirectLightmaps, i * indirectSize * indirectSize * 3,
+                    lightmap.getIndirectLightmap().length
+            );
         }
-
-        NLightmaps finalLightmaps = new NLightmaps(this.name, names, totalLightmaps, this.lightmapSize, this.lightmapSize, this.lightmapMargin);
-
+        
+        NLightmaps finalLightmaps = new NLightmaps(
+                this.name, names, this.lightmapMargin,
+                totalLightmaps, this.lightmapSize, this.lightmapSize,
+                indirectIntensities, indirectLightmaps, indirectSize, indirectSize
+        );
+        
         Main.MAIN_TASKS.add(() -> {
             for (N3DObject obj : this.objects) {
                 obj.setLightmaps(finalLightmaps);

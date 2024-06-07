@@ -34,6 +34,8 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import org.joml.Vector3f;
+import org.joml.Vector3fc;
 import org.lwjgl.opengl.ARBTextureCompressionBPTC;
 import org.lwjgl.opengl.EXTTextureFilterAnisotropic;
 import org.lwjgl.opengl.GL;
@@ -48,19 +50,21 @@ import org.lwjgl.opengl.KHRDebug;
 public class NLightmaps {
 
     public static final NLightmaps NULL_LIGHTMAPS = new NLightmaps(
-            "Empty/Null Lightmaps",
-            new String[]{"None"},
-            new float[]{0f, 0f, 0f},
-            1, 1,
-            0
+            "Empty/Null Lightmaps", new String[]{"None"}, 0,
+            new float[]{0f, 0f, 0f}, 1, 1,
+            new Vector3f[] {new Vector3f(0f, 0f, 0f)}, new byte[] {0, 0, 0}, 1, 1
     );
 
     private final String name;
     private final String[] names;
+    private final int margin;
     private final float[] lightmaps;
     private final int width;
     private final int height;
-    private final int margin;
+    private final Vector3f[] indirectIntensities;
+    private final byte[] indirectLightmaps;
+    private final int indirectWidth;
+    private final int indirectHeight;
 
     private final Map<String, Integer> nameMap = new HashMap<>();
     private final float[] intensities;
@@ -72,12 +76,18 @@ public class NLightmaps {
 
     private final WrappedLightmap lightmapTexture = new WrappedLightmap();
 
-    public NLightmaps(String name, String[] names, float[] lightmaps, int width, int height, int margin) {
+    public NLightmaps(
+            String name, String[] names, int margin,
+            float[] lightmaps, int width, int height, 
+            Vector3f[] indirectIntensities, byte[] indirectLightmaps, int indirectWidth, int indirectHeight
+    ) {
         if (name == null) {
             name = "Unnamed";
         }
         Objects.requireNonNull(names, "Names is null");
         Objects.requireNonNull(lightmaps, "Lightmaps is null");
+        Objects.requireNonNull(indirectLightmaps, "Indirect Lightmaps is null");
+        Objects.requireNonNull(indirectIntensities, "Indirect Intensities is null");
         if (width < 0) {
             throw new IllegalArgumentException("Width is negative");
         }
@@ -87,10 +97,30 @@ public class NLightmaps {
         if (margin < 0) {
             throw new IllegalArgumentException("Margin is negative");
         }
+        if (indirectWidth < 0) {
+            throw new IllegalArgumentException("Indirect Width is negative");
+        }
+        if (indirectHeight < 0) {
+            throw new IllegalArgumentException("Indirect Height is negative");
+        }
+        if (indirectIntensities.length != names.length) {
+            throw new IllegalArgumentException("Invalid amount of indirect intensities! required "+names.length+", found "+indirectIntensities.length);
+        }
+        for (int i = 0; i < indirectIntensities.length; i++) {
+            Vector3f at = indirectIntensities[i];
+            if (at == null) {
+                throw new IllegalArgumentException("Indirect Intensity is null at index "+i);
+            }
+        }
 
         int requiredPixels = width * height * names.length * 3;
         if (lightmaps.length != requiredPixels) {
             throw new IllegalArgumentException("Invalid lightmaps size! required " + requiredPixels + ", found " + lightmaps.length);
+        }
+
+        int requiredIndirectPixels = indirectWidth * indirectHeight * names.length * 3;
+        if (indirectLightmaps.length != requiredIndirectPixels) {
+            throw new IllegalArgumentException("Invalid indirect lightmaps size! required " + requiredIndirectPixels + ", found " + indirectLightmaps.length);
         }
 
         Set<String> nameSet = new HashSet<>();
@@ -106,10 +136,14 @@ public class NLightmaps {
 
         this.name = name;
         this.names = names;
+        this.margin = margin;
         this.lightmaps = lightmaps;
         this.width = width;
         this.height = height;
-        this.margin = margin;
+        this.indirectIntensities = indirectIntensities;
+        this.indirectLightmaps = indirectLightmaps;
+        this.indirectWidth = indirectWidth;
+        this.indirectHeight = indirectHeight;
         for (int i = 0; i < this.names.length; i++) {
             this.nameMap.put(this.names[i], i);
         }
@@ -141,6 +175,10 @@ public class NLightmaps {
     public String getName(int index) {
         return this.names[index];
     }
+    
+    public int getMargin() {
+        return margin;
+    }
 
     public float[] getLightmaps() {
         return lightmaps;
@@ -153,10 +191,28 @@ public class NLightmaps {
     public int getHeight() {
         return height;
     }
-
-    public int getMargin() {
-        return margin;
+    
+    public int getNumberOfIndirectIntensities() {
+        return this.indirectIntensities.length;
     }
+    
+    public Vector3fc getIndirectIntensity(int index) {
+        return this.indirectIntensities[index];
+    }
+    
+    public byte[] getIndirectLightmaps() {
+        return indirectLightmaps;
+    }
+
+    public int getIndirectWidth() {
+        return indirectWidth;
+    }
+
+    public int getIndirectHeight() {
+        return indirectHeight;
+    }
+    
+    
 
     public float getIntensity(int index) {
         return this.intensities[index];

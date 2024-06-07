@@ -138,7 +138,7 @@ public class Game {
                 this.bottle.getScale().set(2f);
             }
 
-            this.map = new NMap("map", mapObjects, NMap.DEFAULT_LIGHTMAP_MARGIN, 1f / 0.2f);
+            this.map = new NMap("map", mapObjects, NMap.DEFAULT_LIGHTMAP_MARGIN, 1f / 0.1f);
 
             System.out.println(this.map.getLightmapSize());
 

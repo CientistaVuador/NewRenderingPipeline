@@ -135,11 +135,20 @@ public class Lightmapper {
         private final String name;
         private final int size;
         private final float[] lightmap;
+        private final int indirectSize;
+        private final byte[] indirectLightmap;
+        private final Vector3f indirectIntensity;
 
-        public Lightmap(String name, int size, float[] lightmap) {
+        public Lightmap(String name, 
+                int size, float[] lightmap,
+                int indirectSize, byte[] indirectLightmap, Vector3f indirectIntensity
+        ) {
             this.name = name;
             this.size = size;
             this.lightmap = lightmap;
+            this.indirectSize = indirectSize;
+            this.indirectLightmap = indirectLightmap;
+            this.indirectIntensity = indirectIntensity;
         }
 
         public String getName() {
@@ -154,6 +163,18 @@ public class Lightmapper {
             return lightmap;
         }
 
+        public int getIndirectSize() {
+            return indirectSize;
+        }
+
+        public byte[] getIndirectLightmap() {
+            return indirectLightmap;
+        }
+
+        public Vector3fc getIndirectIntensity() {
+            return indirectIntensity;
+        }
+        
     }
 
     private static class LightGroup {
@@ -253,6 +274,7 @@ public class Lightmapper {
     //lightmapper geometry/scene state
     private final TextureInput textureInput;
     private final Scene scene;
+    private final int lightmapMargin;
     private final int lightmapSize;
     private final Rectanglei[] lightmapRectangles;
     private final float[] opaqueMesh;
@@ -289,15 +311,17 @@ public class Lightmapper {
     private Float3ImageBuffer shadow;
 
     public Lightmapper(
-            TextureInput textureIO,
+            TextureInput textureInput,
             Scene scene,
+            int lightmapMargin,
             int lightmapSize,
             Rectanglei[] lightmapRectangles,
             float[] opaqueMesh,
             float[] alphaMesh
     ) {
-        this.textureInput = textureIO;
+        this.textureInput = textureInput;
         this.scene = scene;
+        this.lightmapMargin = lightmapMargin;
         this.lightmapSize = lightmapSize;
         this.lightmapRectangles = lightmapRectangles;
         this.opaqueMesh = validate(opaqueMesh);
@@ -1188,12 +1212,89 @@ public class Lightmapper {
             addProgress(1);
         }
     }
-
+    
+    private int sample(int component, int x, int y, byte[] data, int size) {
+        if (x >= size) {
+            x = size - 1;
+        }
+        if (y >= size) {
+            y = size - 1;
+        }
+        return data[component + (x * 3) + (y * size * 3)] & 0xFF;
+    }
+    
     private void outputLightmap() {
+        setStatus(getGroupName()+" - Generating Indirect Lightmap for CPU Sampling", 1);
+        Vector3f indirectIntensity = new Vector3f(0f, 0f, 0f);
+        byte[] indirectLightmap = new byte[this.lightmapSize * this.lightmapSize * 3];
+        
+        Vector3f rgb = new Vector3f();
+        for (int y = 0; y < this.lightmapSize; y++) {
+            for (int x = 0; x < this.lightmapSize; x++) {
+                this.lightmapIndirect.read(rgb, x, y);
+                indirectIntensity.max(rgb);
+            }
+        }
+        
+        for (int y = 0; y < this.lightmapSize; y++) {
+            for (int x = 0; x < this.lightmapSize; x++) {
+                this.lightmapIndirect.read(rgb, x, y);
+                
+                int red = Math.round((rgb.x() / indirectIntensity.x()) * 255f);
+                int green = Math.round((rgb.y() / indirectIntensity.y()) * 255f);
+                int blue = Math.round((rgb.z() / indirectIntensity.z()) * 255f);
+                
+                indirectLightmap[0 + (x * 3) + (y * this.lightmapSize * 3)] = (byte) red;
+                indirectLightmap[1 + (x * 3) + (y * this.lightmapSize * 3)] = (byte) green;
+                indirectLightmap[2 + (x * 3) + (y * this.lightmapSize * 3)] = (byte) blue;
+            }
+        }
+        
+        int currentSize = this.lightmapSize;
+        int divisions = Math.max((int) Math.floor(Math.log(this.lightmapMargin) / Math.log(2.0)), 2);
+        for (int i = 0; i < divisions; i++) {
+            int nextSize = currentSize / 2;
+            byte[] nextIndirectLightmap = new byte[nextSize * nextSize * 3];
+            for (int y = 0; y < nextSize; y++) {
+                for (int x = 0; x < nextSize; x++) {
+                    float red = sample(0, (x * 2) + 0, (y * 2) + 0, indirectLightmap, currentSize)
+                            + sample(0, (x * 2) + 1, (y * 2) + 0, indirectLightmap, currentSize)
+                            + sample(0, (x * 2) + 0, (y * 2) + 1, indirectLightmap, currentSize)
+                            + sample(0, (x * 2) + 1, (y * 2) + 1, indirectLightmap, currentSize)
+                            ;
+                    float green = sample(1, (x * 2) + 0, (y * 2) + 0, indirectLightmap, currentSize)
+                            + sample(1, (x * 2) + 1, (y * 2) + 0, indirectLightmap, currentSize)
+                            + sample(1, (x * 2) + 0, (y * 2) + 1, indirectLightmap, currentSize)
+                            + sample(1, (x * 2) + 1, (y * 2) + 1, indirectLightmap, currentSize)
+                            ;
+                    float blue = sample(2, (x * 2) + 0, (y * 2) + 0, indirectLightmap, currentSize)
+                            + sample(2, (x * 2) + 1, (y * 2) + 0, indirectLightmap, currentSize)
+                            + sample(2, (x * 2) + 0, (y * 2) + 1, indirectLightmap, currentSize)
+                            + sample(2, (x * 2) + 1, (y * 2) + 1, indirectLightmap, currentSize)
+                            ;
+                    
+                    float inv = 1f / 4f;
+                    red *= inv;
+                    green *= inv;
+                    blue *= inv;
+                    
+                    nextIndirectLightmap[0 + (x * 3) + (y * nextSize * 3)] = (byte) Math.round(red);
+                    nextIndirectLightmap[1 + (x * 3) + (y * nextSize * 3)] = (byte) Math.round(green);
+                    nextIndirectLightmap[2 + (x * 3) + (y * nextSize * 3)] = (byte) Math.round(blue);
+                }
+            }
+            currentSize = nextSize;
+            indirectLightmap = nextIndirectLightmap;
+        }
+        addProgress(1);
+        
         setStatus(getGroupName()+" - Finishing Lightmap", 1);
-        Lightmap m = new Lightmap(this.group.groupName, this.lightmapSize, this.lightmap.getData());
+        Lightmap m = new Lightmap(this.group.groupName, 
+                this.lightmapSize, this.lightmap.getData(),
+                currentSize, indirectLightmap, indirectIntensity
+        );
         this.lightmaps[this.groupIndex] = m;
-
+        
         this.lightmap = null;
         this.lightmapIndirect = null;
         addProgress(1);
