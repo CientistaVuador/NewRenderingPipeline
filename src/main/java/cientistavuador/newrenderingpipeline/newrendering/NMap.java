@@ -32,6 +32,7 @@ import cientistavuador.newrenderingpipeline.util.Pair;
 import cientistavuador.newrenderingpipeline.util.bakedlighting.LightmapUVs;
 import cientistavuador.newrenderingpipeline.util.bakedlighting.Lightmapper;
 import cientistavuador.newrenderingpipeline.util.bakedlighting.Scene;
+import cientistavuador.newrenderingpipeline.util.raycast.LocalRayResult;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -41,6 +42,7 @@ import java.util.concurrent.Future;
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
+import org.joml.Vector3fc;
 import org.joml.Vector4f;
 import org.joml.primitives.Rectanglei;
 
@@ -49,13 +51,14 @@ import org.joml.primitives.Rectanglei;
  * @author Cien
  */
 public class NMap {
-    
+
     public static Scene.Light convertLight(NLight light) {
         if (light == null) {
             return null;
         }
         if (light instanceof NLight.NDirectionalLight directional) {
             Scene.DirectionalLight sceneDirectional = new Scene.DirectionalLight();
+            sceneDirectional.setGroupName(directional.getGroupName());
             sceneDirectional.setLightSize(directional.getLightSize());
             sceneDirectional.setDiffuse(directional.getDiffuse());
             sceneDirectional.setAmbient(directional.getAmbient());
@@ -63,6 +66,7 @@ public class NMap {
         }
         if (light instanceof NLight.NPointLight point) {
             Scene.PointLight scenePoint = new Scene.PointLight();
+            scenePoint.setGroupName(point.getGroupName());
             scenePoint.setLightSize(point.getLightSize());
             scenePoint.setDiffuse(point.getDiffuse());
             scenePoint.setPosition(
@@ -74,6 +78,7 @@ public class NMap {
         }
         if (light instanceof NLight.NSpotLight spot) {
             Scene.SpotLight sceneSpot = new Scene.SpotLight();
+            sceneSpot.setGroupName(spot.getGroupName());
             sceneSpot.setLightSize(spot.getLightSize());
             sceneSpot.setDiffuse(spot.getDiffuse());
             sceneSpot.setPosition(
@@ -88,7 +93,7 @@ public class NMap {
         }
         return null;
     }
-    
+
     public static class BakeStatus {
 
         private final Future<Void> task;
@@ -145,6 +150,8 @@ public class NMap {
     private final float lightmapPixelToWorldRatio;
     private final int lightmapSize;
     private final Rectanglei[] lightmapRectangles;
+
+    private NLightmaps lightmaps = null;
 
     public NMap(String name, Collection<N3DObject> objects, int lightmapMargin, float lightmapPixelToWorldRatio) {
         this.name = name;
@@ -284,10 +291,6 @@ public class NMap {
 
         List<N3DObject> resultObjects = new ArrayList<>();
 
-        List<Pair<N3DObject, NGeometry>> userObjects = new ArrayList<>();
-        List<float[]> userVertices = new ArrayList<>();
-        List<int[]> userIndices = new ArrayList<>();
-
         int objectCounter = 0;
         for (ObjectGeometries obj : objectsGeometries) {
             List<NGeometry> newGeometries = new ArrayList<>();
@@ -321,15 +324,13 @@ public class NMap {
             );
             resultObjects.add(object);
             objectCounter++;
-
-            for (NGeometry g : newGeometries) {
-                userObjects.add(new Pair<>(object, g));
-                userVertices.add(g.getMesh().getVertices());
-                userIndices.add(g.getMesh().getIndices());
-            }
         }
 
         this.objects = resultObjects.toArray(N3DObject[]::new);
+        
+        for (int i = 0; i < this.objects.length; i++) {
+            this.objects[i].setMap(this);
+        }
     }
 
     public String getName() {
@@ -363,22 +364,57 @@ public class NMap {
     public Rectanglei getLightmapRectangle(int index) {
         return this.lightmapRectangles[index];
     }
-    
+
+    public NLightmaps getLightmaps() {
+        return lightmaps;
+    }
+
+    public void setLightmaps(NLightmaps lightmaps) {
+        this.lightmaps = lightmaps;
+    }
+
     public List<NRayResult> testRay(
             double pX, double pY, double pZ,
             float dX, float dY, float dZ
     ) {
         List<NRayResult> results = new ArrayList<>();
-        
-        for (N3DObject obj:this.objects) {
+
+        for (N3DObject obj : this.objects) {
             results.addAll(obj.testRay(pX, pY, pZ, dX, dY, dZ));
         }
-        
+
         results.sort((o1, o2) -> Double.compare(o1.getDistance(), o2.getDistance()));
-        
+
         return results;
     }
-    
+
+    public void sampleAmbientCube(double pX, double pY, double pZ, NAmbientCube ambientCube) {
+        Vector3f color = new Vector3f();
+        Vector3f weights = new Vector3f();
+        for (int i = 0; i < NAmbientCube.SIDES; i++) {
+            color.zero();
+            
+            if (this.lightmaps != null) {
+                Vector3fc direction = NAmbientCube.SIDE_DIRECTIONS[i];
+                
+                List<NRayResult> rayResults = testRay(pX, pY, pZ, direction.x(), direction.y(), direction.z());
+                if (!rayResults.isEmpty()) {
+                    NRayResult closest = rayResults.get(0);
+
+                    LocalRayResult localRay = closest.getLocalRay();
+                    localRay.weights(weights);
+
+                    float lu = localRay.lerp(weights, NMesh.OFFSET_LIGHTMAP_TEXTURE_XY + 0);
+                    float lv = localRay.lerp(weights, NMesh.OFFSET_LIGHTMAP_TEXTURE_XY + 1);
+
+                    this.lightmaps.sampleIndirect(lu, lv, color);
+                }
+            }
+
+            ambientCube.setSide(i, color);
+        }
+    }
+
     public BakeStatus bake(Scene scene) {
         CompletableFuture<Void> task = new CompletableFuture<>();
         BakeStatus status = new BakeStatus(task);
@@ -390,12 +426,12 @@ public class NMap {
             } catch (Throwable ex) {
                 task.completeExceptionally(ex);
             }
-        }, "Lightmapper-map-"+this.name);
+        }, "Lightmapper-map-" + this.name);
         t.start();
-        
+
         return status;
     }
-    
+
     private void bake(BakeStatus status, Scene scene) {
         float[] opaqueMesh = new float[Lightmapper.VERTEX_SIZE * 64];
         int opaqueMeshIndex = 0;
@@ -483,14 +519,13 @@ public class NMap {
 
         opaqueMesh = Arrays.copyOf(opaqueMesh, opaqueMeshIndex);
         alphaMesh = Arrays.copyOf(alphaMesh, alphaMeshIndex);
-        
+
         Lightmapper.TextureInput texio = (
                 float[] mesh,
                 float u, float v,
                 int triangle,
                 boolean emissive,
-                Vector4f outputColor
-        ) -> {
+                Vector4f outputColor) -> {
             int objectIndex = Float.floatToRawIntBits(mesh[triangle + Lightmapper.OFFSET_USER_XY + 0]);
             int geometryIndex = Float.floatToRawIntBits(mesh[triangle + Lightmapper.OFFSET_USER_XY + 1]);
 
@@ -545,22 +580,22 @@ public class NMap {
                 opaqueMesh, alphaMesh
         );
         status.setLightmapper(lightmapper);
-        Lightmapper.Lightmap[] lightmaps = lightmapper.bake();
-        
-        String[] names = new String[lightmaps.length];
-        float[] totalLightmaps = new float[this.lightmapSize * this.lightmapSize * 3 * lightmaps.length];
-        
+        Lightmapper.Lightmap[] lightmapperLightmaps = lightmapper.bake();
+
+        String[] names = new String[lightmapperLightmaps.length];
+        float[] totalLightmaps = new float[this.lightmapSize * this.lightmapSize * 3 * lightmapperLightmaps.length];
+
         Vector3f[] indirectIntensities = new Vector3f[0];
         byte[] indirectLightmaps = new byte[0];
         int indirectSize = 0;
-        if (lightmaps.length != 0) {
-            indirectIntensities = new Vector3f[lightmaps.length];
-            indirectSize = lightmaps[0].getIndirectSize();
-            indirectLightmaps = new byte[indirectSize * indirectSize * 3 * lightmaps.length];
+        if (lightmapperLightmaps.length != 0) {
+            indirectIntensities = new Vector3f[lightmapperLightmaps.length];
+            indirectSize = lightmapperLightmaps[0].getIndirectSize();
+            indirectLightmaps = new byte[indirectSize * indirectSize * 3 * lightmapperLightmaps.length];
         }
-        
-        for (int i = 0; i < lightmaps.length; i++) {
-            Lightmapper.Lightmap lightmap = lightmaps[i];
+
+        for (int i = 0; i < lightmapperLightmaps.length; i++) {
+            Lightmapper.Lightmap lightmap = lightmapperLightmaps[i];
 
             names[i] = lightmap.getName();
             System.arraycopy(
@@ -568,7 +603,7 @@ public class NMap {
                     totalLightmaps, i * this.lightmapSize * this.lightmapSize * 3,
                     lightmap.getLightmap().length
             );
-            
+
             indirectIntensities[i] = new Vector3f(lightmap.getIndirectIntensity());
             System.arraycopy(
                     lightmap.getIndirectLightmap(), 0,
@@ -576,14 +611,15 @@ public class NMap {
                     lightmap.getIndirectLightmap().length
             );
         }
-        
+
         NLightmaps finalLightmaps = new NLightmaps(
                 this.name, names, this.lightmapMargin,
                 totalLightmaps, this.lightmapSize, this.lightmapSize,
                 indirectIntensities, indirectLightmaps, indirectSize, indirectSize
         );
-        
+
         Main.MAIN_TASKS.add(() -> {
+            this.lightmaps = finalLightmaps;
             for (N3DObject obj : this.objects) {
                 obj.setLightmaps(finalLightmaps);
             }

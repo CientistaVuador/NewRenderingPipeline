@@ -212,7 +212,30 @@ public class NLightmaps {
         return indirectHeight;
     }
     
-    
+    public void sampleIndirect(float u, float v, Vector3f outIndirect) {
+        outIndirect.zero();
+        
+        int x = (int) (u * this.indirectWidth);
+        int y = (int) (v * this.indirectHeight);
+        x = Math.min(Math.max(x, 0), this.indirectWidth - 1);
+        y = Math.min(Math.max(y, 0), this.indirectHeight - 1);
+        
+        for (int i = 0; i < this.indirectIntensities.length; i++) {
+            Vector3f indirectIntensity = this.indirectIntensities[i];
+            
+            int pixelIndex = (x * 3) + (y * this.indirectWidth * 3) + (i * this.indirectWidth * this.indirectHeight * 3);
+            float r = ((this.indirectLightmaps[0 + pixelIndex] & 0xFF) / 255f) * indirectIntensity.x();
+            float g = ((this.indirectLightmaps[1 + pixelIndex] & 0xFF) / 255f) * indirectIntensity.y();
+            float b = ((this.indirectLightmaps[2 + pixelIndex] & 0xFF) / 255f) * indirectIntensity.z();
+            
+            float intensity = this.intensities[i];
+            r *= intensity;
+            g *= intensity;
+            b *= intensity;
+            
+            outIndirect.add(r, g, b);
+        }
+    }
 
     public float getIntensity(int index) {
         return this.intensities[index];

@@ -107,8 +107,9 @@ public class Game {
 
     private final NMap map;
     private final N3DObject triceratops;
-    private final N3DObject bottle;
-
+    private final N3DObject plasticBall;
+    
+    private final NLight.NSpotLight flashlight = new NLight.NSpotLight("flashlight");
     private final List<NLight> lights = new ArrayList<>();
 
     {
@@ -132,21 +133,27 @@ public class Game {
             }
 
             {
-                N3DModel model = N3DModelImporter.importFromJarFile("cientistavuador/newrenderingpipeline/cc0_WaterBottle.glb");
+                N3DModel model = N3DModelImporter.importFromJarFile("cientistavuador/newrenderingpipeline/plastic_ball.glb");
 
-                this.bottle = new N3DObject("bottle", model);
-                this.bottle.getScale().set(2f);
+                this.plasticBall = new N3DObject("plastic ball", model);
             }
 
-            this.map = new NMap("map", mapObjects, NMap.DEFAULT_LIGHTMAP_MARGIN, 1f / 0.1f);
-
+            this.map = new NMap("map", mapObjects, NMap.DEFAULT_LIGHTMAP_MARGIN, 1f / 0.2f);
+            
+            this.triceratops.setMap(this.map);
+            this.plasticBall.setMap(this.map);
+            
             System.out.println(this.map.getLightmapSize());
-
+            
+            this.flashlight.setDiffuseSpecularAmbient(10f);
+            this.lights.add(this.flashlight);
+            
             {
                 NLight.NDirectionalLight sun = new NLight.NDirectionalLight("sun");
                 sun.getDirection().set(1f, -1f, 1f).normalize();
                 sun.setDynamic(false);
                 sun.setDiffuseSpecularAmbient(2f);
+                sun.getAmbient().zero();
                 this.lights.add(sun);
 
                 {
@@ -154,6 +161,7 @@ public class Game {
                     point.getPosition().set(-15.55f, 4.41f, 3.15f);
                     point.setDynamic(false);
                     point.setDiffuseSpecularAmbient(10f);
+                    point.getAmbient().zero();
                     this.lights.add(point);
                 }
 
@@ -162,6 +170,7 @@ public class Game {
                     point.getPosition().set(-15.47f, 4.71f, -9.44f);
                     point.setDynamic(false);
                     point.setDiffuseSpecularAmbient(10f);
+                    point.getAmbient().zero();
                     this.lights.add(point);
                 }
 
@@ -171,15 +180,17 @@ public class Game {
                     spot.getDirection().set(0f, 1f, 0f);
                     spot.setDynamic(false);
                     spot.setDiffuseSpecularAmbient(100f);
+                    spot.getAmbient().zero();
                     this.lights.add(spot);
                 }
 
                 {
-                    NLight.NSpotLight spot = new NLight.NSpotLight("spot");
+                    NLight.NSpotLight spot = new NLight.NSpotLight("white room spotlight");
                     spot.getPosition().set(11.10f, 3.94f, -9.56f);
                     spot.getDirection().set(0.89f, -0.45f, 0.02f);
                     spot.setDynamic(false);
                     spot.setDiffuseSpecularAmbient(10f);
+                    spot.getAmbient().zero();
                     this.lights.add(spot);
                 }
 
@@ -188,6 +199,7 @@ public class Game {
                     point.getPosition().set(-0.28f, 4.61f, 2.53f);
                     point.setDynamic(false);
                     point.setDiffuseSpecularAmbient(20f);
+                    point.getAmbient().zero();
                     this.lights.add(point);
                 }
                 
@@ -216,14 +228,17 @@ public class Game {
         this.triceratops.getAnimator().update(Main.TPF);
 
         this.bottleRotation.rotateY((float) (Main.TPF * 0.5));
-        this.bottle.getPosition().set(this.bottleRotation).mul(3f).add(15.29, 1.95, -9.52);
-
+        this.plasticBall.getPosition().set(this.bottleRotation).mul(3f).add(15.29, 1.95, -9.52);
+        
+        this.flashlight.getPosition().set(this.camera.getPosition());
+        this.flashlight.getDirection().set(this.camera.getFront());
+        
         for (int i = 0; i < this.map.getNumberOfObjects(); i++) {
             N3DObjectRenderer.queueRender(this.map.getObject(i));
         }
 
         N3DObjectRenderer.queueRender(this.triceratops);
-        N3DObjectRenderer.queueRender(this.bottle);
+        N3DObjectRenderer.queueRender(this.plasticBall);
 
         N3DObjectRenderer.render(this.camera, this.lights, this.cubemaps);
 
@@ -287,16 +302,26 @@ public class Game {
                 this.raycastDebug = results.get(0);
             }
         }
+        if (key == GLFW_KEY_F && action == GLFW_PRESS) {
+            if (this.flashlight.getDiffuse().x() == 0f) {
+                this.flashlight.setDiffuseSpecularAmbient(1f);
+            } else {
+                this.flashlight.setDiffuseSpecularAmbient(0f);
+            }
+        }
         if (key == GLFW_KEY_B && action == GLFW_PRESS) {
             Scene scene = new Scene();
 
             Scene.EmissiveLight emissive = new Scene.EmissiveLight();
             scene.getLights().add(emissive);
-
+            
             for (NLight light : this.lights) {
+                if (light.isDynamic()) {
+                    continue;
+                }
                 scene.getLights().add(NMap.convertLight(light));
             }
-
+            
             this.status = this.map.bake(scene);
         }
         if (key == GLFW_KEY_C && action == GLFW_PRESS) {

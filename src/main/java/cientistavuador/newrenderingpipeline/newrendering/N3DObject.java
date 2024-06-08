@@ -70,6 +70,7 @@ public class N3DObject {
 
     private NAnimator animator = null;
     private NLightmaps lightmaps = NLightmaps.NULL_LIGHTMAPS;
+    private NMap map = null;
 
     public N3DObject(String name, N3DModel n3DModel) {
         this.name = name;
@@ -224,6 +225,14 @@ public class N3DObject {
             lightmaps = NLightmaps.NULL_LIGHTMAPS;
         }
         this.lightmaps = lightmaps;
+    }
+
+    public NMap getMap() {
+        return map;
+    }
+
+    public void setMap(NMap map) {
+        this.map = map;
     }
     
     public List<NRayResult> testRay(

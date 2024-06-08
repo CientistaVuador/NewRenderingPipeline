@@ -30,6 +30,7 @@ import cientistavuador.newrenderingpipeline.util.BetterUniformSetter;
 import cientistavuador.newrenderingpipeline.util.ProgramCompiler;
 import java.util.Map;
 import org.joml.Matrix4fc;
+import org.joml.Vector3fc;
 import static org.lwjgl.opengl.GL33C.*;
 
 /**
@@ -281,14 +282,7 @@ public class NProgram {
             //NEGATIVE_Y
             //POSITIVE_Z
             //NEGATIVE_Z
-            uniform vec3 ambientCube[NUMBER_OF_CUBE_SIDES] = vec3[] (
-                vec3(0.0),
-                vec3(0.0),
-                vec3(0.0),
-                vec3(0.0),
-                vec3(0.0),
-                vec3(0.0)
-            );
+            uniform vec3 ambientCube[NUMBER_OF_AMBIENT_CUBE_SIDES];
             
             struct FresnelOutline {
                 bool enabled;
@@ -441,58 +435,18 @@ public class NProgram {
                 return ambient;
             }
             
-            vec4 sampleCubemap(int index, vec3 direction, float lod) {
+            vec4 sampleCubemap(int index, vec3 direction) {
                 switch (index) {
                     case 0:
-                        return textureLod(reflectionCubemap_0, direction, lod);
+                        return texture(reflectionCubemap_0, direction);
                     case 1:
-                        return textureLod(reflectionCubemap_1, direction, lod);
+                        return texture(reflectionCubemap_1, direction);
                     case 2:
-                        return textureLod(reflectionCubemap_2, direction, lod);
+                        return texture(reflectionCubemap_2, direction);
                     case 3:
-                        return textureLod(reflectionCubemap_3, direction, lod);
+                        return texture(reflectionCubemap_3, direction);
                 }
                 return vec4(0.0, 0.0, 0.0, 1.0);
-            }
-            
-            float sampleCubemapMiplevels(int index) {
-                float mipLevels = 0.0;
-                ivec2 cubemapSize = ivec2(0);
-                switch (index) {
-                    case 0:
-                        #ifdef SUPPORTED_430
-                        mipLevels = float(textureQueryLevels(reflectionCubemap_0));
-                        #else
-                        cubemapSize = textureSize(reflectionCubemap_0, 0);
-                        mipLevels = 1.0 + floor(log2(max(float(cubemapSize.x), float(cubemapSize.y))));
-                        #endif
-                        return mipLevels;
-                    case 1:
-                        #ifdef SUPPORTED_430
-                        mipLevels = float(textureQueryLevels(reflectionCubemap_1));
-                        #else
-                        cubemapSize = textureSize(reflectionCubemap_1, 0);
-                        mipLevels = 1.0 + floor(log2(max(float(cubemapSize.x), float(cubemapSize.y))));
-                        #endif
-                        return mipLevels;
-                    case 2:
-                        #ifdef SUPPORTED_430
-                        mipLevels = float(textureQueryLevels(reflectionCubemap_2));
-                        #else
-                        cubemapSize = textureSize(reflectionCubemap_2, 0);
-                        mipLevels = 1.0 + floor(log2(max(float(cubemapSize.x), float(cubemapSize.y))));
-                        #endif
-                        return mipLevels;
-                    case 3:
-                        #ifdef SUPPORTED_430
-                        mipLevels = float(textureQueryLevels(reflectionCubemap_3));
-                        #else
-                        cubemapSize = textureSize(reflectionCubemap_3, 0);
-                        mipLevels = 1.0 + floor(log2(max(float(cubemapSize.x), float(cubemapSize.y))));
-                        #endif
-                        return mipLevels;
-                }
-                return 0.0;
             }
             
             vec3 computeReflection(
@@ -503,8 +457,7 @@ public class NProgram {
                 float roughness,
                 float metallic
             ) {
-                float materialRoughness = pow(roughness, 1.0/2.41);
-                float fresnel = (1.0 - materialRoughness) * pow(1.0 - max(dot(fragDirection, normal), 0.0), 5.0);
+                float reflectionIntensity = (1.0 - pow(roughness, 1.0/20.0));
                 
                 vec3 totalReflection = vec3(0.0);
                 int count = 0;
@@ -533,20 +486,13 @@ public class NProgram {
                     
                     float distance = min(furthestPlane.x, min(furthestPlane.y, furthestPlane.z));
                     
-                    float mipLevels = sampleCubemapMiplevels(i);
-                    
-                    float lodLevel = mipLevels * materialRoughness;
-                    float lodFactor = lodLevel - floor(lodLevel);
-                    
                     vec3 intersectionPosition = fragPosition + (reflectedDirection * distance);
                     reflectedDirection = normalize(intersectionPosition - parallaxCubemap.position);
                     
-                    vec3 reflectedFloor = sampleCubemap(i, reflectedDirection, floor(lodLevel)).rgb;
-                    vec3 reflectedCeil = sampleCubemap(i, reflectedDirection, ceil(lodLevel)).rgb;
-                    vec3 reflectedColor = mix(reflectedFloor, reflectedCeil, lodFactor) * parallaxCubemap.intensity;
+                    vec3 reflectedColor = sampleCubemap(i, reflectedDirection).rgb * parallaxCubemap.intensity;
                     
                     vec3 metallicReflection = reflectedColor * metallicColor;
-                    vec3 nonmetallicReflection = reflectedColor * fresnel;
+                    vec3 nonmetallicReflection = reflectedColor * reflectionIntensity;
                     
                     vec3 reflection = material.reflectionColor * mix(nonmetallicReflection, metallicReflection, metallic);
                     
@@ -701,7 +647,7 @@ public class NProgram {
         new ProgramCompiler.ShaderConstant("DIFFUSE_STRENGTH", DIFFUSE_STRENGTH),
         new ProgramCompiler.ShaderConstant("SPECULAR_STRENGTH", SPECULAR_STRENGTH),
         new ProgramCompiler.ShaderConstant("MAX_AMOUNT_OF_CUBEMAPS", MAX_AMOUNT_OF_CUBEMAPS),
-        new ProgramCompiler.ShaderConstant("NUMBER_OF_CUBE_SIDES", NCubemap.SIDES)
+        new ProgramCompiler.ShaderConstant("NUMBER_OF_AMBIENT_CUBE_SIDES", NAmbientCube.SIDES)
     };
 
     static {
@@ -796,6 +742,19 @@ public class NProgram {
         if (enabled) {
             glUniform1f(uniforms.locationOf("fresnelOutline.exponent"), exponent);
             glUniform3f(uniforms.locationOf("fresnelOutline.color"), r, g, b);
+        }
+    }
+    
+    public static void sendAmbientCube(BetterUniformSetter uniforms, NAmbientCube ambientCube) {
+        if (ambientCube == null) {
+            ambientCube = NAmbientCube.NULL_AMBIENT_CUBE;
+        }
+        for (int i = 0; i < NAmbientCube.SIDES; i++) {
+            Vector3fc color = ambientCube.getSide(i);
+            glUniform3f(
+                    uniforms.locationOf("ambientCube["+i+"]"),
+                    color.x(), color.y(), color.z()
+            );
         }
     }
 

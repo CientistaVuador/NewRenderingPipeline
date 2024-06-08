@@ -79,6 +79,7 @@ public class N3DObjectRenderer {
         public final float distanceSquared;
         public final NGeometry geometry;
         public final NCubemap[] cubemaps;
+        public final NAmbientCube ambientCube;
 
         public ToRender(
                 N3DObject obj,
@@ -86,7 +87,8 @@ public class N3DObjectRenderer {
                 Matrix4f model,
                 float distanceSquared,
                 NGeometry geometry,
-                NCubemap[] cubemaps
+                NCubemap[] cubemaps,
+                NAmbientCube ambientCube
         ) {
             this.obj = obj;
             this.transformation = transformation;
@@ -94,6 +96,7 @@ public class N3DObjectRenderer {
             this.distanceSquared = distanceSquared;
             this.geometry = geometry;
             this.cubemaps = cubemaps;
+            this.ambientCube = ambientCube;
         }
     }
 
@@ -314,13 +317,17 @@ public class N3DObjectRenderer {
 
                             List<NCubemap> toRenderCubemapsFiltered = new ArrayList<>();
                             for (NCubemap c : toRenderCubemaps) {
+                                if (c.getIntensity() == 0f) {
+                                    continue;
+                                }
+                                
                                 float cubemapMinX = (float) (c.getCubemapInfo().getMin().x() - camera.getPosition().x());
                                 float cubemapMinY = (float) (c.getCubemapInfo().getMin().y() - camera.getPosition().y());
                                 float cubemapMinZ = (float) (c.getCubemapInfo().getMin().z() - camera.getPosition().z());
                                 float cubemapMaxX = (float) (c.getCubemapInfo().getMax().x() - camera.getPosition().x());
                                 float cubemapMaxY = (float) (c.getCubemapInfo().getMax().y() - camera.getPosition().y());
                                 float cubemapMaxZ = (float) (c.getCubemapInfo().getMax().z() - camera.getPosition().z());
-
+                                
                                 if (projectionView.testAab(cubemapMinX, cubemapMinY, cubemapMinZ, cubemapMaxX, cubemapMaxY, cubemapMaxZ)) {
                                     toRenderCubemapsFiltered.add(c);
                                 }
@@ -356,6 +363,12 @@ public class N3DObjectRenderer {
                         
                         NCubemap[] finalToRenderCubemaps = Arrays.copyOf(toRenderCubemaps.toArray(NCubemap[]::new), NProgram.MAX_AMOUNT_OF_CUBEMAPS);
                         
+                        NAmbientCube ambientCube = NAmbientCube.NULL_AMBIENT_CUBE;
+                        if (obj.getMap() != null && obj.getLightmaps() == NLightmaps.NULL_LIGHTMAPS) {
+                            ambientCube = new NAmbientCube();
+                            obj.getMap().sampleAmbientCube(absCenterX, absCenterY, absCenterZ, ambientCube);
+                        }
+                        
                         float distanceSquared = (centerX * centerX) + (centerY * centerY) + (centerZ * centerZ);
 
                         toRenderList.add(new ToRender(
@@ -363,7 +376,8 @@ public class N3DObjectRenderer {
                                 transformation, modelMatrix,
                                 distanceSquared,
                                 geometry,
-                                finalToRenderCubemaps
+                                finalToRenderCubemaps,
+                                ambientCube
                         ));
                     }
                 }
@@ -513,6 +527,7 @@ public class N3DObjectRenderer {
 
         Matrix4f transformedBone = new Matrix4f();
 
+        NAmbientCube lastAmbientCube = null;
         NLightmaps lastLightmaps = null;
         NMaterial lastMaterial = null;
         NTextures lastTextures = null;
@@ -526,16 +541,22 @@ public class N3DObjectRenderer {
 
         for (ToRender render : list) {
             N3DModel n3dmodel = render.obj.getN3DModel();
-
+            
+            NAmbientCube ambientCube = render.ambientCube;
+            NLightmaps lightmaps = render.obj.getLightmaps();
             NMaterial material = render.geometry.getMaterial();
             NTextures textures = material.getTextures();
             NCubemap[] cubemaps = render.cubemaps;
             Matrix4f transformation = render.transformation;
             NMesh mesh = render.geometry.getMesh();
             NAnimator animator = render.obj.getAnimator();
-            NLightmaps lightmaps = render.obj.getLightmaps();
             N3DObject fresnel = render.obj;
-
+            
+            if (!ambientCube.equals(lastAmbientCube)) {
+                NProgram.sendAmbientCube(variant, ambientCube);
+                lastAmbientCube = ambientCube;
+            }
+            
             if (animator != null) {
                 transformation = render.model;
             }

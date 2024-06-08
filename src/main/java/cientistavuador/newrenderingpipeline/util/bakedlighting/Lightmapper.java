@@ -139,7 +139,7 @@ public class Lightmapper {
         private final byte[] indirectLightmap;
         private final Vector3f indirectIntensity;
 
-        public Lightmap(String name, 
+        public Lightmap(String name,
                 int size, float[] lightmap,
                 int indirectSize, byte[] indirectLightmap, Vector3f indirectIntensity
         ) {
@@ -174,7 +174,7 @@ public class Lightmapper {
         public Vector3fc getIndirectIntensity() {
             return indirectIntensity;
         }
-        
+
     }
 
     private static class LightGroup {
@@ -263,14 +263,14 @@ public class Lightmapper {
     private static final int FILLED = 0b00000001;
     private static final int IGNORE_SHADOW = 0b00000010;
     private static final int IGNORE_AMBIENT = 0b00000100;
-    
+
     //lightmapper status
     private String status = "Idle";
     private long progressCount = 0;
     private long progressMax = 0;
     private long raysCount = 0;
     private long raysTime = System.currentTimeMillis();
-    
+
     //lightmapper geometry/scene state
     private final TextureInput textureInput;
     private final Scene scene;
@@ -368,7 +368,7 @@ public class Lightmapper {
         this.triangles = new IntegerBuffer(lightmapSize, this.scene.getSamplingMode().numSamples());
         this.sampleStates = new IntegerBuffer(lightmapSize, this.scene.getSamplingMode().numSamples());
     }
-    
+
     private void setStatus(String status, long progressMax) {
         this.status = status;
         this.progressCount = 0;
@@ -376,15 +376,15 @@ public class Lightmapper {
         this.raysCount = 0;
         this.raysTime = System.currentTimeMillis();
     }
-    
+
     private void addProgress(long progress) {
         this.progressCount += progress;
     }
-    
+
     private void addRay() {
         this.raysCount++;
     }
-    
+
     private int clamp(int v, int min, int max) {
         if (v > max) {
             return max;
@@ -415,7 +415,7 @@ public class Lightmapper {
         Vector3f normal = new Vector3f();
 
         SamplingMode mode = this.scene.getSamplingMode();
-        
+
         setStatus("Rasterizing Barycentric Buffers", this.mesh.length);
         for (int triangle = 0; triangle < this.mesh.length; triangle += VERTEX_SIZE * 3) {
             normal.set(
@@ -517,23 +517,23 @@ public class Lightmapper {
                     }
                 }
             }
-            
+
             addProgress(VERTEX_SIZE * 3);
         }
     }
-    
+
     private String getGroupName() {
         if (this.group.groupName.isEmpty()) {
             return "(Unnamed)";
         }
         return this.group.groupName;
     }
-    
+
     private void prepareLightmap(int index) {
         this.group = this.lightGroups[index];
         this.groupIndex = index;
-        
-        setStatus("Preparing Lightmap "+getGroupName(), 1);
+
+        setStatus("Preparing Lightmap " + getGroupName(), 1);
         this.lightmap = new Float3ImageBuffer(this.lightmapSize);
         this.lightmapIndirect = new Float3ImageBuffer(this.lightmapSize);
         addProgress(1);
@@ -542,15 +542,15 @@ public class Lightmapper {
     private void prepareLight(int index) {
         this.light = this.group.lights.get(index);
         this.lightIndex = index;
-        
-        setStatus(getGroupName()+" - Preparing Light - "+this.lightIndex+", "+this.light.getClass().getSimpleName(), 1);
+
+        setStatus(getGroupName() + " - Preparing Light - " + this.lightIndex + ", " + this.light.getClass().getSimpleName(), 1);
         this.direct = new Float3ImageBuffer(this.lightmapSize);
         this.shadow = new Float3ImageBuffer(this.lightmapSize);
         addProgress(1);
     }
 
     private void bakeDirect() {
-        setStatus(getGroupName()+" - Baking Direct - "+this.lightIndex+", "+this.light.getClass().getSimpleName(), this.lightmapSize);
+        setStatus(getGroupName() + " - Baking Direct - " + this.lightIndex + ", " + this.light.getClass().getSimpleName(), this.lightmapSize);
         for (int i = 0; i < this.lightmapSize; i += this.numberOfThreads) {
             List<Future<?>> tasks = new ArrayList<>();
 
@@ -617,7 +617,7 @@ public class Lightmapper {
                     throw new RuntimeException(ex);
                 }
             }
-            
+
             addProgress(tasks.size());
             tasks.clear();
         }
@@ -664,7 +664,7 @@ public class Lightmapper {
     private Vector3f shadowBlend(Vector3fc position, Vector3fc direction, float length) {
         List<LocalRayResult> alphaResults = this.alphaBVH.testRaySorted(position, direction, true);
         addRay();
-        
+
         if (alphaResults.isEmpty()) {
             return null;
         }
@@ -726,7 +726,7 @@ public class Lightmapper {
     }
 
     private void bakeShadow() {
-        setStatus(getGroupName()+" - Baking Shadow - "+this.lightIndex+", "+this.light.getClass().getSimpleName(), this.lightmapSize);
+        setStatus(getGroupName() + " - Baking Shadow - " + this.lightIndex + ", " + this.light.getClass().getSimpleName(), this.lightmapSize);
         for (int i = 0; i < this.lightmapSize; i += this.numberOfThreads) {
             List<Future<?>> tasks = new ArrayList<>();
 
@@ -856,7 +856,7 @@ public class Lightmapper {
                     throw new RuntimeException(ex);
                 }
             }
-            
+
             addProgress(tasks.size());
             tasks.clear();
         }
@@ -923,7 +923,7 @@ public class Lightmapper {
     }
 
     private void generateDirectMargins() {
-        setStatus(getGroupName()+" - Generating Direct Margins - "+this.lightIndex+", "+this.light.getClass().getSimpleName(), this.lightmapRectangles.length);
+        setStatus(getGroupName() + " - Generating Direct Margins - " + this.lightIndex + ", " + this.light.getClass().getSimpleName(), this.lightmapRectangles.length);
         for (int i = 0; i < this.lightmapRectangles.length; i++) {
             MarginAutomata.MarginAutomataIO io = createAutomataIO(
                     this.lightmapRectangles[i], this.direct, Lightmapper.EMPTY
@@ -934,7 +934,7 @@ public class Lightmapper {
     }
 
     private void generateShadowMargins() {
-        setStatus(getGroupName()+" - Generating Shadow Margins - "+this.lightIndex+", "+this.light.getClass().getSimpleName(), this.lightmapRectangles.length);
+        setStatus(getGroupName() + " - Generating Shadow Margins - " + this.lightIndex + ", " + this.light.getClass().getSimpleName(), this.lightmapRectangles.length);
         for (int i = 0; i < this.lightmapRectangles.length; i++) {
             MarginAutomata.MarginAutomataIO io = createAutomataIO(
                     this.lightmapRectangles[i], this.shadow, Lightmapper.IGNORE_SHADOW
@@ -986,7 +986,7 @@ public class Lightmapper {
     }
 
     private void denoiseShadow() {
-        setStatus(getGroupName()+" - Denoising Shadow - "+this.lightIndex+", "+this.light.getClass().getSimpleName(), this.lightmapRectangles.length);
+        setStatus(getGroupName() + " - Denoising Shadow - " + this.lightIndex + ", " + this.light.getClass().getSimpleName(), this.lightmapRectangles.length);
         float blurArea = this.scene.getShadowBlurArea();
         if (this.light instanceof Scene.EmissiveLight emissiveLight) {
             blurArea = emissiveLight.getEmissiveBlurArea();
@@ -1004,8 +1004,8 @@ public class Lightmapper {
 
         Vector3f resultLight = new Vector3f();
         Vector3f currentLight = new Vector3f();
-        
-        setStatus(getGroupName()+" - Writing to Lightmap - "+this.lightIndex+", "+this.light.getClass().getSimpleName(), this.lightmapSize);
+
+        setStatus(getGroupName() + " - Writing to Lightmap - " + this.lightIndex + ", " + this.light.getClass().getSimpleName(), this.lightmapSize);
         for (int y = 0; y < this.lightmapSize; y++) {
             for (int x = 0; x < this.lightmapSize; x++) {
                 this.direct.read(directLight, x, y);
@@ -1025,7 +1025,7 @@ public class Lightmapper {
 
     private void bakeIndirect() {
         //todo: blending
-        setStatus(getGroupName()+" - Baking Indirect", this.lightmapSize);
+        setStatus(getGroupName() + " - Baking Indirect", this.lightmapSize);
         for (int i = 0; i < this.lightmapSize; i += this.numberOfThreads) {
             List<Future<?>> tasks = new ArrayList<>();
 
@@ -1038,7 +1038,7 @@ public class Lightmapper {
                     Vector3f totalIndirect = new Vector3f();
 
                     Vector3f sampleWeights = new Vector3f();
-                    
+
                     Vector3f normal = new Vector3f();
                     Vector3f position = new Vector3f();
                     Vector3f direction = new Vector3f();
@@ -1052,13 +1052,13 @@ public class Lightmapper {
                     Vector3f rayWeights = new Vector3f();
 
                     Vector4f texture = new Vector4f();
-                    
+
                     Vector3f rayNormal = new Vector3f();
                     Vector3f rayPosition = new Vector3f();
                     Vector3f rayDirection = new Vector3f();
-                    
+
                     Vector3f indirectLight = new Vector3f();
-                    
+
                     int numSamples = this.scene.getSamplingMode().numSamples();
                     for (int x = 0; x < this.lightmapSize; x++) {
                         totalIndirect.zero();
@@ -1088,13 +1088,13 @@ public class Lightmapper {
                                     normal.y() * this.scene.getRayOffset(),
                                     normal.z() * this.scene.getRayOffset()
                             );
-                            
+
                             for (int k = 0; k < this.scene.getIndirectRaysPerSample(); k++) {
                                 randomDirection(normal, worldUp, tangent, bitangent, tbn, direction);
-                                
+
                                 rayPosition.set(position);
                                 rayDirection.set(direction);
-                                
+
                                 List<Pair<Vector3f, Vector3f>> rays = new ArrayList<>();
                                 for (int l = 0; l < this.scene.getIndirectBounces(); l++) {
                                     List<LocalRayResult> results = this.opaqueBVH.testRaySorted(
@@ -1108,25 +1108,25 @@ public class Lightmapper {
                                     }
                                     LocalRayResult closest = results.get(0);
                                     closest.weights(rayWeights);
-                                    
+
                                     float u = closest.lerp(rayWeights, OFFSET_TEXTURE_XY + 0);
                                     float v = closest.lerp(rayWeights, OFFSET_TEXTURE_XY + 1);
-                                    
+
                                     float lu = closest.lerp(rayWeights, OFFSET_LIGHTMAP_XY + 0);
                                     float lv = closest.lerp(rayWeights, OFFSET_LIGHTMAP_XY + 1);
-                                    
+
                                     Vector3f textureColor = new Vector3f();
                                     Vector3f lightColor = new Vector3f();
-                                    
+
                                     this.textureInput.textureColor(this.opaqueMesh, u, v, (closest.triangle() * 3) * VERTEX_SIZE, false, texture);
                                     textureColor.set(texture.x(), texture.y(), texture.z());
                                     this.lightmap.read(lightColor,
                                             clamp((int) (lu * this.lightmapSize), 0, this.lightmapSize - 1),
                                             clamp((int) (lv * this.lightmapSize), 0, this.lightmapSize - 1)
                                     );
-                                    
+
                                     rays.add(new Pair<>(textureColor, lightColor));
-                                    
+
                                     rayPosition.set(closest.getLocalHitPosition());
                                     rayNormal.set(
                                             closest.lerp(rayWeights, OFFSET_TRIANGLE_NORMAL_XYZ + 0),
@@ -1137,18 +1137,18 @@ public class Lightmapper {
                                         rayNormal.negate();
                                     }
                                     rayDirection.reflect(rayNormal);
-                                    
+
                                     rayPosition.add(rayNormal.mul(this.scene.getRayOffset()));
                                 }
-                                
+
                                 for (int l = 0; l < rays.size(); l++) {
                                     Pair<Vector3f, Vector3f> currentRay = rays.get(l);
                                     indirectLight.set(currentRay.getA()).mul(currentRay.getB());
-                                    
+
                                     for (int m = 0; m < l; m++) {
                                         indirectLight.mul(rays.get(m).getA());
                                     }
-                                    
+
                                     totalIndirect.add(indirectLight.mul(this.scene.getIndirectLightReflectionFactor()));
                                 }
                             }
@@ -1175,7 +1175,7 @@ public class Lightmapper {
     }
 
     private void generateIndirectMargins() {
-        setStatus(getGroupName()+" - Generating Indirect Margins", this.lightmapRectangles.length);
+        setStatus(getGroupName() + " - Generating Indirect Margins", this.lightmapRectangles.length);
         for (int i = 0; i < this.lightmapRectangles.length; i++) {
             MarginAutomata.MarginAutomataIO io = createAutomataIO(
                     this.lightmapRectangles[i], this.lightmapIndirect, Lightmapper.IGNORE_AMBIENT
@@ -1186,7 +1186,7 @@ public class Lightmapper {
     }
 
     private void denoiseIndirect() {
-        setStatus(getGroupName()+" - Denoising Indirect", this.lightmapRectangles.length);
+        setStatus(getGroupName() + " - Denoising Indirect", this.lightmapRectangles.length);
         float blurArea = this.scene.getIndirectLightingBlurArea();
         for (int i = 0; i < this.lightmapRectangles.length; i++) {
             GaussianBlur.GaussianIO io = createGaussianIO(this.lightmapRectangles[i], this.lightmapIndirect);
@@ -1198,8 +1198,8 @@ public class Lightmapper {
     private void outputIndirect() {
         Vector3f directLight = new Vector3f();
         Vector3f indirectLight = new Vector3f();
-        
-        setStatus(getGroupName()+" - Writing Indirect to Lightmap", this.lightmapSize);
+
+        setStatus(getGroupName() + " - Writing Indirect to Lightmap", this.lightmapSize);
         for (int y = 0; y < this.lightmapSize; y++) {
             for (int x = 0; x < this.lightmapSize; x++) {
                 this.lightmap.read(directLight, x, y);
@@ -1212,7 +1212,50 @@ public class Lightmapper {
             addProgress(1);
         }
     }
-    
+
+    private void preMultiplyIndirect() {
+        Vector3f indirectLight = new Vector3f();
+        Vector3f sampleWeights = new Vector3f();
+        Vector4f textureColor = new Vector4f();
+        Vector3f finalTextureColor = new Vector3f();
+        
+        setStatus(getGroupName() + " - Pre Multiplying Indirect", this.lightmapSize);
+        for (int y = 0; y < this.lightmapSize; y++) {
+            int numSamples = this.scene.getSamplingMode().numSamples();
+            for (int x = 0; x < this.lightmapSize; x++) {
+                this.lightmapIndirect.read(indirectLight, x, y);
+                
+                finalTextureColor.zero();
+                int samplesPassed = 0;
+                for (int s = 0; s < numSamples; s++) {
+                    int sampleState = this.sampleStates.read(x, y, s);
+                    if ((sampleState & FILLED) == 0) {
+                        continue;
+                    }
+                    
+                    this.weights.read(sampleWeights, x, y, s);
+                    int triangle = this.triangles.read(x, y, s);
+                    
+                    float u = lerp(sampleWeights, triangle, OFFSET_TEXTURE_XY + 0);
+                    float v = lerp(sampleWeights, triangle, OFFSET_TEXTURE_XY + 1);
+                    
+                    this.textureInput.textureColor(this.mesh, u, v, triangle, false, textureColor);
+                    
+                    finalTextureColor.add(textureColor.x(), textureColor.y(), textureColor.z());
+                    samplesPassed++;
+                }
+                if (samplesPassed != 0) {
+                    finalTextureColor.div(samplesPassed);
+                }
+                
+                indirectLight.mul(finalTextureColor);
+                
+                this.lightmapIndirect.write(indirectLight, x, y);
+            }
+            addProgress(1);
+        }
+    }
+
     private int sample(int component, int x, int y, byte[] data, int size) {
         if (x >= size) {
             x = size - 1;
@@ -1222,32 +1265,35 @@ public class Lightmapper {
         }
         return data[component + (x * 3) + (y * size * 3)] & 0xFF;
     }
-    
+
     private void outputLightmap() {
-        setStatus(getGroupName()+" - Generating Indirect Lightmap for CPU Sampling", 1);
         Vector3f indirectIntensity = new Vector3f(0f, 0f, 0f);
         byte[] indirectLightmap = new byte[this.lightmapSize * this.lightmapSize * 3];
         
+        setStatus(getGroupName() + " - Generating Indirect Lightmap for CPU Sampling", this.lightmapSize);
         Vector3f rgb = new Vector3f();
         for (int y = 0; y < this.lightmapSize; y++) {
             for (int x = 0; x < this.lightmapSize; x++) {
                 this.lightmapIndirect.read(rgb, x, y);
                 indirectIntensity.max(rgb);
             }
+            addProgress(1);
         }
         
+        setStatus(getGroupName() + " - Generating Indirect Lightmap for CPU Sampling", this.lightmapSize);
         for (int y = 0; y < this.lightmapSize; y++) {
             for (int x = 0; x < this.lightmapSize; x++) {
                 this.lightmapIndirect.read(rgb, x, y);
-                
+
                 int red = Math.round((rgb.x() / indirectIntensity.x()) * 255f);
                 int green = Math.round((rgb.y() / indirectIntensity.y()) * 255f);
                 int blue = Math.round((rgb.z() / indirectIntensity.z()) * 255f);
-                
+
                 indirectLightmap[0 + (x * 3) + (y * this.lightmapSize * 3)] = (byte) red;
                 indirectLightmap[1 + (x * 3) + (y * this.lightmapSize * 3)] = (byte) green;
                 indirectLightmap[2 + (x * 3) + (y * this.lightmapSize * 3)] = (byte) blue;
             }
+            addProgress(1);
         }
         
         int currentSize = this.lightmapSize;
@@ -1255,51 +1301,49 @@ public class Lightmapper {
         for (int i = 0; i < divisions; i++) {
             int nextSize = currentSize / 2;
             byte[] nextIndirectLightmap = new byte[nextSize * nextSize * 3];
+            setStatus(getGroupName() + " - Generating Indirect Lightmap for CPU Sampling", nextSize);
             for (int y = 0; y < nextSize; y++) {
                 for (int x = 0; x < nextSize; x++) {
                     float red = sample(0, (x * 2) + 0, (y * 2) + 0, indirectLightmap, currentSize)
                             + sample(0, (x * 2) + 1, (y * 2) + 0, indirectLightmap, currentSize)
                             + sample(0, (x * 2) + 0, (y * 2) + 1, indirectLightmap, currentSize)
-                            + sample(0, (x * 2) + 1, (y * 2) + 1, indirectLightmap, currentSize)
-                            ;
+                            + sample(0, (x * 2) + 1, (y * 2) + 1, indirectLightmap, currentSize);
                     float green = sample(1, (x * 2) + 0, (y * 2) + 0, indirectLightmap, currentSize)
                             + sample(1, (x * 2) + 1, (y * 2) + 0, indirectLightmap, currentSize)
                             + sample(1, (x * 2) + 0, (y * 2) + 1, indirectLightmap, currentSize)
-                            + sample(1, (x * 2) + 1, (y * 2) + 1, indirectLightmap, currentSize)
-                            ;
+                            + sample(1, (x * 2) + 1, (y * 2) + 1, indirectLightmap, currentSize);
                     float blue = sample(2, (x * 2) + 0, (y * 2) + 0, indirectLightmap, currentSize)
                             + sample(2, (x * 2) + 1, (y * 2) + 0, indirectLightmap, currentSize)
                             + sample(2, (x * 2) + 0, (y * 2) + 1, indirectLightmap, currentSize)
-                            + sample(2, (x * 2) + 1, (y * 2) + 1, indirectLightmap, currentSize)
-                            ;
-                    
+                            + sample(2, (x * 2) + 1, (y * 2) + 1, indirectLightmap, currentSize);
+
                     float inv = 1f / 4f;
                     red *= inv;
                     green *= inv;
                     blue *= inv;
-                    
+
                     nextIndirectLightmap[0 + (x * 3) + (y * nextSize * 3)] = (byte) Math.round(red);
                     nextIndirectLightmap[1 + (x * 3) + (y * nextSize * 3)] = (byte) Math.round(green);
                     nextIndirectLightmap[2 + (x * 3) + (y * nextSize * 3)] = (byte) Math.round(blue);
                 }
+                addProgress(1);
             }
             currentSize = nextSize;
             indirectLightmap = nextIndirectLightmap;
         }
-        addProgress(1);
         
-        setStatus(getGroupName()+" - Finishing Lightmap", 1);
-        Lightmap m = new Lightmap(this.group.groupName, 
+        setStatus(getGroupName() + " - Finishing Lightmap", 1);
+        Lightmap m = new Lightmap(this.group.groupName,
                 this.lightmapSize, this.lightmap.getData(),
                 currentSize, indirectLightmap, indirectIntensity
         );
         this.lightmaps[this.groupIndex] = m;
-        
+
         this.lightmap = null;
         this.lightmapIndirect = null;
         addProgress(1);
     }
-    
+
     public Lightmap[] bake() {
         this.numberOfThreads = NUMBER_OF_THREADS;
         this.service = Executors.newFixedThreadPool(this.numberOfThreads);
@@ -1310,7 +1354,7 @@ public class Lightmapper {
 
                 for (int j = 0; j < this.group.lights.size(); j++) {
                     prepareLight(j);
-                    
+
                     bakeDirect();
                     bakeShadow();
 
@@ -1327,6 +1371,9 @@ public class Lightmapper {
                 denoiseIndirect();
                 outputIndirect();
 
+                preMultiplyIndirect();
+                generateIndirectMargins();
+
                 outputLightmap();
             }
             setStatus("Done", 1);
@@ -1342,14 +1389,14 @@ public class Lightmapper {
     }
 
     public double getRaysPerSecond() {
-        return (((double)this.raysCount) / (System.currentTimeMillis() - this.raysTime)) * 1000.0;
+        return (((double) this.raysCount) / (System.currentTimeMillis() - this.raysTime)) * 1000.0;
     }
-    
+
     public double getProgress() {
         if (this.progressMax == 0) {
             return 0.0;
         }
-        return ((double)this.progressCount) / this.progressMax;
+        return ((double) this.progressCount) / this.progressMax;
     }
-    
+
 }
