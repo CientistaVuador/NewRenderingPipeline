@@ -103,7 +103,97 @@ public class NProgram {
             this.ambientG = ambientG;
             this.ambientB = ambientB;
         }
+        
+        @Override
+        public int hashCode() {
+            int hash = 7;
+            hash = 37 * hash + this.type;
+            hash = 37 * hash + Float.floatToIntBits(this.x);
+            hash = 37 * hash + Float.floatToIntBits(this.y);
+            hash = 37 * hash + Float.floatToIntBits(this.z);
+            hash = 37 * hash + Float.floatToIntBits(this.dirX);
+            hash = 37 * hash + Float.floatToIntBits(this.dirY);
+            hash = 37 * hash + Float.floatToIntBits(this.dirZ);
+            hash = 37 * hash + Float.floatToIntBits(this.innerCone);
+            hash = 37 * hash + Float.floatToIntBits(this.outerCone);
+            hash = 37 * hash + Float.floatToIntBits(this.diffuseR);
+            hash = 37 * hash + Float.floatToIntBits(this.diffuseG);
+            hash = 37 * hash + Float.floatToIntBits(this.diffuseB);
+            hash = 37 * hash + Float.floatToIntBits(this.specularR);
+            hash = 37 * hash + Float.floatToIntBits(this.specularG);
+            hash = 37 * hash + Float.floatToIntBits(this.specularB);
+            hash = 37 * hash + Float.floatToIntBits(this.ambientR);
+            hash = 37 * hash + Float.floatToIntBits(this.ambientG);
+            hash = 37 * hash + Float.floatToIntBits(this.ambientB);
+            return hash;
+        }
 
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            final NProgramLight other = (NProgramLight) obj;
+            if (this.type != other.type) {
+                return false;
+            }
+            if (Float.floatToIntBits(this.x) != Float.floatToIntBits(other.x)) {
+                return false;
+            }
+            if (Float.floatToIntBits(this.y) != Float.floatToIntBits(other.y)) {
+                return false;
+            }
+            if (Float.floatToIntBits(this.z) != Float.floatToIntBits(other.z)) {
+                return false;
+            }
+            if (Float.floatToIntBits(this.dirX) != Float.floatToIntBits(other.dirX)) {
+                return false;
+            }
+            if (Float.floatToIntBits(this.dirY) != Float.floatToIntBits(other.dirY)) {
+                return false;
+            }
+            if (Float.floatToIntBits(this.dirZ) != Float.floatToIntBits(other.dirZ)) {
+                return false;
+            }
+            if (Float.floatToIntBits(this.innerCone) != Float.floatToIntBits(other.innerCone)) {
+                return false;
+            }
+            if (Float.floatToIntBits(this.outerCone) != Float.floatToIntBits(other.outerCone)) {
+                return false;
+            }
+            if (Float.floatToIntBits(this.diffuseR) != Float.floatToIntBits(other.diffuseR)) {
+                return false;
+            }
+            if (Float.floatToIntBits(this.diffuseG) != Float.floatToIntBits(other.diffuseG)) {
+                return false;
+            }
+            if (Float.floatToIntBits(this.diffuseB) != Float.floatToIntBits(other.diffuseB)) {
+                return false;
+            }
+            if (Float.floatToIntBits(this.specularR) != Float.floatToIntBits(other.specularR)) {
+                return false;
+            }
+            if (Float.floatToIntBits(this.specularG) != Float.floatToIntBits(other.specularG)) {
+                return false;
+            }
+            if (Float.floatToIntBits(this.specularB) != Float.floatToIntBits(other.specularB)) {
+                return false;
+            }
+            if (Float.floatToIntBits(this.ambientR) != Float.floatToIntBits(other.ambientR)) {
+                return false;
+            }
+            if (Float.floatToIntBits(this.ambientG) != Float.floatToIntBits(other.ambientG)) {
+                return false;
+            }
+            return Float.floatToIntBits(this.ambientB) == Float.floatToIntBits(other.ambientB);
+        }
+        
     }
 
     public static final NProgramLight NULL_LIGHT = new NProgramLight(
@@ -457,7 +547,7 @@ public class NProgram {
                 float roughness,
                 float metallic
             ) {
-                float reflectionIntensity = (1.0 - pow(roughness, 1.0/20.0));
+                float reflectionIntensity = (1.0 - pow(roughness, 1.0/15.0));
                 
                 vec3 totalReflection = vec3(0.0);
                 int count = 0;

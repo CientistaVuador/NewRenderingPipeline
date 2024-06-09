@@ -145,7 +145,9 @@ public class Game {
             
             System.out.println(this.map.getLightmapSize());
             
-            this.flashlight.setDiffuseSpecularAmbient(10f);
+            this.flashlight.setInnerConeAngle(10f);
+            this.flashlight.setOuterConeAngle(40f);
+            this.flashlight.setDiffuseSpecularAmbient(1f);
             this.lights.add(this.flashlight);
             
             {
@@ -153,7 +155,6 @@ public class Game {
                 sun.getDirection().set(1f, -1f, 1f).normalize();
                 sun.setDynamic(false);
                 sun.setDiffuseSpecularAmbient(2f);
-                sun.getAmbient().zero();
                 this.lights.add(sun);
 
                 {
@@ -161,7 +162,6 @@ public class Game {
                     point.getPosition().set(-15.55f, 4.41f, 3.15f);
                     point.setDynamic(false);
                     point.setDiffuseSpecularAmbient(10f);
-                    point.getAmbient().zero();
                     this.lights.add(point);
                 }
 
@@ -170,7 +170,6 @@ public class Game {
                     point.getPosition().set(-15.47f, 4.71f, -9.44f);
                     point.setDynamic(false);
                     point.setDiffuseSpecularAmbient(10f);
-                    point.getAmbient().zero();
                     this.lights.add(point);
                 }
 
@@ -180,7 +179,6 @@ public class Game {
                     spot.getDirection().set(0f, 1f, 0f);
                     spot.setDynamic(false);
                     spot.setDiffuseSpecularAmbient(100f);
-                    spot.getAmbient().zero();
                     this.lights.add(spot);
                 }
 
@@ -190,7 +188,6 @@ public class Game {
                     spot.getDirection().set(0.89f, -0.45f, 0.02f);
                     spot.setDynamic(false);
                     spot.setDiffuseSpecularAmbient(10f);
-                    spot.getAmbient().zero();
                     this.lights.add(spot);
                 }
 
@@ -199,7 +196,6 @@ public class Game {
                     point.getPosition().set(-0.28f, 4.61f, 2.53f);
                     point.setDynamic(false);
                     point.setDiffuseSpecularAmbient(20f);
-                    point.getAmbient().zero();
                     this.lights.add(point);
                 }
                 
@@ -229,6 +225,9 @@ public class Game {
 
         this.bottleRotation.rotateY((float) (Main.TPF * 0.5));
         this.plasticBall.getPosition().set(this.bottleRotation).mul(3f).add(15.29, 1.95, -9.52);
+        
+        this.plasticBall.getScale().set(0.5f);
+        this.plasticBall.getPosition().set(this.camera.getPosition()).add(this.camera.getFront());
         
         this.flashlight.getPosition().set(this.camera.getPosition());
         this.flashlight.getDirection().set(this.camera.getFront());

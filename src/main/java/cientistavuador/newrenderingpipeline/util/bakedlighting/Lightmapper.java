@@ -216,7 +216,43 @@ public class Lightmapper {
         }
 
     }
+    
+    private static class Float4Buffer {
 
+        private final int lineSize;
+        private final int sampleSize;
+        private final int vectorSize;
+        private final float[] data;
+
+        public Float4Buffer(int size, int samples) {
+            this.sampleSize = 4;
+            this.vectorSize = this.sampleSize * samples;
+            this.lineSize = size * this.vectorSize;
+            this.data = new float[size * this.lineSize];
+        }
+
+        public void write(Vector4f vec, int x, int y, int sample) {
+            this.data[0 + (sample * this.sampleSize) + (x * this.vectorSize) + (y * this.lineSize)] = vec.x();
+            this.data[1 + (sample * this.sampleSize) + (x * this.vectorSize) + (y * this.lineSize)] = vec.y();
+            this.data[2 + (sample * this.sampleSize) + (x * this.vectorSize) + (y * this.lineSize)] = vec.z();
+            this.data[3 + (sample * this.sampleSize) + (x * this.vectorSize) + (y * this.lineSize)] = vec.w();
+        }
+
+        public void read(Vector4f vec, int x, int y, int sample) {
+            vec.set(
+                    this.data[0 + (sample * this.sampleSize) + (x * this.vectorSize) + (y * this.lineSize)],
+                    this.data[1 + (sample * this.sampleSize) + (x * this.vectorSize) + (y * this.lineSize)],
+                    this.data[2 + (sample * this.sampleSize) + (x * this.vectorSize) + (y * this.lineSize)],
+                    this.data[3 + (sample * this.sampleSize) + (x * this.vectorSize) + (y * this.lineSize)]
+            );
+        }
+
+        public float[] getData() {
+            return data;
+        }
+
+    }
+    
     private static class Float3ImageBuffer extends Float3Buffer {
 
         public Float3ImageBuffer(int size) {
@@ -231,6 +267,21 @@ public class Lightmapper {
             this.read(vec, x, y, 0);
         }
 
+    }
+    
+    private static class Float4ImageBuffer extends Float4Buffer {
+        public Float4ImageBuffer(int size) {
+            super(size, 1);
+        }
+        
+        public void write(Vector4f vec, int x, int y) {
+            this.write(vec, x, y, 1);
+        }
+
+        public void read(Vector4f vec, int x, int y) {
+            this.read(vec, x, y, 1);
+        }
+        
     }
 
     private static class IntegerBuffer {
@@ -291,6 +342,10 @@ public class Lightmapper {
     private final Float3Buffer weights;
     private final IntegerBuffer triangles;
     private final IntegerBuffer sampleStates;
+    
+    //texture buffers
+    private final Float4ImageBuffer textureColors;
+    private final Float3ImageBuffer textureEmissiveColors;
 
     //threads
     private int numberOfThreads;
@@ -367,6 +422,9 @@ public class Lightmapper {
         this.weights = new Float3Buffer(lightmapSize, this.scene.getSamplingMode().numSamples());
         this.triangles = new IntegerBuffer(lightmapSize, this.scene.getSamplingMode().numSamples());
         this.sampleStates = new IntegerBuffer(lightmapSize, this.scene.getSamplingMode().numSamples());
+        
+        this.textureColors = new Float4ImageBuffer(lightmapSize);
+        this.textureEmissiveColors = new Float3ImageBuffer(lightmapSize);
     }
 
     private void setStatus(String status, long progressMax) {
@@ -521,7 +579,15 @@ public class Lightmapper {
             addProgress(VERTEX_SIZE * 3);
         }
     }
-
+    
+    private void readTextureColors() {
+        
+    }
+    
+    private void readTextureEmissiveColors() {
+        
+    }
+    
     private String getGroupName() {
         if (this.group.groupName.isEmpty()) {
             return "(Unnamed)";
@@ -1349,6 +1415,10 @@ public class Lightmapper {
         this.service = Executors.newFixedThreadPool(this.numberOfThreads);
         try {
             rasterizeBarycentricBuffers();
+            
+            readTextureColors();
+            readTextureEmissiveColors();
+            
             for (int i = 0; i < this.lightGroups.length; i++) {
                 prepareLightmap(i);
 

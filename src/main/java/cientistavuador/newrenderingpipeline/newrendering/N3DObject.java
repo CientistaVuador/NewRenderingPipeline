@@ -33,6 +33,7 @@ import cientistavuador.newrenderingpipeline.util.raycast.BVH;
 import cientistavuador.newrenderingpipeline.util.raycast.LocalRayResult;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
 import org.joml.Matrix4d;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
@@ -46,7 +47,7 @@ import static org.lwjgl.opengl.GL33C.*;
  * @author Cien
  */
 public class N3DObject {
-    
+
     private static class WrappedQueryObject {
 
         private int object = 0;
@@ -71,6 +72,14 @@ public class N3DObject {
     private NAnimator animator = null;
     private NLightmaps lightmaps = NLightmaps.NULL_LIGHTMAPS;
     private NMap map = null;
+
+    private final NAmbientCube ambientCubeA = new NAmbientCube();
+    private final NAmbientCube ambientCubeB = new NAmbientCube();
+
+    private long currentAmbientCubeUpdate = System.currentTimeMillis();
+    private long nextAmbientCubeUpdate = System.currentTimeMillis() + 10;
+
+    private final NAmbientCube ambientCube = new NAmbientCube();
 
     public N3DObject(String name, N3DModel n3DModel) {
         this.name = name;
@@ -161,22 +170,22 @@ public class N3DObject {
             this.queryObject.object = glGenQueries();
         }
     }
-    
+
     public int getQueryObject() {
         return this.queryObject.object;
     }
-    
+
     public void calculateModelMatrix(Matrix4f outputModelMatrix, Camera camera) {
         double camX = 0.0;
         double camY = 0.0;
         double camZ = 0.0;
-        
+
         if (camera != null) {
             camX = camera.getPosition().x();
             camY = camera.getPosition().y();
             camZ = camera.getPosition().z();
         }
-        
+
         outputModelMatrix
                 .identity()
                 .translate(
@@ -234,44 +243,82 @@ public class N3DObject {
     public void setMap(NMap map) {
         this.map = map;
     }
-    
+
+    public NAmbientCube getAmbientCube() {
+        return ambientCube;
+    }
+
+    public void updateAmbientCube() {
+        if (this.map == null || this.lightmaps != NLightmaps.NULL_LIGHTMAPS) {
+            for (int i = 0; i < NAmbientCube.SIDES; i++) {
+                this.ambientCube.setSide(i, 0f, 0f, 0f);
+            }
+            return;
+        }
+
+        if (System.currentTimeMillis() < this.nextAmbientCubeUpdate) {
+            long start = this.currentAmbientCubeUpdate;
+            long end = this.nextAmbientCubeUpdate;
+            long current = System.currentTimeMillis();
+            
+            float factor = ((float)(current - start)) / (end - start);
+            
+            this.ambientCube.setLerp(this.ambientCubeA, this.ambientCubeB, factor);
+            return;
+        }
+        
+        for (int i = 0; i < NAmbientCube.SIDES; i++) {
+            this.ambientCubeA.setSide(i, this.ambientCubeB.getSide(i));
+        }
+        this.map.sampleAmbientCube(
+                this.position.x(),
+                this.position.y(),
+                this.position.z(),
+                this.ambientCubeB
+        );
+
+        int nextTime = 100 + ThreadLocalRandom.current().nextInt(100 + 1);
+        long time = System.currentTimeMillis();
+
+        this.currentAmbientCubeUpdate = time;
+        this.nextAmbientCubeUpdate = time + nextTime;
+    }
+
     public List<NRayResult> testRay(
             double pX, double pY, double pZ,
             float dX, float dY, float dZ
     ) {
         List<NRayResult> results = new ArrayList<>();
-        
+
         Vector3d rayPosition = new Vector3d(pX, pY, pZ);
         Vector3f rayDirection = new Vector3f(dX, dY, dZ);
-        
+
         Matrix4d toWorldSpace = new Matrix4d()
                 .translate(getPosition())
                 .rotate(getRotation())
-                .scale(getScale().x(), getScale().y(), getScale().z())
-                ;
+                .scale(getScale().x(), getScale().y(), getScale().z());
         new Matrix4d(getTransformation())
-                .mul(toWorldSpace, toWorldSpace)
-                ;
+                .mul(toWorldSpace, toWorldSpace);
         Matrix4d toObjectSpace = new Matrix4d(toWorldSpace).invert();
-        
+
         Vector3d objectPosition = new Vector3d(rayPosition);
         Vector3d objectDirection = new Vector3d(rayDirection);
-        
+
         toObjectSpace.transformPosition(objectPosition);
         toObjectSpace.transformDirection(objectDirection);
-        
+
         Vector3f geometryPosition = new Vector3f();
         Vector3f geometryDirection = new Vector3f();
-        
+
         Vector3f rootSpaceHitPosition = new Vector3f();
         Vector3d hitPosition = new Vector3d();
-        
+
         for (int i = 0; i < this.n3DModel.getNumberOfGeometries(); i++) {
             NGeometry geometry = this.n3DModel.getGeometry(i);
-            
+
             Matrix4fc toGeometrySpace = geometry.getParent().getToNodeSpace();
             Matrix4fc toRootSpace = geometry.getParent().getToRootSpace();
-            
+
             toGeometrySpace.transformPosition(
                     (float) objectPosition.x(),
                     (float) objectPosition.y(),
@@ -284,24 +331,24 @@ public class N3DObject {
                     (float) objectDirection.z(),
                     geometryDirection
             ).normalize();
-            
+
             BVH meshBVH = geometry.getMesh().getBVH();
-            
+
             List<LocalRayResult> localRays = meshBVH.testRay(geometryPosition, geometryDirection);
-            
-            for (LocalRayResult localRay:localRays) {
+
+            for (LocalRayResult localRay : localRays) {
                 rootSpaceHitPosition.set(localRay.getLocalHitPosition());
                 toRootSpace.transformPosition(rootSpaceHitPosition);
                 hitPosition.set(rootSpaceHitPosition);
                 toWorldSpace.transformPosition(hitPosition);
-                
+
                 results.add(new NRayResult(
                         rayPosition, rayDirection, hitPosition,
                         this, geometry, localRay
                 ));
             }
         }
-        
+
         return results;
     }
 
