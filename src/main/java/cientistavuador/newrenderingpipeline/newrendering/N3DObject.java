@@ -40,6 +40,7 @@ import org.joml.Matrix4fc;
 import org.joml.Quaternionf;
 import org.joml.Vector3d;
 import org.joml.Vector3f;
+import org.joml.Vector3fc;
 import static org.lwjgl.opengl.GL33C.*;
 
 /**
@@ -248,7 +249,7 @@ public class N3DObject {
         return ambientCube;
     }
 
-    public void updateAmbientCube() {
+    public void updateAmbientCube(Vector3fc ambientColor, double pX, double pY, double pZ) {
         if (this.map == null || this.lightmaps != NLightmaps.NULL_LIGHTMAPS) {
             for (int i = 0; i < NAmbientCube.SIDES; i++) {
                 this.ambientCube.setSide(i, 0f, 0f, 0f);
@@ -271,9 +272,8 @@ public class N3DObject {
             this.ambientCubeA.setSide(i, this.ambientCubeB.getSide(i));
         }
         this.map.sampleAmbientCube(
-                this.position.x(),
-                this.position.y(),
-                this.position.z(),
+                ambientColor,
+                pX, pY, pZ,
                 this.ambientCubeB
         );
 

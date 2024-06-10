@@ -51,6 +51,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 import org.joml.Vector3dc;
 import org.joml.Vector3f;
 import org.joml.Vector3fc;
@@ -152,7 +153,7 @@ public class Game {
             
             {
                 NLight.NDirectionalLight sun = new NLight.NDirectionalLight("sun");
-                sun.getDirection().set(1f, -1f, 1f).normalize();
+                sun.getDirection().set(0.46f, -0.71f, 0.53f);
                 sun.setDynamic(false);
                 sun.setDiffuseSpecularAmbient(2f);
                 this.lights.add(sun);
@@ -190,7 +191,7 @@ public class Game {
                     spot.setDiffuseSpecularAmbient(10f);
                     this.lights.add(spot);
                 }
-
+                
                 {
                     NLight.NPointLight point = new NLight.NPointLight("point");
                     point.getPosition().set(-0.28f, 4.61f, 2.53f);
@@ -215,19 +216,16 @@ public class Game {
         this.camera.setUBO(CameraUBO.create(UBOBindingPoints.PLAYER_CAMERA));
     }
 
-    private final Vector3f bottleRotation = new Vector3f(0f, 0f, 1f);
+    private final Vector3f plasticBallRotation = new Vector3f(0f, 0f, 1f);
 
     public void loop() {
         this.camera.updateMovement();
         this.camera.updateUBO();
 
         this.triceratops.getAnimator().update(Main.TPF);
-
-        this.bottleRotation.rotateY((float) (Main.TPF * 0.5));
-        this.plasticBall.getPosition().set(this.bottleRotation).mul(3f).add(15.29, 1.95, -9.52);
         
-        this.plasticBall.getScale().set(0.5f);
-        this.plasticBall.getPosition().set(this.camera.getPosition()).add(this.camera.getFront());
+        this.plasticBallRotation.rotateY((float) (Main.TPF * 0.5));
+        this.plasticBall.getPosition().set(this.plasticBallRotation).mul(3f).add(15.29, 1.95, -9.52);
         
         this.flashlight.getPosition().set(this.camera.getPosition());
         this.flashlight.getDirection().set(this.camera.getFront());
@@ -253,7 +251,15 @@ public class Game {
 
         AabRender.renderQueue(this.camera);
         LineRender.renderQueue(this.camera);
-
+        
+        if (this.status != null && this.status.getTask().isDone()) {
+            try {
+                this.status.getTask().get();
+            } catch (InterruptedException | ExecutionException ex) {
+                throw new RuntimeException(ex);
+            }
+        }
+        
         if (this.status != null && !this.status.getTask().isDone()) {
             String text = this.status.getStatus() + '\n'
                     + String.format("%,.2f", this.status.getRaysPerSecond()) + " Rays Per Second" + '\n'
@@ -313,6 +319,14 @@ public class Game {
 
             Scene.EmissiveLight emissive = new Scene.EmissiveLight();
             scene.getLights().add(emissive);
+            
+            Scene.AmbientLight ambient = new Scene.AmbientLight();
+            ambient.setDiffuse(
+                    this.skybox.getCubemapColor().x() * 3f,
+                    this.skybox.getCubemapColor().y() * 3f,
+                    this.skybox.getCubemapColor().z() * 3f
+            );
+            scene.getLights().add(ambient);
             
             for (NLight light : this.lights) {
                 if (light.isDynamic()) {

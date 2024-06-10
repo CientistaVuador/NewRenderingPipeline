@@ -30,7 +30,6 @@ import cientistavuador.newrenderingpipeline.Main;
 import cientistavuador.newrenderingpipeline.camera.Camera;
 import cientistavuador.newrenderingpipeline.util.BetterUniformSetter;
 import cientistavuador.newrenderingpipeline.util.GPUOcclusion;
-import cientistavuador.newrenderingpipeline.util.Pair;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -75,7 +74,7 @@ public class N3DObjectRenderer {
     
     private static NProgram.NProgramLight convertToShaderLight(
             Camera camera, NLight light,
-            float diffuseSpecularFactor, float ambientFactor
+            float redFactor, float greenFactor, float blueFactor, float ambientFactor
     ) {
         if (light == null) {
             return NProgram.NULL_LIGHT;
@@ -131,9 +130,9 @@ public class N3DObjectRenderer {
                 pX, pY, pZ,
                 dX, dY, dZ,
                 innerCone, outerCone,
-                diffuse.x() * diffuseSpecularFactor, diffuse.y() * diffuseSpecularFactor, diffuse.z() * diffuseSpecularFactor,
-                specular.x() * diffuseSpecularFactor, specular.y() * diffuseSpecularFactor, specular.z() * diffuseSpecularFactor,
-                ambient.x() * ambientFactor, ambient.y() * ambientFactor, ambient.z() * ambientFactor
+                diffuse.x() * redFactor, diffuse.y() * greenFactor, diffuse.z() * blueFactor,
+                specular.x() * redFactor, specular.y() * greenFactor, specular.z() * blueFactor,
+                ambient.x() * redFactor * ambientFactor, ambient.y() * greenFactor * ambientFactor, ambient.z() * blueFactor * ambientFactor
         );
     }
 
@@ -146,7 +145,7 @@ public class N3DObjectRenderer {
         return objects;
     }
 
-    private static List<N3DObject> filterOccluded(Camera camera, List<N3DObject> objects) {
+    private static List<N3DObject> filterOccluded(Vector3fc ambientColor, Camera camera, List<N3DObject> objects) {
         List<N3DObject> notOccludedObjects = new ArrayList<>();
 
         Matrix4f projectionView = new Matrix4f(camera.getProjection()).mul(camera.getView());
@@ -214,6 +213,12 @@ public class N3DObjectRenderer {
             }
             
             if (!occluded) {
+                double absCenterX = camera.getPosition().x() + ((transformedMin.x() + transformedMax.x()) * 0.5f);
+                double absCenterY = camera.getPosition().y() + ((transformedMin.y() + transformedMax.y()) * 0.5f);
+                double absCenterZ = camera.getPosition().z() + ((transformedMin.z() + transformedMax.z()) * 0.5f);
+                
+                obj.updateAmbientCube(ambientColor, absCenterX, absCenterY, absCenterZ);
+                
                 notOccludedObjects.add(obj);
             }
         }
@@ -260,16 +265,19 @@ public class N3DObjectRenderer {
         }
 
         List<N3DObject> objectsToRender = collectObjects();
-        objectsToRender = filterOccluded(camera, objectsToRender);
-        
-        for (N3DObject obj:objectsToRender) {
-            obj.updateAmbientCube();
-        }
+        objectsToRender = filterOccluded(
+                cubemaps.getSkybox().getCubemapColor(),
+                camera,
+                objectsToRender
+        );
         
         Matrix4f projectionView = new Matrix4f(camera.getProjection()).mul(camera.getView());
         
         Vector3f transformedMin = new Vector3f();
         Vector3f transformedMax = new Vector3f();
+        
+        Vector3d lightDirection = new Vector3d();
+        Vector3f shadowColor = new Vector3f();
         
         List<ToRender> toRenderList = new ArrayList<>();
 
@@ -401,9 +409,6 @@ public class N3DObjectRenderer {
                             return Double.compare(disto1, disto2);
                         });
                         for (NLight light:lights) {
-                            if (obj.getLightmaps() == NLightmaps.NULL_LIGHTMAPS) {
-                                continue;
-                            }
                             if (!light.isDynamic() && obj.getLightmaps() != NLightmaps.NULL_LIGHTMAPS) {
                                 continue;
                             }
@@ -411,13 +416,54 @@ public class N3DObjectRenderer {
                             if (!light.isDynamic() && obj.getMap() != null) {
                                 ambientFactor = 0f;
                             }
-                            toRenderLights.add(convertToShaderLight(camera, light, 1f, ambientFactor));
+                            float r = 1f;
+                            float g = 1f;
+                            float b = 1f;
+                            if (obj.getMap() != null && obj.getLightmaps() == NLightmaps.NULL_LIGHTMAPS) {
+                                Vector3d lightPosition = null;
+                                double length = Double.POSITIVE_INFINITY;
+                                
+                                lightDirection.set(0f, 1f, 0f);
+                                if (light instanceof NLight.NDirectionalLight d) {
+                                    lightDirection.set(d.getDirection()).normalize().negate();
+                                } else if (light instanceof NLight.NPointLight p) {
+                                    lightPosition = p.getPosition();
+                                } else if (light instanceof NLight.NSpotLight p) {
+                                    lightPosition = p.getPosition();
+                                }
+                                
+                                if (lightPosition != null) {
+                                    lightDirection.set(lightPosition).sub(absCenterX, absCenterY, absCenterZ);
+                                    length = lightDirection.length();
+                                    lightDirection.div(length);
+                                    length -= light.getLightSize();
+                                    
+                                    if (length < 0.0) {
+                                        lightDirection.negate();
+                                        length = -length;
+                                    }
+                                }
+                                
+                                obj.getMap().testShadow(
+                                        absCenterX, absCenterY, absCenterZ,
+                                        (float) lightDirection.x(), (float) lightDirection.y(), (float) lightDirection.z(),
+                                        length,
+                                        shadowColor
+                                );
+                                
+                                r = shadowColor.x();
+                                g = shadowColor.y();
+                                b = shadowColor.z();
+                            }
+                            if (r != 0f || g != 0f || b != 0f || ambientFactor != 0f) {
+                                toRenderLights.add(convertToShaderLight(camera, light, r, g, b, ambientFactor));
+                            }
                         }
                         NProgram.NProgramLight[] finalLights = toRenderLights.toArray(toRenderLights.toArray(NProgram.NProgramLight[]::new));
                         finalLights = Arrays.copyOf(finalLights, NProgram.MAX_AMOUNT_OF_LIGHTS);
 
                         float distanceSquared = (centerX * centerX) + (centerY * centerY) + (centerZ * centerZ);
-
+                        
                         toRenderList.add(new ToRender(
                                 obj,
                                 transformation, modelMatrix,
@@ -509,6 +555,9 @@ public class N3DObjectRenderer {
         glBindVertexArray(0);
 
         glUseProgram(0);
+        
+        Main.NUMBER_OF_DRAWCALLS++;
+        Main.NUMBER_OF_VERTICES += NSkybox.AMOUNT_OF_INDICES;
     }
 
     private static void renderVariant(

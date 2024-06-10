@@ -27,6 +27,7 @@
 package cientistavuador.newrenderingpipeline.newrendering;
 
 import cientistavuador.newrenderingpipeline.Main;
+import cientistavuador.newrenderingpipeline.util.ColorUtils;
 import cientistavuador.newrenderingpipeline.util.MeshUtils;
 import cientistavuador.newrenderingpipeline.util.Pair;
 import cientistavuador.newrenderingpipeline.util.bakedlighting.LightmapUVs;
@@ -44,6 +45,7 @@ import org.joml.Matrix4f;
 import org.joml.Vector3f;
 import org.joml.Vector3fc;
 import org.joml.Vector4f;
+import org.joml.Vector4fc;
 import org.joml.primitives.Rectanglei;
 
 /**
@@ -62,6 +64,7 @@ public class NMap {
             sceneDirectional.setLightSize(directional.getLightSize());
             sceneDirectional.setDiffuse(directional.getDiffuse());
             sceneDirectional.setAmbient(directional.getAmbient());
+            sceneDirectional.setDirection(directional.getDirection());
             return sceneDirectional;
         }
         if (light instanceof NLight.NPointLight point) {
@@ -387,17 +390,74 @@ public class NMap {
 
         return results;
     }
+    
+    public void testShadow(
+            double pX, double pY, double pZ,
+            float dX, float dY, float dZ,
+            double length,
+            Vector3f outShadow
+    ) {
+        outShadow.set(1f);
+        
+        List<NRayResult> alphaResults = testRay(pX, pY, pZ, dX, dY, dZ);
+        
+        if (alphaResults.isEmpty()) {
+            return;
+        }
+        
+        Vector3f rayWeights = new Vector3f();
+        
+        List<Vector4fc> colors = new ArrayList<>();
+        for (NRayResult globalRay : alphaResults) {
+            if (Double.isFinite(length) && globalRay.getDistance() > length) {
+                break;
+            }
+            
+            LocalRayResult ray = globalRay.getLocalRay();
+            
+            ray.weights(rayWeights);
 
-    public void sampleAmbientCube(double pX, double pY, double pZ, NAmbientCube ambientCube) {
+            float lu = ray.lerp(rayWeights, NMesh.OFFSET_LIGHTMAP_TEXTURE_XY + 0);
+            float lv = ray.lerp(rayWeights, NMesh.OFFSET_LIGHTMAP_TEXTURE_XY + 1);
+            
+            Vector4f color = new Vector4f(0f, 0f, 0f, 1f);
+            if (this.lightmaps != null) {
+                this.lightmaps.sampleColorMap(lu, lv, color);
+            }
+            colors.add(color);
+        }
+        
+        if (colors.isEmpty()) {
+            return;
+        }
+        
+        Vector4f dest = new Vector4f(0f, 0f, 0f, 0f);
+        ColorUtils.blend(colors, dest);
+        
+        outShadow.set(dest.x(), dest.y(), dest.z())
+                .mul(dest.w())
+                .add(1f - dest.w(), 1f - dest.w(), 1f - dest.w())
+                .mul(1f - dest.w());
+    }
+    
+    public void sampleAmbientCube(
+            Vector3fc ambientColor,
+            double pX, double pY, double pZ,
+            NAmbientCube ambientCube
+    ) {
+        Vector4f textureColor = new Vector4f();
         Vector3f color = new Vector3f();
         Vector3f weights = new Vector3f();
         for (int i = 0; i < NAmbientCube.SIDES; i++) {
-            color.zero();
+            color.set(ambientColor);
             
             if (this.lightmaps != null) {
                 Vector3fc direction = NAmbientCube.SIDE_DIRECTIONS[i];
                 
-                List<NRayResult> rayResults = testRay(pX, pY, pZ, direction.x(), direction.y(), direction.z());
+                List<NRayResult> rayResults = testRay(
+                        pX, pY, pZ,
+                        direction.x(), direction.y(), direction.z()
+                );
                 if (!rayResults.isEmpty()) {
                     NRayResult closest = rayResults.get(0);
 
@@ -408,6 +468,9 @@ public class NMap {
                     float lv = localRay.lerp(weights, NMesh.OFFSET_LIGHTMAP_TEXTURE_XY + 1);
 
                     this.lightmaps.sampleIndirect(lu, lv, color);
+                    this.lightmaps.sampleColorMap(lu, lv, textureColor);
+                    
+                    color.mul(textureColor.x(), textureColor.y(), textureColor.z());
                 }
             }
 
@@ -438,7 +501,7 @@ public class NMap {
 
         float[] alphaMesh = new float[Lightmapper.VERTEX_SIZE * 64];
         int alphaMeshIndex = 0;
-
+        
         for (int objectIndex = 0; objectIndex < this.objects.length; objectIndex++) {
             N3DObject obj = this.objects[objectIndex];
 
@@ -451,9 +514,8 @@ public class NMap {
                 }
 
                 NBlendingMode blending = geometry.getMaterial().getBlendingMode();
-
                 NMesh mesh = geometry.getMesh();
-
+                
                 float[] vertices = mesh.getVertices();
                 int[] indices = mesh.getIndices();
 
@@ -519,7 +581,7 @@ public class NMap {
 
         opaqueMesh = Arrays.copyOf(opaqueMesh, opaqueMeshIndex);
         alphaMesh = Arrays.copyOf(alphaMesh, alphaMeshIndex);
-
+        
         Lightmapper.TextureInput texio = (
                 float[] mesh,
                 float u, float v,
@@ -580,7 +642,8 @@ public class NMap {
                 opaqueMesh, alphaMesh
         );
         status.setLightmapper(lightmapper);
-        Lightmapper.Lightmap[] lightmapperLightmaps = lightmapper.bake();
+        Lightmapper.LightmapperOutput lightmapperOutput = lightmapper.bake();
+        Lightmapper.Lightmap[] lightmapperLightmaps = lightmapperOutput.getLightmaps();
 
         String[] names = new String[lightmapperLightmaps.length];
         float[] totalLightmaps = new float[this.lightmapSize * this.lightmapSize * 3 * lightmapperLightmaps.length];
@@ -615,7 +678,8 @@ public class NMap {
         NLightmaps finalLightmaps = new NLightmaps(
                 this.name, names, this.lightmapMargin,
                 totalLightmaps, this.lightmapSize, this.lightmapSize,
-                indirectIntensities, indirectLightmaps, indirectSize, indirectSize
+                indirectIntensities, indirectLightmaps, indirectSize, indirectSize,
+                lightmapperOutput.getColorMap(), lightmapperOutput.getColorMapSize(), lightmapperOutput.getColorMapSize()
         );
 
         Main.MAIN_TASKS.add(() -> {

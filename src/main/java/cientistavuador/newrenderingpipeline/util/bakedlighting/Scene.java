@@ -126,7 +126,7 @@ public class Scene {
         }
 
         public void setDirection(Vector3fc direction) {
-            setDiffuse(direction.x(), direction.y(), direction.z());
+            setDirection(direction.x(), direction.y(), direction.z());
         }
 
         public Vector3fc getAmbient() {
@@ -418,6 +418,44 @@ public class Scene {
         public void randomLightDirection(Vector3fc position, Vector3f outDirection) {
             outDirection.set(0f, 1f, 0f);
         }
+    }
+    
+    public static class AmbientLight extends Light {
+        
+        private int ambientRays = 128;
+        private float ambientBlurArea = 3f;
+
+        public AmbientLight() {
+            
+        }
+
+        public int getAmbientRays() {
+            return ambientRays;
+        }
+
+        public void setAmbientRays(int ambientRays) {
+            this.ambientRays = ambientRays;
+        }
+
+        public float getAmbientBlurArea() {
+            return ambientBlurArea;
+        }
+
+        public void setAmbientBlurArea(float ambientBlurArea) {
+            this.ambientBlurArea = ambientBlurArea;
+        }
+        
+        @Override
+        public void calculateDirect(Vector3fc position, Vector3fc normal, Vector3f outputDirection, Vector3f outputColor, float directAttenuation) {
+            outputColor.set(getDiffuse());
+            outputDirection.set(0f, 1f, 0f);
+        }
+
+        @Override
+        public void randomLightDirection(Vector3fc position, Vector3f outDirection) {
+            outDirection.set(0f, 1f, 0f);
+        }
+        
     }
 
     private float pixelToWorldRatio = 6f;

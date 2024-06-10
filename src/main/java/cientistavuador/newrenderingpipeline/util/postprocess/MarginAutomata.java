@@ -44,6 +44,7 @@ public class MarginAutomata {
         public float r;
         public float g;
         public float b;
+        public float a;
     }
 
     public static interface MarginAutomataIO {
@@ -91,7 +92,7 @@ public class MarginAutomata {
     };
     private static final int NEIGHBORS_ROTATED = NEIGHBORS_POSITIONS_ROTATED.length / 2;
 
-    private final ExecutorService service = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+    private static final ExecutorService THREADS = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors() * 2);
 
     private final MarginAutomataIO io;
     private final int iterations;
@@ -117,10 +118,10 @@ public class MarginAutomata {
         this.width = this.io.width();
         this.height = this.io.height();
 
-        this.colorMap = new float[this.width * this.height * 3];
+        this.colorMap = new float[this.width * this.height * 4];
         this.emptyMap = new boolean[this.width * this.height];
 
-        this.nextColorMap = new float[this.width * this.height * 3];
+        this.nextColorMap = new float[this.width * this.height * 4];
         this.nextEmptyMap = new boolean[this.width * this.height];
 
         MarginAutomataColor color = new MarginAutomataColor();
@@ -138,10 +139,11 @@ public class MarginAutomata {
 
                 this.io.read(x, y, color);
 
-                int colorIndex = (x * 3) + (y * this.width * 3);
+                int colorIndex = (x * 4) + (y * this.width * 4);
                 this.colorMap[colorIndex + 0] = color.r;
                 this.colorMap[colorIndex + 1] = color.g;
                 this.colorMap[colorIndex + 2] = color.b;
+                this.colorMap[colorIndex + 3] = color.a;
             }
         }
     }
@@ -162,7 +164,7 @@ public class MarginAutomata {
             }
 
             int emptyIndex = x + (y * this.width);
-            int colorIndex = (x * 3) + (y * this.width * 3);
+            int colorIndex = (x * 4) + (y * this.width * 4);
 
             if (!this.emptyMap[emptyIndex]) {
                 System.arraycopy(
@@ -170,7 +172,7 @@ public class MarginAutomata {
                         colorIndex,
                         this.nextColorMap,
                         colorIndex,
-                        3
+                        4
                 );
                 this.nextEmptyMap[emptyIndex] = false;
                 continue;
@@ -179,6 +181,7 @@ public class MarginAutomata {
             float r = 0f;
             float g = 0f;
             float b = 0f;
+            float a = 0f;
             int numSamples = 0;
             for (int s = 0; s < NEIGHBORS; s++) {
                 int xOffset = NEIGHBORS_POSITIONS[(s * 2) + 0];
@@ -195,10 +198,11 @@ public class MarginAutomata {
                     continue;
                 }
 
-                int sampleColorIndex = (sX * 3) + (sY * this.width * 3);
+                int sampleColorIndex = (sX * 4) + (sY * this.width * 4);
                 r += this.colorMap[sampleColorIndex + 0];
                 g += this.colorMap[sampleColorIndex + 1];
                 b += this.colorMap[sampleColorIndex + 2];
+                a += this.colorMap[sampleColorIndex + 3];
                 numSamples++;
             }
 
@@ -218,10 +222,11 @@ public class MarginAutomata {
                         continue;
                     }
 
-                    int sampleColorIndex = (sX * 3) + (sY * this.width * 3);
+                    int sampleColorIndex = (sX * 4) + (sY * this.width * 4);
                     r += this.colorMap[sampleColorIndex + 0];
                     g += this.colorMap[sampleColorIndex + 1];
                     b += this.colorMap[sampleColorIndex + 2];
+                    a += this.colorMap[sampleColorIndex + 3];
                     numSamples++;
                 }
             }
@@ -235,10 +240,12 @@ public class MarginAutomata {
             r *= invNumSamples;
             g *= invNumSamples;
             b *= invNumSamples;
+            a *= invNumSamples;
 
             this.nextColorMap[colorIndex + 0] = r;
             this.nextColorMap[colorIndex + 1] = g;
             this.nextColorMap[colorIndex + 2] = b;
+            this.nextColorMap[colorIndex + 3] = a;
             this.nextEmptyMap[emptyIndex] = false;
 
             finished = false;
@@ -248,15 +255,15 @@ public class MarginAutomata {
 
     public boolean iterate() {
         boolean finished = true;
-        
+
         List<Future<Boolean>> futureLinesList = new ArrayList<>();
-        
+
         for (int y = 0; y < this.height; y++) {
             final int line = y;
-            futureLinesList.add(this.service.submit(() -> lineIterate(line)));
+            futureLinesList.add(THREADS.submit(() -> lineIterate(line)));
         }
-        
-        for (Future<Boolean> futureLine:futureLinesList) {
+
+        for (Future<Boolean> futureLine : futureLinesList) {
             try {
                 boolean done = futureLine.get();
                 if (!done) {
@@ -266,7 +273,7 @@ public class MarginAutomata {
                 throw new RuntimeException(ex);
             }
         }
-        
+
         return finished;
     }
 
@@ -293,28 +300,25 @@ public class MarginAutomata {
                     continue;
                 }
 
-                int colorIndex = (x * 3) + (y * this.width * 3);
+                int colorIndex = (x * 4) + (y * this.width * 4);
                 output.r = this.colorMap[colorIndex + 0];
                 output.g = this.colorMap[colorIndex + 1];
                 output.b = this.colorMap[colorIndex + 2];
+                output.a = this.colorMap[colorIndex + 3];
                 this.io.write(x, y, output);
             }
         }
     }
 
     public void process() {
-        try {
-            load();
-            for (int i = 0; i < this.iterations; i++) {
-                logStatus(i);
-                if (iterate()) {
-                    break;
-                }
-                flipMaps();
+        load();
+        for (int i = 0; i < this.iterations; i++) {
+            logStatus(i);
+            if (iterate()) {
+                break;
             }
-            output();
-        } finally {
-            this.service.shutdownNow();
+            flipMaps();
         }
+        output();
     }
 }
