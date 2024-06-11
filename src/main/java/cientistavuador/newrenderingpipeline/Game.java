@@ -41,20 +41,20 @@ import cientistavuador.newrenderingpipeline.newrendering.NCubemapRenderer;
 import cientistavuador.newrenderingpipeline.newrendering.NCubemaps;
 import cientistavuador.newrenderingpipeline.newrendering.NLight;
 import cientistavuador.newrenderingpipeline.newrendering.NMap;
-import cientistavuador.newrenderingpipeline.newrendering.NRayResult;
+import cientistavuador.newrenderingpipeline.physics.PlayerController;
 import cientistavuador.newrenderingpipeline.text.GLFontRenderer;
 import cientistavuador.newrenderingpipeline.text.GLFontSpecifications;
 import cientistavuador.newrenderingpipeline.ubo.CameraUBO;
 import cientistavuador.newrenderingpipeline.ubo.UBOBindingPoints;
 import cientistavuador.newrenderingpipeline.util.bakedlighting.Scene;
+import com.jme3.bullet.PhysicsSpace;
+import com.jme3.bullet.objects.PhysicsRigidBody;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
-import org.joml.Vector3dc;
 import org.joml.Vector3f;
-import org.joml.Vector3fc;
 import static org.lwjgl.glfw.GLFW.*;
 
 /**
@@ -103,15 +103,16 @@ public class Game {
     };
 
     private NCubemaps cubemaps;
-
-    private NRayResult raycastDebug = null;
-
+    
     private final NMap map;
     private final N3DObject triceratops;
     private final N3DObject plasticBall;
     
     private final NLight.NSpotLight flashlight = new NLight.NSpotLight("flashlight");
     private final List<NLight> lights = new ArrayList<>();
+    
+    private final PhysicsSpace physicsSpace = new PhysicsSpace(PhysicsSpace.BroadphaseType.DBVT);
+    private final PlayerController playerController = new PlayerController();
 
     {
         try {
@@ -146,7 +147,7 @@ public class Game {
             
             System.out.println(this.map.getLightmapSize());
             
-            this.flashlight.setInnerConeAngle(10f);
+            this.flashlight.setInnerConeAngle(30f);
             this.flashlight.setOuterConeAngle(40f);
             this.flashlight.setDiffuseSpecularAmbient(1f);
             this.lights.add(this.flashlight);
@@ -206,6 +207,12 @@ public class Game {
         }
 
         this.cubemaps = new NCubemaps(this.skybox, null);
+        
+        this.camera.setMovementDisabled(true);
+        this.playerController.getCharacterController().addToPhysicsSpace(this.physicsSpace);
+        
+        this.physicsSpace.setGravity(new com.jme3.math.Vector3f(0f, -9.8f * Main.TO_PHYSICS_ENGINE_UNITS, 0f));
+        this.physicsSpace.addCollisionObject(new PhysicsRigidBody(this.map.getMeshCollision(), 0f));
     }
 
     private Game() {
@@ -221,7 +228,21 @@ public class Game {
     public void loop() {
         this.camera.updateMovement();
         this.camera.updateUBO();
-
+        
+        this.playerController.update(this.camera.getFront(), this.camera.getRight());
+        
+        this.camera.setPosition(
+                this.playerController.getEyePosition().x(),
+                this.playerController.getEyePosition().y(),
+                this.playerController.getEyePosition().z()
+        );
+        
+        this.physicsSpace.update((float) Main.TPF);
+        
+        if (this.playerController.getCharacterController().getPosition().y() < -10f) {
+            this.playerController.getCharacterController().setPosition(0f, 0.1f, 0f);
+        }
+        
         this.triceratops.getAnimator().update(Main.TPF);
         
         this.plasticBallRotation.rotateY((float) (Main.TPF * 0.5));
@@ -238,17 +259,7 @@ public class Game {
         N3DObjectRenderer.queueRender(this.plasticBall);
 
         N3DObjectRenderer.render(this.camera, this.lights, this.cubemaps);
-
-        if (this.raycastDebug != null) {
-            Vector3dc o = this.raycastDebug.getOrigin();
-            Vector3dc h = this.raycastDebug.getHitPosition();
-
-            LineRender.queueRender(
-                    o.x(), o.y(), o.z(),
-                    h.x(), h.y(), h.z()
-            );
-        }
-
+        
         AabRender.renderQueue(this.camera);
         LineRender.renderQueue(this.camera);
         
@@ -292,21 +303,6 @@ public class Game {
         if (key == GLFW_KEY_F3 && action == GLFW_PRESS) {
             N3DObjectRenderer.REFLECTIONS_DEBUG = !N3DObjectRenderer.REFLECTIONS_DEBUG;
         }
-        if (key == GLFW_KEY_F4 && action == GLFW_PRESS) {
-            Vector3dc p = this.camera.getPosition();
-            Vector3fc d = this.camera.getFront();
-            
-            List<NRayResult> results = this.map.testRay(
-                    p.x(), p.y(), p.z(),
-                    d.x(), d.y(), d.z()
-            );
-            
-            if (results.isEmpty()) {
-                this.raycastDebug = null;
-            } else {
-                this.raycastDebug = results.get(0);
-            }
-        }
         if (key == GLFW_KEY_F && action == GLFW_PRESS) {
             if (this.flashlight.getDiffuse().x() == 0f) {
                 this.flashlight.setDiffuseSpecularAmbient(1f);
@@ -316,7 +312,7 @@ public class Game {
         }
         if (key == GLFW_KEY_B && action == GLFW_PRESS) {
             Scene scene = new Scene();
-
+            
             Scene.EmissiveLight emissive = new Scene.EmissiveLight();
             scene.getLights().add(emissive);
             
@@ -372,6 +368,12 @@ public class Game {
             N3DObjectRenderer.SPECULAR_ENABLED = true;
             N3DObjectRenderer.HDR_OUTPUT = false;
             N3DObjectRenderer.REFLECTIONS_DEBUG = reflectionsDebug;
+        }
+        if (key == GLFW_KEY_SPACE && action == GLFW_PRESS) {
+            this.playerController.jump();
+        }
+        if (key == GLFW_KEY_V && action == GLFW_PRESS) {
+            this.playerController.getCharacterController().setNoclipEnabled(!this.playerController.getCharacterController().isNoclipEnabled());
         }
     }
 

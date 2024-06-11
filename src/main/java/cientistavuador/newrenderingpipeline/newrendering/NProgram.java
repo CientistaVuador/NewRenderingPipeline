@@ -662,7 +662,7 @@ public class NProgram {
                 diffuseColor *= diffuseStrength;
                 specularColor *= specularStrength;
                 
-                float lightmapAo = pow(max(dot(vertexNormal, normal), 0.0), 1.2);
+                float lightmapAo = pow(max(dot(vertexNormal, normal), 0.0), 1.4);
                 int amountOfLightmaps = textureSize(lightmaps, 0).z;
                 for (int i = 0; i < amountOfLightmaps; i++) {
                     float intensity = 1.0;

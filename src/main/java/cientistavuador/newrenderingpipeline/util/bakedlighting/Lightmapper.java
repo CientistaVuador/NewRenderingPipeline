@@ -736,6 +736,10 @@ public class Lightmapper {
     }
 
     private void bakeDirect() {
+        if (this.scene.isFastModeEnabled() && (this.light instanceof Scene.EmissiveLight || this.light instanceof Scene.AmbientLight)) {
+            return;
+        }
+
         setStatus(getGroupName() + " - Baking Direct - " + this.lightIndex + ", " + this.light.getClass().getSimpleName(), this.lightmapSize);
         for (int i = 0; i < this.lightmapSize; i += this.numberOfThreads) {
             List<Future<?>> tasks = new ArrayList<>();
@@ -894,6 +898,15 @@ public class Lightmapper {
     }
 
     private void bakeShadow() {
+        if (this.scene.isFastModeEnabled() && (this.light instanceof Scene.EmissiveLight || this.light instanceof Scene.AmbientLight)) {
+            return;
+        }
+
+        float lightSize = this.light.getLightSize();
+        if (this.scene.isFastModeEnabled()) {
+            this.light.setLightSize(0f);
+        }
+
         setStatus(getGroupName() + " - Baking Shadow - " + this.lightIndex + ", " + this.light.getClass().getSimpleName(), this.lightmapSize);
         for (int i = 0; i < this.lightmapSize; i += this.numberOfThreads) {
             List<Future<?>> tasks = new ArrayList<>();
@@ -984,6 +997,10 @@ public class Lightmapper {
                                     rays = ambient.getAmbientRays();
                                 }
 
+                                if (this.scene.isFastModeEnabled()) {
+                                    rays = 1;
+                                }
+
                                 for (int k = 0; k < rays; k++) {
                                     float length = Float.POSITIVE_INFINITY;
 
@@ -996,7 +1013,7 @@ public class Lightmapper {
                                             outLightDirection.div(length);
                                         }
                                     }
-                                    
+
                                     if (!this.opaqueBVH.fastTestRay(position, outLightDirection, length)) {
                                         Vector3f blend = shadowBlend(position, outLightDirection, length);
                                         if (blend != null) {
@@ -1007,6 +1024,7 @@ public class Lightmapper {
                                     }
                                     addRay();
                                 }
+
                                 samplesPassed += rays;
                             }
                         }
@@ -1029,6 +1047,8 @@ public class Lightmapper {
             addProgress(tasks.size());
             tasks.clear();
         }
+
+        this.light.setLightSize(lightSize);
     }
 
     private MarginAutomata.MarginAutomataIO createAutomataIO(
@@ -1216,13 +1236,17 @@ public class Lightmapper {
     }
 
     private void denoiseShadow() {
-        setStatus(getGroupName() + " - Denoising Shadow - " + this.lightIndex + ", " + this.light.getClass().getSimpleName(), this.lightmapRectangles.length);
         float blurArea = this.scene.getShadowBlurArea();
         if (this.light instanceof Scene.EmissiveLight emissiveLight) {
             blurArea = emissiveLight.getEmissiveBlurArea();
         } else if (this.light instanceof Scene.AmbientLight ambientLight) {
             blurArea = ambientLight.getAmbientBlurArea();
         }
+        if (blurArea == 0f) {
+            return;
+        }
+
+        setStatus(getGroupName() + " - Denoising Shadow - " + this.lightIndex + ", " + this.light.getClass().getSimpleName(), this.lightmapRectangles.length);
         for (int i = 0; i < this.lightmapRectangles.length; i++) {
             GaussianBlur.GaussianIO io = createGaussianIO(this.lightmapRectangles[i], this.shadow);
             GaussianBlur.blur(io, DEFAULT_GAUSSIAN_BLUR_KERNEL_SIZE, blurArea);
@@ -1413,8 +1437,11 @@ public class Lightmapper {
     }
 
     private void denoiseIndirect() {
-        setStatus(getGroupName() + " - Denoising Indirect", this.lightmapRectangles.length);
         float blurArea = this.scene.getIndirectLightingBlurArea();
+        if (blurArea == 0f) {
+            return;
+        }
+        setStatus(getGroupName() + " - Denoising Indirect", this.lightmapRectangles.length);
         for (int i = 0; i < this.lightmapRectangles.length; i++) {
             GaussianBlur.GaussianIO io = createGaussianIO(this.lightmapRectangles[i], this.lightmapIndirect);
             GaussianBlur.blur(io, DEFAULT_GAUSSIAN_BLUR_KERNEL_SIZE, blurArea);
@@ -1632,15 +1659,19 @@ public class Lightmapper {
                     generateDirectMargins();
                     generateShadowMargins();
 
-                    denoiseShadow();
+                    if (!this.scene.isFastModeEnabled()) {
+                        denoiseShadow();
+                    }
 
                     outputLight();
                 }
-
-                bakeIndirect();
-                generateIndirectMargins();
-                denoiseIndirect();
-                outputIndirect();
+                
+                if (!this.scene.isFastModeEnabled()) {
+                    bakeIndirect();
+                    generateIndirectMargins();
+                    denoiseIndirect();
+                    outputIndirect();
+                }
 
                 outputLightmap();
             }

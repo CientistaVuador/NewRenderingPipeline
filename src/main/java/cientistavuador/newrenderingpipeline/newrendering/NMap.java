@@ -34,6 +34,9 @@ import cientistavuador.newrenderingpipeline.util.bakedlighting.LightmapUVs;
 import cientistavuador.newrenderingpipeline.util.bakedlighting.Lightmapper;
 import cientistavuador.newrenderingpipeline.util.bakedlighting.Scene;
 import cientistavuador.newrenderingpipeline.util.raycast.LocalRayResult;
+import com.jme3.bullet.collision.shapes.MeshCollisionShape;
+import com.jme3.bullet.collision.shapes.infos.IndexedMesh;
+import com.jme3.util.BufferUtils;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -148,7 +151,8 @@ public class NMap {
 
     private final String name;
     private final N3DObject[] objects;
-
+    private final MeshCollisionShape meshCollision;
+    
     private final int lightmapMargin;
     private final float lightmapPixelToWorldRatio;
     private final int lightmapSize;
@@ -334,6 +338,26 @@ public class NMap {
         for (int i = 0; i < this.objects.length; i++) {
             this.objects[i].setMap(this);
         }
+        
+        float[] collisionTriangles = new float[(transformedVertices.length / NMesh.VERTEX_SIZE) * 3];
+        
+        for (int i = 0; i < transformedVertices.length; i += NMesh.VERTEX_SIZE) {
+            float x = transformedVertices[i + NMesh.OFFSET_POSITION_XYZ + 0];
+            float y = transformedVertices[i + NMesh.OFFSET_POSITION_XYZ + 1];
+            float z = transformedVertices[i + NMesh.OFFSET_POSITION_XYZ + 2];
+            
+            collisionTriangles[0 + (i / NMesh.VERTEX_SIZE) * 3] = x * Main.TO_PHYSICS_ENGINE_UNITS;
+            collisionTriangles[1 + (i / NMesh.VERTEX_SIZE) * 3] = y * Main.TO_PHYSICS_ENGINE_UNITS;
+            collisionTriangles[2 + (i / NMesh.VERTEX_SIZE) * 3] = z * Main.TO_PHYSICS_ENGINE_UNITS;
+        }
+        
+        Pair<float[], int[]> indexedCollision = MeshUtils.generateIndices(collisionTriangles, 3);
+        
+        this.meshCollision = new MeshCollisionShape(true, new IndexedMesh(
+                BufferUtils.createFloatBuffer(indexedCollision.getA()),
+                BufferUtils.createIntBuffer(indexedCollision.getB())
+        ));
+        
     }
 
     public String getName() {
@@ -346,6 +370,10 @@ public class NMap {
 
     public N3DObject getObject(int index) {
         return this.objects[index];
+    }
+    
+    public MeshCollisionShape getMeshCollision() {
+        return meshCollision;
     }
 
     public int getLightmapMargin() {
