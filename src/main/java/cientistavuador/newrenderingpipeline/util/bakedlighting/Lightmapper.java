@@ -28,7 +28,6 @@ package cientistavuador.newrenderingpipeline.util.bakedlighting;
 
 import cientistavuador.newrenderingpipeline.util.ColorUtils;
 import cientistavuador.newrenderingpipeline.util.MeshUtils;
-import cientistavuador.newrenderingpipeline.util.Pair;
 import cientistavuador.newrenderingpipeline.util.RasterUtils;
 import cientistavuador.newrenderingpipeline.util.postprocess.GaussianBlur;
 import cientistavuador.newrenderingpipeline.util.postprocess.MarginAutomata;
@@ -736,10 +735,10 @@ public class Lightmapper {
     }
 
     private void bakeDirect() {
-        if (this.scene.isFastModeEnabled() && (this.light instanceof Scene.EmissiveLight || this.light instanceof Scene.AmbientLight)) {
+        if ((this.scene.isFastModeEnabled() || !this.scene.isShadowsEnabled()) && this.light instanceof Scene.EmissiveLight) {
             return;
         }
-
+        
         setStatus(getGroupName() + " - Baking Direct - " + this.lightIndex + ", " + this.light.getClass().getSimpleName(), this.lightmapSize);
         for (int i = 0; i < this.lightmapSize; i += this.numberOfThreads) {
             List<Future<?>> tasks = new ArrayList<>();
@@ -788,7 +787,7 @@ public class Lightmapper {
                                     outLightDirection, outLightDirectColor,
                                     this.scene.getDirectLightingAttenuation()
                             );
-
+                            
                             totalColor.add(outLightDirectColor);
                             samplesPassed++;
                         }
@@ -898,7 +897,11 @@ public class Lightmapper {
     }
 
     private void bakeShadow() {
-        if (this.scene.isFastModeEnabled() && (this.light instanceof Scene.EmissiveLight || this.light instanceof Scene.AmbientLight)) {
+        if (!this.scene.isShadowsEnabled()) {
+            return;
+        }
+        
+        if (this.scene.isFastModeEnabled() && this.light instanceof Scene.EmissiveLight) {
             return;
         }
 
@@ -938,7 +941,13 @@ public class Lightmapper {
                             if ((sampleState & FILLED) == 0 || (sampleState & IGNORE_SHADOW) != 0) {
                                 continue;
                             }
-
+                            
+                            if ((this.scene.isFastModeEnabled() || (!this.scene.isIndirectLightingEnabled() && this.scene.fillEmptyValuesWithLightColors())) && this.light instanceof Scene.AmbientLight) {
+                                totalShadow.add(1f, 1f, 1f);
+                                samplesPassed++;
+                                continue;
+                            }
+                            
                             this.weights.read(sampleWeights, x, y, s);
                             int triangle = this.triangles.read(x, y, s);
 
@@ -1173,6 +1182,10 @@ public class Lightmapper {
     }
 
     private void generateDirectMargins() {
+        if ((this.scene.isFastModeEnabled() || !this.scene.isShadowsEnabled()) && this.light instanceof Scene.EmissiveLight) {
+            return;
+        }
+        
         setStatus(getGroupName() + " - Generating Direct Margins - " + this.lightIndex + ", " + this.light.getClass().getSimpleName(), this.lightmapRectangles.length);
         for (int i = 0; i < this.lightmapRectangles.length; i++) {
             MarginAutomata.MarginAutomataIO io = createAutomataIO(
@@ -1184,6 +1197,14 @@ public class Lightmapper {
     }
 
     private void generateShadowMargins() {
+        if (!this.scene.isShadowsEnabled()) {
+            return;
+        }
+        
+        if (this.scene.isFastModeEnabled() && this.light instanceof Scene.EmissiveLight) {
+            return;
+        }
+        
         setStatus(getGroupName() + " - Generating Shadow Margins - " + this.lightIndex + ", " + this.light.getClass().getSimpleName(), this.lightmapRectangles.length);
         for (int i = 0; i < this.lightmapRectangles.length; i++) {
             MarginAutomata.MarginAutomataIO io = createAutomataIO(
@@ -1236,6 +1257,18 @@ public class Lightmapper {
     }
 
     private void denoiseShadow() {
+        if (!this.scene.isShadowsEnabled()) {
+            return;
+        }
+        
+        if (this.scene.isFastModeEnabled() && this.light instanceof Scene.EmissiveLight) {
+            return;
+        }
+        
+        if (this.scene.isFastModeEnabled()) {
+            return;
+        }
+
         float blurArea = this.scene.getShadowBlurArea();
         if (this.light instanceof Scene.EmissiveLight emissiveLight) {
             blurArea = emissiveLight.getEmissiveBlurArea();
@@ -1245,7 +1278,7 @@ public class Lightmapper {
         if (blurArea == 0f) {
             return;
         }
-
+        
         setStatus(getGroupName() + " - Denoising Shadow - " + this.lightIndex + ", " + this.light.getClass().getSimpleName(), this.lightmapRectangles.length);
         for (int i = 0; i < this.lightmapRectangles.length; i++) {
             GaussianBlur.GaussianIO io = createGaussianIO(this.lightmapRectangles[i], this.shadow);
@@ -1265,7 +1298,11 @@ public class Lightmapper {
         for (int y = 0; y < this.lightmapSize; y++) {
             for (int x = 0; x < this.lightmapSize; x++) {
                 this.direct.read(directLight, x, y);
-                this.shadow.read(shadowLight, x, y);
+                if (this.scene.isShadowsEnabled()) {
+                    this.shadow.read(shadowLight, x, y);
+                } else {
+                    shadowLight.set(1f);
+                }
                 this.lightmap.read(currentLight, x, y);
 
                 resultLight.set(directLight).mul(shadowLight).add(currentLight);
@@ -1279,8 +1316,149 @@ public class Lightmapper {
         this.shadow = null;
     }
 
+    private class IndirectRay {
+
+        Vector4f color;
+        Vector3f light;
+
+        IndirectRay reflected;
+        IndirectRay refracted;
+    }
+
+    private IndirectRay testIndirect(Vector3f position, Vector3f direction, int depth) {
+        if (depth >= this.scene.getIndirectBounces()) {
+            return null;
+        }
+
+        List<LocalRayResult> opaqueRays = this.opaqueBVH.testRay(position, direction);
+        List<LocalRayResult> alphaRays = this.alphaBVH.testRay(position, direction);
+
+        addRay();
+        addRay();
+
+        List<LocalRayResult> rays = new ArrayList<>();
+
+        rays.addAll(opaqueRays);
+        rays.addAll(alphaRays);
+
+        rays.sort((o1, o2) -> Float.compare(o1.getLocalDistance(), o2.getLocalDistance()));
+
+        if (rays.isEmpty()) {
+            return null;
+        }
+
+        Vector3f rayWeights = new Vector3f();
+        Vector4f rayColor = new Vector4f();
+        Vector3f rayLight = new Vector3f();
+        Vector3f rayNormal = new Vector3f();
+
+        IndirectRay firstRay = new IndirectRay();
+
+        IndirectRay currentRay = firstRay;
+        for (int i = 0; i < rays.size(); i++) {
+            if (i != 0) {
+                currentRay.refracted = new IndirectRay();
+                currentRay = currentRay.refracted;
+            }
+
+            LocalRayResult ray = rays.get(i);
+            ray.weights(rayWeights);
+
+            float lu = ray.lerp(rayWeights, OFFSET_LIGHTMAP_XY + 0);
+            float lv = ray.lerp(rayWeights, OFFSET_LIGHTMAP_XY + 1);
+
+            int tx = Math.min(Math.max((int) (lu * this.lightmapSize), 0), this.lightmapSize - 1);
+            int ty = Math.min(Math.max((int) (lv * this.lightmapSize), 0), this.lightmapSize - 1);
+
+            this.textureColors.read(rayColor, tx, ty);
+            this.lightmap.read(rayLight, tx, ty);
+
+            rayNormal.set(
+                    ray.lerp(rayWeights, OFFSET_TRIANGLE_NORMAL_XYZ + 0),
+                    ray.lerp(rayWeights, OFFSET_TRIANGLE_NORMAL_XYZ + 1),
+                    ray.lerp(rayWeights, OFFSET_TRIANGLE_NORMAL_XYZ + 2)
+            );
+
+            if (!ray.frontFace()) {
+                rayNormal.negate();
+            }
+
+            currentRay.color = new Vector4f(rayColor);
+            currentRay.light = new Vector3f(rayLight);
+
+            if (currentRay.color.w() > 0f) {
+                currentRay.reflected = testIndirect(
+                        new Vector3f(ray.getLocalHitPosition())
+                                .add(
+                                        rayNormal.x() * this.scene.getRayOffset(),
+                                        rayNormal.y() * this.scene.getRayOffset(),
+                                        rayNormal.z() * this.scene.getRayOffset()
+                                ),
+                        new Vector3f(direction).reflect(rayNormal),
+                        depth + 1
+                );
+            }
+
+            if (currentRay.color.w() >= 1f) {
+                break;
+            }
+        }
+
+        return firstRay;
+    }
+
+    private Vector3f collapseIndirectRay(IndirectRay ray) {
+        List<IndirectRay> rays = new ArrayList<>();
+
+        {
+            IndirectRay currentRay = ray;
+            do {
+                rays.add(currentRay);
+                currentRay = currentRay.refracted;
+            } while (currentRay != null);
+        }
+
+        Vector3f totalLightColor = new Vector3f(0f);
+        Vector3f lightColor = new Vector3f();
+        for (int i = (rays.size() - 1); i >= 0; i--) {
+            IndirectRay currentRay = rays.get(i);
+
+            totalLightColor.mul(
+                    ((currentRay.color.x() * currentRay.color.w()) + (1f - currentRay.color.w())) * (1f - currentRay.color.w()),
+                    ((currentRay.color.y() * currentRay.color.w()) + (1f - currentRay.color.w())) * (1f - currentRay.color.w()),
+                    ((currentRay.color.z() * currentRay.color.w()) + (1f - currentRay.color.w())) * (1f - currentRay.color.w())
+            );
+
+            lightColor
+                    .set(currentRay.light);
+
+            if (currentRay.reflected != null) {
+                lightColor.add(
+                        collapseIndirectRay(currentRay.reflected)
+                );
+            }
+
+            lightColor.mul(
+                    currentRay.color.x() * currentRay.color.w(),
+                    currentRay.color.y() * currentRay.color.w(),
+                    currentRay.color.z() * currentRay.color.w()
+            );
+
+            totalLightColor.add(lightColor);
+        }
+
+        return totalLightColor;
+    }
+
     private void bakeIndirect() {
-        //todo: blending
+        if (!this.scene.isIndirectLightingEnabled()) {
+            return;
+        }
+        
+        if (this.scene.isFastModeEnabled()) {
+            return;
+        }
+
         setStatus(getGroupName() + " - Baking Indirect", this.lightmapSize);
         for (int i = 0; i < this.lightmapSize; i += this.numberOfThreads) {
             List<Future<?>> tasks = new ArrayList<>();
@@ -1298,16 +1476,6 @@ public class Lightmapper {
                     Vector3f normal = new Vector3f();
                     Vector3f position = new Vector3f();
                     Vector3f direction = new Vector3f();
-
-                    Vector3f rayWeights = new Vector3f();
-
-                    Vector4f texture = new Vector4f();
-
-                    Vector3f rayNormal = new Vector3f();
-                    Vector3f rayPosition = new Vector3f();
-                    Vector3f rayDirection = new Vector3f();
-
-                    Vector3f indirectLight = new Vector3f();
 
                     int numSamples = this.scene.getSamplingMode().numSamples();
                     for (int x = 0; x < this.lightmapSize; x++) {
@@ -1341,69 +1509,12 @@ public class Lightmapper {
 
                             for (int k = 0; k < this.scene.getIndirectRaysPerSample(); k++) {
                                 randomDirection(normal, direction);
-
-                                rayPosition.set(position);
-                                rayDirection.set(direction);
-
-                                List<Pair<Vector3f, Vector3f>> rays = new ArrayList<>();
-                                for (int l = 0; l < this.scene.getIndirectBounces(); l++) {
-                                    List<LocalRayResult> results = this.opaqueBVH.testRaySorted(
-                                            rayPosition,
-                                            rayDirection,
-                                            false
-                                    );
-                                    addRay();
-                                    if (results.isEmpty()) {
-                                        break;
-                                    }
-                                    LocalRayResult closest = results.get(0);
-                                    closest.weights(rayWeights);
-
-                                    float lu = closest.lerp(rayWeights, OFFSET_LIGHTMAP_XY + 0);
-                                    float lv = closest.lerp(rayWeights, OFFSET_LIGHTMAP_XY + 1);
-
-                                    int tx = Math.min(Math.max((int) (lu * this.lightmapSize), 0), this.lightmapSize - 1);
-                                    int ty = Math.min(Math.max((int) (lv * this.lightmapSize), 0), this.lightmapSize - 1);
-
-                                    Vector3f textureColor = new Vector3f();
-                                    Vector3f lightColor = new Vector3f();
-
-                                    this.textureColors.read(texture, tx, ty);
-
-                                    textureColor.set(texture.x(), texture.y(), texture.z());
-                                    this.lightmap.read(lightColor,
-                                            clamp((int) (lu * this.lightmapSize), 0, this.lightmapSize - 1),
-                                            clamp((int) (lv * this.lightmapSize), 0, this.lightmapSize - 1)
-                                    );
-
-                                    rays.add(new Pair<>(textureColor, lightColor));
-
-                                    rayPosition.set(closest.getLocalHitPosition());
-                                    rayNormal.set(
-                                            closest.lerp(rayWeights, OFFSET_TRIANGLE_NORMAL_XYZ + 0),
-                                            closest.lerp(rayWeights, OFFSET_TRIANGLE_NORMAL_XYZ + 1),
-                                            closest.lerp(rayWeights, OFFSET_TRIANGLE_NORMAL_XYZ + 2)
-                                    );
-                                    if (!closest.frontFace()) {
-                                        rayNormal.negate();
-                                    }
-                                    rayDirection.reflect(rayNormal);
-
-                                    rayPosition.add(rayNormal.mul(this.scene.getRayOffset()));
-                                }
-
-                                for (int l = 0; l < rays.size(); l++) {
-                                    Pair<Vector3f, Vector3f> currentRay = rays.get(l);
-                                    indirectLight.set(currentRay.getA()).mul(currentRay.getB());
-
-                                    for (int m = 0; m < l; m++) {
-                                        indirectLight.mul(rays.get(m).getA());
-                                    }
-
-                                    totalIndirect.add(indirectLight.mul(this.scene.getIndirectLightReflectionFactor()));
+                                IndirectRay indirect = testIndirect(position, direction, 0);
+                                if (indirect != null) {
+                                    totalIndirect.add(collapseIndirectRay(indirect).mul(this.scene.getIndirectLightReflectionFactor()));
                                 }
                             }
-                            samplesPassed += this.scene.getShadowRaysPerSample();
+                            samplesPassed += this.scene.getIndirectRaysPerSample();
                         }
                         if (samplesPassed != 0) {
                             totalIndirect.div(samplesPassed);
@@ -1426,6 +1537,14 @@ public class Lightmapper {
     }
 
     private void generateIndirectMargins() {
+        if (!this.scene.isIndirectLightingEnabled()) {
+            return;
+        }
+        
+        if (this.scene.isFastModeEnabled()) {
+            return;
+        }
+        
         setStatus(getGroupName() + " - Generating Indirect Margins", this.lightmapRectangles.length);
         for (int i = 0; i < this.lightmapRectangles.length; i++) {
             MarginAutomata.MarginAutomataIO io = createAutomataIO(
@@ -1437,6 +1556,14 @@ public class Lightmapper {
     }
 
     private void denoiseIndirect() {
+        if (!this.scene.isIndirectLightingEnabled()) {
+            return;
+        }
+        
+        if (this.scene.isFastModeEnabled()) {
+            return;
+        }
+
         float blurArea = this.scene.getIndirectLightingBlurArea();
         if (blurArea == 0f) {
             return;
@@ -1450,17 +1577,25 @@ public class Lightmapper {
     }
 
     private void outputIndirect() {
+        if (this.scene.isFastModeEnabled()) {
+            return;
+        }
+        
         Vector3f directLight = new Vector3f();
         Vector3f indirectLight = new Vector3f();
 
         setStatus(getGroupName() + " - Writing Indirect to Lightmap", this.lightmapSize);
         for (int y = 0; y < this.lightmapSize; y++) {
             for (int x = 0; x < this.lightmapSize; x++) {
-                this.lightmap.read(directLight, x, y);
                 this.lightmapIndirect.read(indirectLight, x, y);
-
-                directLight.add(indirectLight);
-
+                
+                if (!this.scene.isDirectLightingEnabled()) {
+                    directLight.set(indirectLight);
+                } else {
+                    this.lightmap.read(directLight, x, y);
+                    directLight.add(indirectLight);
+                }
+                
                 this.lightmap.write(directLight, x, y);
             }
             addProgress(1);
@@ -1659,19 +1794,15 @@ public class Lightmapper {
                     generateDirectMargins();
                     generateShadowMargins();
 
-                    if (!this.scene.isFastModeEnabled()) {
-                        denoiseShadow();
-                    }
+                    denoiseShadow();
 
                     outputLight();
                 }
-                
-                if (!this.scene.isFastModeEnabled()) {
-                    bakeIndirect();
-                    generateIndirectMargins();
-                    denoiseIndirect();
-                    outputIndirect();
-                }
+
+                bakeIndirect();
+                generateIndirectMargins();
+                denoiseIndirect();
+                outputIndirect();
 
                 outputLightmap();
             }

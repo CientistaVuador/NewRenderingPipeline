@@ -103,14 +103,14 @@ public class Game {
     };
 
     private NCubemaps cubemaps;
-    
+
     private final NMap map;
     private final N3DObject triceratops;
     private final N3DObject plasticBall;
-    
+
     private final NLight.NSpotLight flashlight = new NLight.NSpotLight("flashlight");
     private final List<NLight> lights = new ArrayList<>();
-    
+
     private final PhysicsSpace physicsSpace = new PhysicsSpace(PhysicsSpace.BroadphaseType.DBVT);
     private final PlayerController playerController = new PlayerController();
 
@@ -141,17 +141,17 @@ public class Game {
             }
 
             this.map = new NMap("map", mapObjects, NMap.DEFAULT_LIGHTMAP_MARGIN, 1f / 0.2f);
-            
+
             this.triceratops.setMap(this.map);
             this.plasticBall.setMap(this.map);
-            
+
             System.out.println(this.map.getLightmapSize());
-            
-            this.flashlight.setInnerConeAngle(30f);
+
+            this.flashlight.setInnerConeAngle(10f);
             this.flashlight.setOuterConeAngle(40f);
             this.flashlight.setDiffuseSpecularAmbient(1f);
             this.lights.add(this.flashlight);
-            
+
             {
                 NLight.NDirectionalLight sun = new NLight.NDirectionalLight("sun");
                 sun.getDirection().set(0.46f, -0.71f, 0.53f);
@@ -192,12 +192,12 @@ public class Game {
                     spot.setDiffuseSpecularAmbient(10f);
                     this.lights.add(spot);
                 }
-                
+
                 {
                     NLight.NPointLight point = new NLight.NPointLight("point");
                     point.getPosition().set(-0.28f, 4.61f, 2.53f);
                     point.setDynamic(false);
-                    point.setDiffuseSpecularAmbient(20f);
+                    point.setDiffuseSpecularAmbient(10f);
                     this.lights.add(point);
                 }
                 
@@ -207,10 +207,10 @@ public class Game {
         }
 
         this.cubemaps = new NCubemaps(this.skybox, null);
-        
+
         this.camera.setMovementDisabled(true);
         this.playerController.getCharacterController().addToPhysicsSpace(this.physicsSpace);
-        
+
         this.physicsSpace.setGravity(new com.jme3.math.Vector3f(0f, -9.8f * Main.TO_PHYSICS_ENGINE_UNITS, 0f));
         this.physicsSpace.addCollisionObject(new PhysicsRigidBody(this.map.getMeshCollision(), 0f));
     }
@@ -228,29 +228,29 @@ public class Game {
     public void loop() {
         this.camera.updateMovement();
         this.camera.updateUBO();
-        
+
         this.playerController.update(this.camera.getFront(), this.camera.getRight());
-        
+
         this.camera.setPosition(
                 this.playerController.getEyePosition().x(),
                 this.playerController.getEyePosition().y(),
                 this.playerController.getEyePosition().z()
         );
-        
+
         this.physicsSpace.update((float) Main.TPF);
-        
+
         if (this.playerController.getCharacterController().getPosition().y() < -10f) {
             this.playerController.getCharacterController().setPosition(0f, 0.1f, 0f);
         }
-        
+
         this.triceratops.getAnimator().update(Main.TPF);
-        
+
         this.plasticBallRotation.rotateY((float) (Main.TPF * 0.5));
         this.plasticBall.getPosition().set(this.plasticBallRotation).mul(3f).add(15.29, 1.95, -9.52);
-        
+
         this.flashlight.getPosition().set(this.camera.getPosition());
         this.flashlight.getDirection().set(this.camera.getFront());
-        
+
         for (int i = 0; i < this.map.getNumberOfObjects(); i++) {
             N3DObjectRenderer.queueRender(this.map.getObject(i));
         }
@@ -259,10 +259,10 @@ public class Game {
         N3DObjectRenderer.queueRender(this.plasticBall);
 
         N3DObjectRenderer.render(this.camera, this.lights, this.cubemaps);
-        
+
         AabRender.renderQueue(this.camera);
         LineRender.renderQueue(this.camera);
-        
+
         if (this.status != null && this.status.getTask().isDone()) {
             try {
                 this.status.getTask().get();
@@ -270,7 +270,7 @@ public class Game {
                 throw new RuntimeException(ex);
             }
         }
-        
+
         if (this.status != null && !this.status.getTask().isDone()) {
             String text = this.status.getStatus() + '\n'
                     + String.format("%,.2f", this.status.getRaysPerSecond()) + " Rays Per Second" + '\n'
@@ -312,25 +312,25 @@ public class Game {
         }
         if (key == GLFW_KEY_B && action == GLFW_PRESS) {
             Scene scene = new Scene();
-            
+
             Scene.EmissiveLight emissive = new Scene.EmissiveLight();
             scene.getLights().add(emissive);
-            
+
             Scene.AmbientLight ambient = new Scene.AmbientLight();
             ambient.setDiffuse(
-                    this.skybox.getCubemapColor().x() * 3f,
-                    this.skybox.getCubemapColor().y() * 3f,
-                    this.skybox.getCubemapColor().z() * 3f
+                    this.skybox.getCubemapColor().x() * 2f,
+                    this.skybox.getCubemapColor().y() * 2f,
+                    this.skybox.getCubemapColor().z() * 2f
             );
             scene.getLights().add(ambient);
-            
+
             for (NLight light : this.lights) {
                 if (light.isDynamic()) {
                     continue;
                 }
                 scene.getLights().add(NMap.convertLight(light));
             }
-            
+
             this.status = this.map.bake(scene);
         }
         if (key == GLFW_KEY_C && action == GLFW_PRESS) {

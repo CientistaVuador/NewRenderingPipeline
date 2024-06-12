@@ -60,6 +60,8 @@ public class CharacterController implements PhysicsTickListener {
         NO_OUTSIDE_OF_GROUND_THRESHOLD;
     }
     
+    public static final float FILTER_TOLERANCE = 0.02f;
+    
     public static final float EPSILON = 0.001f;
 
     public static final float TEST_BOX_HEIGHT = 0.01f;
@@ -657,10 +659,10 @@ public class CharacterController implements PhysicsTickListener {
             } else {
                 e.getHitNormalLocal(this.filterNormal);
             }
-
-            boolean ceiling = this.filterNormal.y < -0.008f;
-            boolean wall = this.filterNormal.y >= -0.008f && this.filterNormal.y <= 0.008f;
-            boolean floor = this.filterNormal.y > 0.008f;
+            
+            boolean ceiling = this.filterNormal.y < -FILTER_TOLERANCE;
+            boolean wall = this.filterNormal.y >= -FILTER_TOLERANCE && this.filterNormal.y <= FILTER_TOLERANCE;
+            boolean floor = this.filterNormal.y > FILTER_TOLERANCE;
             boolean threshold = this.filterNormal.dot(com.jme3.math.Vector3f.UNIT_Y) >= this.groundThreshold;
 
             boolean removed = true;
@@ -1140,6 +1142,10 @@ public class CharacterController implements PhysicsTickListener {
     }
 
     private void blockTunneling(PhysicsSpace space) {
+        if (physicsVelocity().length() < 1f) {
+            return;
+        }
+        
         com.jme3.math.Vector3f position = physicsPosition();
         float physicsHeight = physicsHeight();
         float physicsRadius = physicsRadius();
