@@ -57,7 +57,7 @@ public class NCubemapRenderer {
 
         int rboDepthStencil = glGenRenderbuffers();
         glBindRenderbuffer(GL_RENDERBUFFER, rboDepthStencil);
-        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH32F_STENCIL8, fboSize, fboSize);
+        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, fboSize, fboSize);
 
         glBindRenderbuffer(GL_RENDERBUFFER, 0);
 

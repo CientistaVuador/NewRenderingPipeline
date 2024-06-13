@@ -105,6 +105,8 @@ public class MarginAutomata {
 
     private float[] nextColorMap = null;
     private boolean[] nextEmptyMap = null;
+    
+    private boolean[] activeMap = null;
 
     private MarginAutomata(MarginAutomataIO io, int iterations) {
         this.io = io;
@@ -117,12 +119,9 @@ public class MarginAutomata {
     public void load() {
         this.width = this.io.width();
         this.height = this.io.height();
-
+        
         this.colorMap = new float[this.width * this.height * 4];
         this.emptyMap = new boolean[this.width * this.height];
-
-        this.nextColorMap = new float[this.width * this.height * 4];
-        this.nextEmptyMap = new boolean[this.width * this.height];
 
         MarginAutomataColor color = new MarginAutomataColor();
 
@@ -146,6 +145,11 @@ public class MarginAutomata {
                 this.colorMap[colorIndex + 3] = color.a;
             }
         }
+        
+        this.nextColorMap = this.colorMap.clone();
+        this.nextEmptyMap = this.emptyMap.clone();
+        
+        this.activeMap = this.emptyMap.clone();
     }
 
     private void logStatus(int current) {
@@ -165,6 +169,10 @@ public class MarginAutomata {
 
             int emptyIndex = x + (y * this.width);
             int colorIndex = (x * 4) + (y * this.width * 4);
+            
+            if (!this.activeMap[emptyIndex]) {
+                continue;
+            }
 
             if (!this.emptyMap[emptyIndex]) {
                 System.arraycopy(
@@ -175,6 +183,7 @@ public class MarginAutomata {
                         4
                 );
                 this.nextEmptyMap[emptyIndex] = false;
+                this.activeMap[emptyIndex] = false;
                 continue;
             }
 

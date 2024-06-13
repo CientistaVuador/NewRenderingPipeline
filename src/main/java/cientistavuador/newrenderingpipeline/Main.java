@@ -461,7 +461,16 @@ public class Main {
         glClearStencil(0);
         glCullFace(GL_BACK);
         glLineWidth(1f);
+        
+        glPixelStorei(GL_UNPACK_SWAP_BYTES, GL_FALSE);
+        glPixelStorei(GL_UNPACK_LSB_FIRST, GL_FALSE);
+        glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+        glPixelStorei(GL_UNPACK_SKIP_ROWS, 0);
+        glPixelStorei(GL_UNPACK_SKIP_PIXELS, 0);
         glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+        glPixelStorei(GL_UNPACK_IMAGE_HEIGHT, 0);
+        glPixelStorei(GL_UNPACK_SKIP_IMAGES, 0);
+        
         glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
         int maxUBOBindings = glGetInteger(GL_MAX_UNIFORM_BUFFER_BINDINGS);
         if (maxUBOBindings < MIN_UNIFORM_BUFFER_BINDINGS) {

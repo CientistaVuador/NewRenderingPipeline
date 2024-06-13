@@ -50,9 +50,9 @@ import org.lwjgl.opengl.KHRDebug;
  * @author Cien
  */
 public class NLightmaps {
-    
+
     private static final AtomicLong textureIds = new AtomicLong();
-    
+
     public static final NLightmaps NULL_LIGHTMAPS = new NLightmaps(
             "Empty/Null Lightmaps", new String[]{"None"}, 0,
             new float[]{0f, 0f, 0f}, 1, 1,
@@ -281,13 +281,13 @@ public class NLightmaps {
         int y = (int) (v * this.colorMapHeight);
         x = Math.min(Math.max(x, 0), this.colorMapWidth - 1);
         y = Math.min(Math.max(y, 0), this.colorMapHeight - 1);
-        
+
         int pixelIndex = (x * 4) + (y * this.colorMapWidth * 4);
         float r = ((this.colorMap[0 + pixelIndex] & 0xFF) / 255f);
         float g = ((this.colorMap[1 + pixelIndex] & 0xFF) / 255f);
         float b = ((this.colorMap[2 + pixelIndex] & 0xFF) / 255f);
         float a = ((this.colorMap[3 + pixelIndex] & 0xFF) / 255f);
-        
+
         outColor.set(r, g, b, a);
     }
 
@@ -326,11 +326,18 @@ public class NLightmaps {
         }
 
         int internalFormat = GL_R11F_G11F_B10F;
-        if (Main.isSupported(4, 2)) {
-            internalFormat = GL42C.GL_COMPRESSED_RGB_BPTC_UNSIGNED_FLOAT;
-        }
-        if (GL.getCapabilities().GL_ARB_texture_compression_bptc) {
-            internalFormat = ARBTextureCompressionBPTC.GL_COMPRESSED_RGB_BPTC_UNSIGNED_FLOAT_ARB;
+
+        /*
+        it looks like the bptc compressor on amd cards does
+        not work correctly
+        */
+        String vendor = glGetString(GL_VENDOR);
+        if (vendor != null && vendor.toLowerCase().contains("nvidia")) {
+            if (Main.isSupported(4, 2)) {
+                internalFormat = GL42C.GL_COMPRESSED_RGB_BPTC_UNSIGNED_FLOAT;
+            } else if (GL.getCapabilities().GL_ARB_texture_compression_bptc) {
+                internalFormat = ARBTextureCompressionBPTC.GL_COMPRESSED_RGB_BPTC_UNSIGNED_FLOAT_ARB;
+            }
         }
 
         int maxLod = (int) Math.abs(

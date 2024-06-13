@@ -37,6 +37,7 @@ import java.text.ParseException;
 import java.util.function.Consumer;
 import javax.swing.DefaultComboBoxModel;
 import javax.swing.ImageIcon;
+import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JFormattedTextField;
@@ -544,6 +545,10 @@ public class BakePopup extends javax.swing.JFrame {
         return indirectReflectionFactor;
     }
 
+    public JButton getBakeButton() {
+        return bakeButton;
+    }
+    
     // Variables declaration - do not modify//GEN-BEGIN:variables
     private javax.swing.JButton bakeButton;
     private javax.swing.JFormattedTextField directAttenuation;

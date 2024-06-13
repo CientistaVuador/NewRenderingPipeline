@@ -34,7 +34,37 @@ import java.util.Arrays;
  * @author Cien
  */
 public class StringUtils {
-
+    
+    public static String formatMemory(long bytes) {
+        int unit = 0;
+        long memory = bytes;
+        for (int i = 0; i < Integer.MAX_VALUE; i++) {
+            memory /= 1000;
+            if (memory > 0) {
+                unit++;
+            } else {
+                break;
+            }
+        }
+        memory = bytes;
+        String value = String.format("%.2f", memory / Math.pow(1000.0, unit));
+        switch (unit) {
+            case 0 ->
+                value += " B";
+            case 1 ->
+                value += " KB";
+            case 2 ->
+                value += " MB";
+            case 3 ->
+                value += " GB";
+            case 4 ->
+                value += " TB";
+            default ->
+                value += " * " + Math.pow(1000.0, unit) + " B";
+        }
+        return value;
+    }
+    
     public static String truncateStringTo255Bytes(String string) {
         return truncateStringBytes(string, 255);
     }

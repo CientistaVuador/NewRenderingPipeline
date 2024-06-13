@@ -50,12 +50,12 @@ import org.lwjgl.opengl.KHRDebug;
  * @author Cien
  */
 public class NCubemap {
-    
+
     public static final NCubemap NULL_CUBEMAP = new NCubemap(
             "Null/Error Cubemap",
             null, null, null,
             4,
-            new float[] {
+            new float[]{
                 0f, 0f, 0f, 1f, 0f, 1f, 0f, 0f, 0f, 1f, 0f, 1f,
                 1f, 0f, 1f, 0f, 0f, 0f, 1f, 0f, 1f, 0f, 0f, 0f,
                 0f, 0f, 0f, 1f, 0f, 1f, 0f, 0f, 0f, 1f, 0f, 1f,
@@ -82,12 +82,12 @@ public class NCubemap {
                 1f, 0f, 1f, 0f, 0f, 0f, 1f, 0f, 1f, 0f, 0f, 0f
             }
     );
-    
+
     public static final NCubemap EMPTY_CUBEMAP = new NCubemap(
             "Empty Cubemap",
             null, null, null,
             1,
-            new float[] {
+            new float[]{
                 0f, 0f, 0f,
                 0f, 0f, 0f,
                 0f, 0f, 0f,
@@ -96,7 +96,7 @@ public class NCubemap {
                 0f, 0f, 0f
             }
     );
-    
+
     public static final int SIDES = 6;
 
     public static final int POSITIVE_X = 0;
@@ -122,7 +122,7 @@ public class NCubemap {
     private final int size;
     private final float[] cubemap;
     private float intensity = 1f;
-    
+
     private final WrappedCubemap wrappedCubemap;
 
     public NCubemap(
@@ -154,7 +154,7 @@ public class NCubemap {
             for (float f : this.cubemap) {
                 data.putFloat(f);
             }
-            
+
             data.flip();
 
             sha256 = CryptoUtils.sha256(data);
@@ -166,7 +166,7 @@ public class NCubemap {
 
         this.name = name;
         this.sha256 = sha256;
-        
+
         if (cubemapColor == null) {
             double r = 0f;
             double g = 0f;
@@ -266,11 +266,18 @@ public class NCubemap {
             glBindTexture(GL_TEXTURE_CUBE_MAP, cubemapTexture);
 
             int internalFormat = GL_R11F_G11F_B10F;
-            if (Main.isSupported(4, 2)) {
-                internalFormat = GL42C.GL_COMPRESSED_RGB_BPTC_UNSIGNED_FLOAT;
-            }
-            if (GL.getCapabilities().GL_ARB_texture_compression_bptc) {
-                internalFormat = ARBTextureCompressionBPTC.GL_COMPRESSED_RGB_BPTC_UNSIGNED_FLOAT_ARB;
+            
+            /*
+            it looks like the bptc compressor on amd cards does
+            not work correctly
+            */
+            String vendor = glGetString(GL_VENDOR);
+            if (vendor != null && vendor.toLowerCase().contains("nvidia")) {
+                if (Main.isSupported(4, 2)) {
+                    internalFormat = GL42C.GL_COMPRESSED_RGB_BPTC_UNSIGNED_FLOAT;
+                } else if (GL.getCapabilities().GL_ARB_texture_compression_bptc) {
+                    internalFormat = ARBTextureCompressionBPTC.GL_COMPRESSED_RGB_BPTC_UNSIGNED_FLOAT_ARB;
+                }
             }
 
             uploadCubemapSide(internalFormat, GL_TEXTURE_CUBE_MAP_POSITIVE_X, POSITIVE_X, nativeMemory);

@@ -42,10 +42,14 @@ import cientistavuador.newrenderingpipeline.newrendering.NCubemaps;
 import cientistavuador.newrenderingpipeline.newrendering.NLight;
 import cientistavuador.newrenderingpipeline.newrendering.NMap;
 import cientistavuador.newrenderingpipeline.physics.PlayerController;
+import cientistavuador.newrenderingpipeline.popups.BakePopup;
+import cientistavuador.newrenderingpipeline.popups.ContinuePopup;
 import cientistavuador.newrenderingpipeline.text.GLFontRenderer;
 import cientistavuador.newrenderingpipeline.text.GLFontSpecifications;
 import cientistavuador.newrenderingpipeline.ubo.CameraUBO;
 import cientistavuador.newrenderingpipeline.ubo.UBOBindingPoints;
+import cientistavuador.newrenderingpipeline.util.StringUtils;
+import cientistavuador.newrenderingpipeline.util.bakedlighting.Lightmapper;
 import cientistavuador.newrenderingpipeline.util.bakedlighting.Scene;
 import com.jme3.bullet.PhysicsSpace;
 import com.jme3.bullet.objects.PhysicsRigidBody;
@@ -104,12 +108,15 @@ public class Game {
 
     private NCubemaps cubemaps;
 
-    private final NMap map;
+    private NMap map;
     private final N3DObject triceratops;
     private final N3DObject plasticBall;
 
+    private NMap nextMap;
+
     private final NLight.NSpotLight flashlight = new NLight.NSpotLight("flashlight");
     private final List<NLight> lights = new ArrayList<>();
+    private final Scene scene = new Scene();
 
     private final PhysicsSpace physicsSpace = new PhysicsSpace(PhysicsSpace.BroadphaseType.DBVT);
     private final PlayerController playerController = new PlayerController();
@@ -117,7 +124,7 @@ public class Game {
     {
         try {
             this.skybox = NCubemapImporter.loadFromJar("cientistavuador/newrenderingpipeline/resources/image/generic_cubemap2.png", true, false);
-
+            
             List<N3DObject> mapObjects = new ArrayList<>();
 
             {
@@ -144,6 +151,8 @@ public class Game {
 
             this.triceratops.setMap(this.map);
             this.plasticBall.setMap(this.map);
+
+            System.out.println(StringUtils.formatMemory(Lightmapper.approximatedMemoryUsage(this.map.getLightmapSize(), 9)));
 
             System.out.println(this.map.getLightmapSize());
 
@@ -200,10 +209,28 @@ public class Game {
                     point.setDiffuseSpecularAmbient(10f);
                     this.lights.add(point);
                 }
-                
+
             }
         } catch (IOException ex) {
             throw new UncheckedIOException(ex);
+        }
+
+        Scene.EmissiveLight emissive = new Scene.EmissiveLight();
+        this.scene.getLights().add(emissive);
+
+        Scene.AmbientLight ambient = new Scene.AmbientLight();
+        ambient.setDiffuse(
+                this.skybox.getCubemapColor().x() * 2f,
+                this.skybox.getCubemapColor().y() * 2f,
+                this.skybox.getCubemapColor().z() * 2f
+        );
+        this.scene.getLights().add(ambient);
+
+        for (NLight light : this.lights) {
+            if (light.isDynamic()) {
+                continue;
+            }
+            this.scene.getLights().add(NMap.convertLight(light));
         }
 
         this.cubemaps = new NCubemaps(this.skybox, null);
@@ -250,6 +277,11 @@ public class Game {
 
         this.flashlight.getPosition().set(this.camera.getPosition());
         this.flashlight.getDirection().set(this.camera.getFront());
+
+        if (this.nextMap != null) {
+            this.map = this.nextMap;
+            this.nextMap = null;
+        }
 
         for (int i = 0; i < this.map.getNumberOfObjects(); i++) {
             N3DObjectRenderer.queueRender(this.map.getObject(i));
@@ -303,37 +335,71 @@ public class Game {
         if (key == GLFW_KEY_F3 && action == GLFW_PRESS) {
             N3DObjectRenderer.REFLECTIONS_DEBUG = !N3DObjectRenderer.REFLECTIONS_DEBUG;
         }
-        if (key == GLFW_KEY_F && action == GLFW_PRESS) {
-            if (this.flashlight.getDiffuse().x() == 0f) {
-                this.flashlight.setDiffuseSpecularAmbient(1f);
-            } else {
-                this.flashlight.setDiffuseSpecularAmbient(0f);
-            }
-        }
-        if (key == GLFW_KEY_B && action == GLFW_PRESS) {
-            Scene scene = new Scene();
-
-            Scene.EmissiveLight emissive = new Scene.EmissiveLight();
-            scene.getLights().add(emissive);
-
-            Scene.AmbientLight ambient = new Scene.AmbientLight();
-            ambient.setDiffuse(
-                    this.skybox.getCubemapColor().x() * 2f,
-                    this.skybox.getCubemapColor().y() * 2f,
-                    this.skybox.getCubemapColor().z() * 2f
-            );
-            scene.getLights().add(ambient);
-
-            for (NLight light : this.lights) {
-                if (light.isDynamic()) {
-                    continue;
+        if (key == GLFW_KEY_F4 && action == GLFW_PRESS) {
+            bake:
+            {
+                if (this.status != null && !this.status.getTask().isDone()) {
+                    break bake;
                 }
-                scene.getLights().add(NMap.convertLight(light));
-            }
+                
+                if (this.camera.isCaptureMouse()) {
+                    this.camera.pressEscape();
+                }
+                
+                BakePopup.show(
+                        (p) -> {
+                            BakePopup.fromScene(this.scene, p);
+                        },
+                        (p) -> {
+                            p.getBakeButton().setEnabled(false);
+                            
+                            BakePopup.toScene(this.scene, p);
 
-            this.status = this.map.bake(scene);
+                            List<N3DObject> list = new ArrayList<>();
+                            for (int i = 0; i < this.map.getNumberOfObjects(); i++) {
+                                list.add(this.map.getObject(i));
+                            }
+
+                            final NMap newMap = new NMap(
+                                    this.map.getName(),
+                                    list,
+                                    NMap.DEFAULT_LIGHTMAP_MARGIN,
+                                    this.scene.getPixelToWorldRatio()
+                            );
+
+                            this.nextMap = newMap;
+
+                            int size = newMap.getLightmapSize();
+                            long requiredMemory = Lightmapper.approximatedMemoryUsage(size, this.scene.getSamplingMode().numSamples());
+                            
+                            ContinuePopup.show(p,
+                                    "Lightmap Size: " + size + "x" + size + "\n"
+                                    + "Required Memory: " + StringUtils.formatMemory(requiredMemory) + "\n"
+                                    + "\n"
+                                    + "Do you want to continue?",
+                                    (e) -> {
+                                        this.status = newMap.bake(this.scene);
+                                        e.setVisible(false);
+                                        e.dispose();
+                                        
+                                        p.setVisible(false);
+                                        p.dispose();
+                                    },
+                                    (e) -> {
+                                        e.setVisible(false);
+                                        e.dispose();
+                                        
+                                        p.getBakeButton().setEnabled(true);
+                                    }
+                            );
+                        },
+                        (p) -> {
+                            BakePopup.toScene(this.scene, p);
+                        }
+                );
+            }
         }
-        if (key == GLFW_KEY_C && action == GLFW_PRESS) {
+        if (key == GLFW_KEY_F5 && action == GLFW_PRESS) {
             boolean reflectionsEnabled = N3DObjectRenderer.REFLECTIONS_ENABLED;
             boolean reflectionsDebug = N3DObjectRenderer.REFLECTIONS_DEBUG;
 
@@ -368,6 +434,13 @@ public class Game {
             N3DObjectRenderer.SPECULAR_ENABLED = true;
             N3DObjectRenderer.HDR_OUTPUT = false;
             N3DObjectRenderer.REFLECTIONS_DEBUG = reflectionsDebug;
+        }
+        if (key == GLFW_KEY_F && action == GLFW_PRESS) {
+            if (this.flashlight.getDiffuse().x() == 0f) {
+                this.flashlight.setDiffuseSpecularAmbient(1f);
+            } else {
+                this.flashlight.setDiffuseSpecularAmbient(0f);
+            }
         }
         if (key == GLFW_KEY_SPACE && action == GLFW_PRESS) {
             this.playerController.jump();

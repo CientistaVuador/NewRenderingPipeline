@@ -27,8 +27,6 @@
 package cientistavuador.newrenderingpipeline;
 
 import cientistavuador.newrenderingpipeline.natives.Natives;
-import cientistavuador.newrenderingpipeline.newrendering.N3DModel;
-import cientistavuador.newrenderingpipeline.newrendering.N3DModelImporter;
 import cientistavuador.newrenderingpipeline.sound.SoundSystem;
 import cientistavuador.newrenderingpipeline.util.postprocess.MarginAutomata;
 import com.formdev.flatlaf.FlatDarkLaf;
@@ -41,13 +39,13 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.io.UncheckedIOException;
+import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Locale;
 import java.util.UUID;
 import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.regex.Pattern;
 import javax.imageio.ImageIO;
 import javax.swing.JFrame;
@@ -78,8 +76,8 @@ public class MainWrapper {
         FlatDarkLaf.setup();
 
         String osName = System.getProperty("os.name");
-        System.out.println("Running on " + osName);
-
+        System.out.println("Running on " + osName + " - " + ByteOrder.nativeOrder().toString() + " - " + Platform.get());
+        
         try {
             Path path = Natives.extract().toAbsolutePath();
             

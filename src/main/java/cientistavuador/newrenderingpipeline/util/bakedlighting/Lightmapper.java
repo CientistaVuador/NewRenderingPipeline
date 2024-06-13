@@ -52,6 +52,25 @@ import org.joml.primitives.Rectanglei;
  * @author Cien
  */
 public class Lightmapper {
+    
+    public static long approximatedMemoryUsage(int resolution, int samples) {
+        long memory = 0;
+        
+        memory += 12 * resolution * resolution * samples;
+        memory += 4 * resolution * resolution * samples;
+        memory += 4 * resolution * resolution * samples;
+        
+        memory += 4 * resolution * resolution;
+        memory += 3 * resolution * resolution;
+        
+        memory += 12 * resolution * resolution;
+        memory += 12 * resolution * resolution;
+        
+        memory += 12 * resolution * resolution;
+        memory += 12 * resolution * resolution;
+        
+        return memory;
+    }
 
     public static interface TextureInput {
 
@@ -60,6 +79,7 @@ public class Lightmapper {
 
     public static final float EPSILON = 0.0001f;
     public static final int DEFAULT_GAUSSIAN_BLUR_KERNEL_SIZE = 51;
+    public static final int DEFAULT_MARGIN_ITERATIONS = 4;
 
     public static final int OFFSET_POSITION_XYZ = 0;
     public static final int OFFSET_LIGHTMAP_XY = OFFSET_POSITION_XYZ + 3;
@@ -691,7 +711,7 @@ public class Lightmapper {
             MarginAutomata.MarginAutomataIO io = createAutomataIO(
                     this.lightmapRectangles[i], this.textureColors, Lightmapper.EMPTY
             );
-            MarginAutomata.generateMargin(io, -1);
+            MarginAutomata.generateMargin(io, this.lightmapMargin * 2);
             addProgress(1);
         }
     }
@@ -702,7 +722,7 @@ public class Lightmapper {
             MarginAutomata.MarginAutomataIO io = createAutomataIO(
                     this.lightmapRectangles[i], this.textureEmissiveColors, Lightmapper.EMPTY
             );
-            MarginAutomata.generateMargin(io, -1);
+            MarginAutomata.generateMargin(io, this.lightmapMargin * 2);
             addProgress(1);
         }
     }
@@ -1180,22 +1200,7 @@ public class Lightmapper {
 
         return marginIO;
     }
-
-    private void generateDirectMargins() {
-        if ((this.scene.isFastModeEnabled() || !this.scene.isShadowsEnabled()) && this.light instanceof Scene.EmissiveLight) {
-            return;
-        }
-        
-        setStatus(getGroupName() + " - Generating Direct Margins - " + this.lightIndex + ", " + this.light.getClass().getSimpleName(), this.lightmapRectangles.length);
-        for (int i = 0; i < this.lightmapRectangles.length; i++) {
-            MarginAutomata.MarginAutomataIO io = createAutomataIO(
-                    this.lightmapRectangles[i], this.direct, Lightmapper.EMPTY
-            );
-            MarginAutomata.generateMargin(io, -1);
-            addProgress(1);
-        }
-    }
-
+    
     private void generateShadowMargins() {
         if (!this.scene.isShadowsEnabled()) {
             return;
@@ -1210,7 +1215,7 @@ public class Lightmapper {
             MarginAutomata.MarginAutomataIO io = createAutomataIO(
                     this.lightmapRectangles[i], this.shadow, Lightmapper.IGNORE_SHADOW
             );
-            MarginAutomata.generateMargin(io, -1);
+            MarginAutomata.generateMargin(io, DEFAULT_MARGIN_ITERATIONS);
             addProgress(1);
         }
     }
@@ -1229,7 +1234,25 @@ public class Lightmapper {
             public int height() {
                 return rectangle.lengthY();
             }
+            
+            @Override
+            public boolean ignore(int x, int y) {
+                int absX = x + rectangle.minX;
+                int absY = y + rectangle.minY;
+                
+                boolean ignore = true;
+                int numSamples = Lightmapper.this.scene.getSamplingMode().numSamples();
+                for (int s = 0; s < numSamples; s++) {
+                    int state = Lightmapper.this.sampleStates.read(absX, absY, s);
+                    if ((state & Lightmapper.FILLED) != 0) {
+                        ignore = false;
+                        break;
+                    }
+                }
 
+                return ignore;
+            }
+            
             final Vector3f colorVector = new Vector3f();
 
             @Override
@@ -1550,7 +1573,7 @@ public class Lightmapper {
             MarginAutomata.MarginAutomataIO io = createAutomataIO(
                     this.lightmapRectangles[i], this.lightmapIndirect, Lightmapper.IGNORE_AMBIENT
             );
-            MarginAutomata.generateMargin(io, -1);
+            MarginAutomata.generateMargin(io, DEFAULT_MARGIN_ITERATIONS);
             addProgress(1);
         }
     }
@@ -1575,7 +1598,29 @@ public class Lightmapper {
             addProgress(1);
         }
     }
-
+    
+    private void finishIndirectMargins() {
+        setStatus("Finishing Indirect Margins", this.lightmapRectangles.length);
+        for (int i = 0; i < this.lightmapRectangles.length; i++) {
+            MarginAutomata.MarginAutomataIO io = createAutomataIO(
+                    this.lightmapRectangles[i], this.lightmapIndirect, Lightmapper.EMPTY
+            );
+            MarginAutomata.generateMargin(io, this.lightmapMargin * 2);
+            addProgress(1);
+        }
+    }
+    
+    private void finishLightmapMargins() {
+        setStatus("Finishing Lightmap Margins", this.lightmapRectangles.length);
+        for (int i = 0; i < this.lightmapRectangles.length; i++) {
+            MarginAutomata.MarginAutomataIO io = createAutomataIO(
+                    this.lightmapRectangles[i], this.lightmap, Lightmapper.EMPTY
+            );
+            MarginAutomata.generateMargin(io, this.lightmapMargin * 2);
+            addProgress(1);
+        }
+    }
+    
     private void outputIndirect() {
         if (this.scene.isFastModeEnabled()) {
             return;
@@ -1789,21 +1834,23 @@ public class Lightmapper {
                     prepareLight(j);
 
                     bakeDirect();
+                    
                     bakeShadow();
-
-                    generateDirectMargins();
                     generateShadowMargins();
-
                     denoiseShadow();
-
+                    
                     outputLight();
                 }
-
+                
+                finishLightmapMargins();
+                
                 bakeIndirect();
                 generateIndirectMargins();
                 denoiseIndirect();
+                
+                finishIndirectMargins();
+                
                 outputIndirect();
-
                 outputLightmap();
             }
 

@@ -636,7 +636,7 @@ public class NProgram {
                 mat3 TBN = inVertex.TBN;
                 float nx = (hrmnx[3] * 2.0) - 1.0;
                 float ny = (eregebny[3] * 2.0) - 1.0;
-                vec3 normal = normalize(TBN * vec3(nx, ny, sqrt(1.0 - (nx * nx) - (ny * ny))));
+                vec3 normal = normalize(TBN * vec3(nx, ny, sqrt(abs(1.0 - (nx * nx) - (ny * ny)))));
                 
                 float roughness = hrmnx[1];
                 float metallic = hrmnx[2];
@@ -705,7 +705,7 @@ public class NProgram {
                     float fresnel = pow(1.0 - max(dot(fragDirection, vertexNormal), 0.0), fresnelOutline.exponent);
                     finalColor.rgb = mix(finalColor.rgb, fresnelOutline.color, fresnel);
                 }
-                
+            
                 #ifdef IS_ALPHA_TESTING
                 outputFragColor = vec4(finalColor.rgb, 1.0);
                 #endif
