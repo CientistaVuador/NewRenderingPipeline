@@ -135,7 +135,7 @@ public class Game {
 
             {
                 N3DModel model = N3DModelImporter.importFromJarFile("cientistavuador/newrenderingpipeline/cc0_zacxophone_triceratops.glb");
-
+                
                 this.triceratops = new N3DObject("triceratops", model);
                 this.triceratops.getPosition().set(-15f, 0.9f, 3f);
                 this.triceratops.setAnimator(new NAnimator(model, "Armature|Armature|Fall"));
@@ -274,12 +274,16 @@ public class Game {
 
         this.plasticBallRotation.rotateY((float) (Main.TPF * 0.5));
         this.plasticBall.getPosition().set(this.plasticBallRotation).mul(3f).add(15.29, 1.95, -9.52);
-
+        
         this.flashlight.getPosition().set(this.camera.getPosition());
         this.flashlight.getDirection().set(this.camera.getFront());
 
         if (this.nextMap != null) {
             this.map = this.nextMap;
+            
+            this.triceratops.setMap(this.map);
+            this.plasticBall.setMap(this.map);
+            
             this.nextMap = null;
         }
 

@@ -1665,7 +1665,7 @@ public class Lightmapper {
         Vector3f rgb = new Vector3f();
         for (int y = 0; y < this.lightmapSize; y++) {
             for (int x = 0; x < this.lightmapSize; x++) {
-                this.lightmapIndirect.read(rgb, x, y);
+                this.lightmap.read(rgb, x, y);
                 indirectIntensity.max(rgb);
             }
             addProgress(1);
@@ -1674,7 +1674,7 @@ public class Lightmapper {
         setStatus(getGroupName() + " - Generating Indirect Lightmap for CPU Sampling", this.lightmapSize);
         for (int y = 0; y < this.lightmapSize; y++) {
             for (int x = 0; x < this.lightmapSize; x++) {
-                this.lightmapIndirect.read(rgb, x, y);
+                this.lightmap.read(rgb, x, y);
 
                 int red = Math.round((rgb.x() / indirectIntensity.x()) * 255f);
                 int green = Math.round((rgb.y() / indirectIntensity.y()) * 255f);

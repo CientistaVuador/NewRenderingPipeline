@@ -35,7 +35,6 @@ import org.joml.Vector3f;
  */
 public abstract class NLight {
     
-    private final String groupName;
     private final String name;
     
     private final Vector3f diffuse = new Vector3f(1f);
@@ -44,24 +43,13 @@ public abstract class NLight {
     
     private float lightSize = 0.02f;
     private boolean dynamic = true;
+    private String groupName = "";
     
-    public NLight(String groupName, String name) {
-        if (groupName == null) {
-            groupName = "";
-        }
+    public NLight(String name) {
         if (name == null) {
             name = "";
         }
-        this.groupName = groupName;
         this.name = name;
-    }
-    
-    public NLight(String name) {
-        this(null, name);
-    }
-
-    public String getGroupName() {
-        return groupName;
     }
 
     public String getName() {
@@ -106,14 +94,21 @@ public abstract class NLight {
         this.dynamic = dynamic;
     }
     
+    public String getGroupName() {
+        return groupName;
+    }
+    
+    public void setGroupName(String groupName) {
+        if (groupName == null) {
+            groupName = "";
+        }
+        this.groupName = groupName;
+    }
+    
     public static class NDirectionalLight extends NLight {
         
         private final Vector3f direction = new Vector3f(0f, -1f, -0.5f).normalize();
         
-        public NDirectionalLight(String groupName, String name) {
-            super(groupName, name);
-        }
-
         public NDirectionalLight(String name) {
             super(name);
         }
@@ -128,10 +123,6 @@ public abstract class NLight {
         
         private final Vector3d position = new Vector3d();
         
-        public NPointLight(String groupName, String name) {
-            super(groupName, name);
-        }
-
         public NPointLight(String name) {
             super(name);
         }
@@ -149,10 +140,6 @@ public abstract class NLight {
         private float innerCone = (float) Math.cos(Math.toRadians(25f));
         private float outerCone = (float) Math.cos(Math.toRadians(65f));
         
-        public NSpotLight(String groupName, String name) {
-            super(groupName, name);
-        }
-
         public NSpotLight(String name) {
             super(name);
         }

@@ -103,6 +103,12 @@ public class NAmbientCube {
         }
     }
     
+    public void zero() {
+        for (int i = 0; i < NAmbientCube.SIDES; i++) {
+            this.sides[i].zero();
+        }
+    }
+    
     @Override
     public int hashCode() {
         int hash = 5;

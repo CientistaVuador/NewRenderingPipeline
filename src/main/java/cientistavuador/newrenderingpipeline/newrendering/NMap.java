@@ -43,6 +43,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
+import java.util.concurrent.ThreadLocalRandom;
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
@@ -152,7 +153,7 @@ public class NMap {
     private final String name;
     private final N3DObject[] objects;
     private final MeshCollisionShape meshCollision;
-    
+
     private final int lightmapMargin;
     private final float lightmapPixelToWorldRatio;
     private final int lightmapSize;
@@ -334,30 +335,30 @@ public class NMap {
         }
 
         this.objects = resultObjects.toArray(N3DObject[]::new);
-        
+
         for (int i = 0; i < this.objects.length; i++) {
             this.objects[i].setMap(this);
         }
-        
+
         float[] collisionTriangles = new float[(transformedVertices.length / NMesh.VERTEX_SIZE) * 3];
-        
+
         for (int i = 0; i < transformedVertices.length; i += NMesh.VERTEX_SIZE) {
             float x = transformedVertices[i + NMesh.OFFSET_POSITION_XYZ + 0];
             float y = transformedVertices[i + NMesh.OFFSET_POSITION_XYZ + 1];
             float z = transformedVertices[i + NMesh.OFFSET_POSITION_XYZ + 2];
-            
+
             collisionTriangles[0 + (i / NMesh.VERTEX_SIZE) * 3] = x * Main.TO_PHYSICS_ENGINE_UNITS;
             collisionTriangles[1 + (i / NMesh.VERTEX_SIZE) * 3] = y * Main.TO_PHYSICS_ENGINE_UNITS;
             collisionTriangles[2 + (i / NMesh.VERTEX_SIZE) * 3] = z * Main.TO_PHYSICS_ENGINE_UNITS;
         }
-        
+
         Pair<float[], int[]> indexedCollision = MeshUtils.generateIndices(collisionTriangles, 3);
-        
+
         this.meshCollision = new MeshCollisionShape(true, new IndexedMesh(
                 BufferUtils.createFloatBuffer(indexedCollision.getA()),
                 BufferUtils.createIntBuffer(indexedCollision.getB())
         ));
-        
+
     }
 
     public String getName() {
@@ -371,7 +372,7 @@ public class NMap {
     public N3DObject getObject(int index) {
         return this.objects[index];
     }
-    
+
     public MeshCollisionShape getMeshCollision() {
         return meshCollision;
     }
@@ -402,6 +403,9 @@ public class NMap {
 
     public void setLightmaps(NLightmaps lightmaps) {
         this.lightmaps = lightmaps;
+        for (N3DObject obj : this.objects) {
+            obj.setLightmaps(lightmaps);
+        }
     }
 
     public List<NRayResult> testRay(
@@ -418,7 +422,7 @@ public class NMap {
 
         return results;
     }
-    
+
     public void testShadow(
             double pX, double pY, double pZ,
             float dX, float dY, float dZ,
@@ -426,49 +430,173 @@ public class NMap {
             Vector3f outShadow
     ) {
         outShadow.set(1f);
-        
+
         List<NRayResult> alphaResults = testRay(pX, pY, pZ, dX, dY, dZ);
-        
+
         if (alphaResults.isEmpty()) {
             return;
         }
-        
+
         Vector3f rayWeights = new Vector3f();
-        
+
         List<Vector4fc> colors = new ArrayList<>();
         for (NRayResult globalRay : alphaResults) {
             if (Double.isFinite(length) && globalRay.getDistance() > length) {
                 break;
             }
-            
+
             LocalRayResult ray = globalRay.getLocalRay();
-            
+
             ray.weights(rayWeights);
 
             float lu = ray.lerp(rayWeights, NMesh.OFFSET_LIGHTMAP_TEXTURE_XY + 0);
             float lv = ray.lerp(rayWeights, NMesh.OFFSET_LIGHTMAP_TEXTURE_XY + 1);
-            
+
             Vector4f color = new Vector4f(0f, 0f, 0f, 1f);
             if (this.lightmaps != null) {
                 this.lightmaps.sampleColorMap(lu, lv, color);
             }
             colors.add(color);
         }
-        
+
         if (colors.isEmpty()) {
             return;
         }
-        
+
         Vector4f dest = new Vector4f(0f, 0f, 0f, 0f);
         ColorUtils.blend(colors, dest);
-        
+
         outShadow.set(dest.x(), dest.y(), dest.z())
                 .mul(dest.w())
                 .add(1f - dest.w(), 1f - dest.w(), 1f - dest.w())
                 .mul(1f - dest.w());
     }
+
+    private void addToAllExcept(NAmbientCube ambientCube, Vector3fc color, int except) {
+        for (int i = 0; i < NAmbientCube.SIDES; i++) {
+            if (i == except) {
+                continue;
+            }
+            Vector3fc sideColor = ambientCube.getSide(i);
+            ambientCube.setSide(i,
+                    sideColor.x() + color.x(),
+                    sideColor.y() + color.y(),
+                    sideColor.z() + color.z()
+            );
+        }
+    }
+    
+    private void incrementAllExcept(int[] rayCount, int except) {
+        for (int i = 0; i < NAmbientCube.SIDES; i++) {
+            if (i == except) {
+                continue;
+            }
+            rayCount[i]++;
+        }
+    }
     
     public void sampleAmbientCube(
+            Vector3fc ambientColor,
+            double pX, double pY, double pZ,
+            NAmbientCube ambientCube
+    ) {
+        if (this.lightmaps == null) {
+            for (int i = 0; i < NAmbientCube.SIDES; i++) {
+                ambientCube.setSide(i, ambientColor);
+            }
+            return;
+        }
+        
+        ambientCube.zero();
+        
+        final int numberOfRays = 2048;
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+
+        Vector4f textureColor = new Vector4f();
+        Vector3f color = new Vector3f();
+        Vector3f weights = new Vector3f();
+        
+        int[] rayCount = new int[NCubemap.SIDES];
+        
+        for (int j = 0; j < numberOfRays; j++) {
+            float dirX;
+            float dirY;
+            float dirZ;
+            do {
+                dirX = (random.nextFloat() * 2f) - 1f;
+                dirY = (random.nextFloat() * 2f) - 1f;
+                dirZ = (random.nextFloat() * 2f) - 1f;
+            } while (((dirX * dirX) + (dirY * dirY) + (dirZ * dirZ)) > 1f);
+            float invlength = 1f / Vector3f.length(dirX, dirY, dirZ);
+            if (Float.isFinite(invlength)) {
+                dirX *= invlength;
+                dirY *= invlength;
+                dirZ *= invlength;
+            }
+
+            List<NRayResult> rayResults = testRay(
+                    pX, pY, pZ,
+                    dirX, dirY, dirZ
+            );
+            if (!rayResults.isEmpty()) {
+                NRayResult closest = rayResults.get(0);
+
+                LocalRayResult localRay = closest.getLocalRay();
+                localRay.weights(weights);
+
+                float lu = localRay.lerp(weights, NMesh.OFFSET_LIGHTMAP_TEXTURE_XY + 0);
+                float lv = localRay.lerp(weights, NMesh.OFFSET_LIGHTMAP_TEXTURE_XY + 1);
+
+                this.lightmaps.sampleIndirect(lu, lv, color);
+                this.lightmaps.sampleColorMap(lu, lv, textureColor);
+
+                color.mul(textureColor.x(), textureColor.y(), textureColor.z());
+            } else {
+                color.set(ambientColor);
+            }
+            
+            if (dirX >= 0f) {
+                addToAllExcept(ambientCube, color, NAmbientCube.NEGATIVE_X);
+                incrementAllExcept(rayCount, NAmbientCube.NEGATIVE_X);
+            }
+            if (dirX <= 0f) {
+                addToAllExcept(ambientCube, color, NAmbientCube.POSITIVE_X);
+                incrementAllExcept(rayCount, NAmbientCube.POSITIVE_X);
+            }
+            if (dirY >= 0f) {
+                addToAllExcept(ambientCube, color, NAmbientCube.NEGATIVE_Y);
+                incrementAllExcept(rayCount, NAmbientCube.NEGATIVE_Y);
+            }
+            if (dirY <= 0f) {
+                addToAllExcept(ambientCube, color, NAmbientCube.POSITIVE_Y);
+                incrementAllExcept(rayCount, NAmbientCube.POSITIVE_Y);
+            }
+            if (dirZ >= 0f) {
+                addToAllExcept(ambientCube, color, NAmbientCube.NEGATIVE_Z);
+                incrementAllExcept(rayCount, NAmbientCube.NEGATIVE_Z);
+            }
+            if (dirZ <= 0f) {
+                addToAllExcept(ambientCube, color, NAmbientCube.POSITIVE_Z);
+                incrementAllExcept(rayCount, NAmbientCube.POSITIVE_Z);
+            }
+        }
+        
+        for (int i = 0; i < NAmbientCube.SIDES; i++) {
+            int count = rayCount[i];
+            if (count != 0) {
+                float invcount = 1f / count;
+                
+                Vector3fc sideColor = ambientCube.getSide(i);
+                ambientCube.setSide(i, 
+                        sideColor.x() * invcount,
+                        sideColor.y() * invcount,
+                        sideColor.z() * invcount
+                );
+            }
+        }
+    }
+
+    public void sampleAmbientCubeOld(
             Vector3fc ambientColor,
             double pX, double pY, double pZ,
             NAmbientCube ambientCube
@@ -478,10 +606,10 @@ public class NMap {
         Vector3f weights = new Vector3f();
         for (int i = 0; i < NAmbientCube.SIDES; i++) {
             color.set(ambientColor);
-            
+
             if (this.lightmaps != null) {
                 Vector3fc direction = NAmbientCube.SIDE_DIRECTIONS[i];
-                
+
                 List<NRayResult> rayResults = testRay(
                         pX, pY, pZ,
                         direction.x(), direction.y(), direction.z()
@@ -497,7 +625,7 @@ public class NMap {
 
                     this.lightmaps.sampleIndirect(lu, lv, color);
                     this.lightmaps.sampleColorMap(lu, lv, textureColor);
-                    
+
                     color.mul(textureColor.x(), textureColor.y(), textureColor.z());
                 }
             }
@@ -529,7 +657,7 @@ public class NMap {
 
         float[] alphaMesh = new float[Lightmapper.VERTEX_SIZE * 64];
         int alphaMeshIndex = 0;
-        
+
         for (int objectIndex = 0; objectIndex < this.objects.length; objectIndex++) {
             N3DObject obj = this.objects[objectIndex];
 
@@ -543,7 +671,7 @@ public class NMap {
 
                 NBlendingMode blending = geometry.getMaterial().getBlendingMode();
                 NMesh mesh = geometry.getMesh();
-                
+
                 float[] vertices = mesh.getVertices();
                 int[] indices = mesh.getIndices();
 
@@ -609,7 +737,7 @@ public class NMap {
 
         opaqueMesh = Arrays.copyOf(opaqueMesh, opaqueMeshIndex);
         alphaMesh = Arrays.copyOf(alphaMesh, alphaMeshIndex);
-        
+
         Lightmapper.TextureInput texio = (
                 float[] mesh,
                 float u, float v,
@@ -676,7 +804,7 @@ public class NMap {
         String[] names = new String[lightmapperLightmaps.length];
         float[] totalLightmaps = new float[this.lightmapSize * this.lightmapSize * 3 * lightmapperLightmaps.length];
 
-        Vector3f[] indirectIntensities = new Vector3f[0];
+        Vector3fc[] indirectIntensities = new Vector3f[0];
         byte[] indirectLightmaps = new byte[0];
         int indirectSize = 0;
         if (lightmapperLightmaps.length != 0) {
@@ -707,9 +835,10 @@ public class NMap {
                 this.name, names, this.lightmapMargin,
                 totalLightmaps, this.lightmapSize, this.lightmapSize,
                 indirectIntensities, indirectLightmaps, indirectSize, indirectSize,
-                lightmapperOutput.getColorMap(), lightmapperOutput.getColorMapSize(), lightmapperOutput.getColorMapSize()
+                lightmapperOutput.getColorMap(), lightmapperOutput.getColorMapSize(), lightmapperOutput.getColorMapSize(),
+                null
         );
-
+        
         Main.MAIN_TASKS.add(() -> {
             this.lightmaps = finalLightmaps;
             for (N3DObject obj : this.objects) {

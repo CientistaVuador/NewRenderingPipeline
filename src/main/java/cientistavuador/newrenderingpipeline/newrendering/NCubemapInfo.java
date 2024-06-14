@@ -48,6 +48,7 @@ public class NCubemapInfo {
     private final Vector3d parallaxPosition = new Vector3d(0.0, 0.0, 0.0);
     private final Quaternionf parallaxRotation = new Quaternionf(0f, 0f, 0f, 1f);
     private final Vector3f parallaxHalfExtents = new Vector3f(0f, 0f, 0f);
+    
     private final Matrix4d localToWorld = new Matrix4d();
     private final Vector3d min = new Vector3d();
     private final Vector3d max = new Vector3d();

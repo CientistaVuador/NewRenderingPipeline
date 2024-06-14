@@ -1036,7 +1036,7 @@ public class N3DModelStore {
             DocumentBuilder builder = factory.newDocumentBuilder();
             modelXml = builder.parse(new ByteArrayInputStream(fs.get("model.xml")));
         } catch (ParserConfigurationException | SAXException ex) {
-            throw new RuntimeException(ex);
+            throw new IOException(ex);
         }
 
         Element rootNode = modelXml.getDocumentElement();

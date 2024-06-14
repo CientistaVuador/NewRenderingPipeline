@@ -28,6 +28,9 @@ package cientistavuador.newrenderingpipeline.newrendering;
 
 import cientistavuador.newrenderingpipeline.Main;
 import cientistavuador.newrenderingpipeline.camera.PerspectiveCamera;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.nio.FloatBuffer;
 import java.util.List;
 import static org.lwjgl.opengl.GL33C.*;
@@ -39,9 +42,9 @@ import static org.lwjgl.system.MemoryUtil.memFree;
  * @author Cien
  */
 public class NCubemapRenderer {
-    
+
     public static final int SUPER_RESOLUTION_MULTIPLIER = 4;
-    
+
     public static NCubemap render(
             String name, NCubemapInfo info, int size,
             List<NLight> lights, NCubemaps cubemaps
@@ -100,18 +103,18 @@ public class NCubemapRenderer {
                         N3DObjectRenderer.queueRender(objects[j]);
                     }
                 }
-                
+
                 glClear(GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
                 N3DObjectRenderer.render(camera, lights, cubemaps);
                 glReadPixels(0, 0, fboSize, fboSize, GL_RGB, GL_FLOAT, sides);
             }
             glBindFramebuffer(GL_FRAMEBUFFER, 0);
             glViewport(0, 0, Main.WIDTH, Main.HEIGHT);
-            
+
             glDeleteRenderbuffers(rboColor);
             glDeleteRenderbuffers(rboDepthStencil);
             glDeleteFramebuffers(fbo);
-            
+
             for (int y = 0; y < size * NCubemap.SIDES; y++) {
                 for (int x = 0; x < size; x++) {
                     float r = 0f;
@@ -121,7 +124,7 @@ public class NCubemapRenderer {
                         for (int xOffset = 0; xOffset < SUPER_RESOLUTION_MULTIPLIER; xOffset++) {
                             int trueX = (x * SUPER_RESOLUTION_MULTIPLIER) + xOffset;
                             int trueY = (y * SUPER_RESOLUTION_MULTIPLIER) + yOffset;
-                            
+
                             r += sides.get(0 + (trueX * 3) + (trueY * fboSize * 3));
                             g += sides.get(1 + (trueX * 3) + (trueY * fboSize * 3));
                             b += sides.get(2 + (trueX * 3) + (trueY * fboSize * 3));
@@ -131,7 +134,7 @@ public class NCubemapRenderer {
                     r *= inv;
                     g *= inv;
                     b *= inv;
-                    
+
                     cubemap[0 + (x * 3) + (y * size * 3)] = r;
                     cubemap[1 + (x * 3) + (y * size * 3)] = g;
                     cubemap[2 + (x * 3) + (y * size * 3)] = b;
@@ -140,10 +143,10 @@ public class NCubemapRenderer {
         } finally {
             memFree(sides);
         }
-        
+
         return new NCubemap(name, info, null, null, size, cubemap);
     }
-
+    
     private NCubemapRenderer() {
 
     }

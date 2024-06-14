@@ -27,8 +27,10 @@
 package cientistavuador.newrenderingpipeline.newrendering;
 
 import cientistavuador.newrenderingpipeline.Main;
+import cientistavuador.newrenderingpipeline.util.CryptoUtils;
 import cientistavuador.newrenderingpipeline.util.ObjectCleaner;
 import cientistavuador.newrenderingpipeline.util.StringUtils;
+import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -57,7 +59,8 @@ public class NLightmaps {
             "Empty/Null Lightmaps", new String[]{"None"}, 0,
             new float[]{0f, 0f, 0f}, 1, 1,
             new Vector3f[]{new Vector3f(0f, 0f, 0f)}, new byte[]{0, 0, 0}, 1, 1,
-            new byte[]{0, 0, 0, 1}, 1, 1
+            new byte[]{0, 0, 0, 1}, 1, 1,
+            null
     );
 
     private final String name;
@@ -68,7 +71,7 @@ public class NLightmaps {
     private final int width;
     private final int height;
 
-    private final Vector3f[] indirectIntensities;
+    private final Vector3fc[] indirectIntensities;
     private final byte[] indirectLightmaps;
     private final int indirectWidth;
     private final int indirectHeight;
@@ -79,6 +82,8 @@ public class NLightmaps {
 
     private final Map<String, Integer> nameMap = new HashMap<>();
     private final float[] intensities;
+    
+    private final String sha256;
 
     static class WrappedLightmap {
 
@@ -90,8 +95,9 @@ public class NLightmaps {
     public NLightmaps(
             String name, String[] names, int margin,
             float[] lightmaps, int width, int height,
-            Vector3f[] indirectIntensities, byte[] indirectLightmaps, int indirectWidth, int indirectHeight,
-            byte[] colorMap, int colorMapWidth, int colorMapHeight
+            Vector3fc[] indirectIntensities, byte[] indirectLightmaps, int indirectWidth, int indirectHeight,
+            byte[] colorMap, int colorMapWidth, int colorMapHeight,
+            String sha256
     ) {
         if (name == null) {
             name = "Unnamed";
@@ -125,11 +131,13 @@ public class NLightmaps {
         if (indirectIntensities.length != names.length) {
             throw new IllegalArgumentException("Invalid amount of indirect intensities! required " + names.length + ", found " + indirectIntensities.length);
         }
+        indirectIntensities = indirectIntensities.clone();
         for (int i = 0; i < indirectIntensities.length; i++) {
-            Vector3f at = indirectIntensities[i];
+            Vector3fc at = indirectIntensities[i];
             if (at == null) {
                 throw new IllegalArgumentException("Indirect Intensity is null at index " + i);
             }
+            indirectIntensities[i] = new Vector3f(at);
         }
 
         int requiredPixels = width * height * names.length * 3;
@@ -178,7 +186,24 @@ public class NLightmaps {
         this.colorMap = colorMap;
         this.colorMapWidth = colorMapWidth;
         this.colorMapHeight = colorMapHeight;
-
+        
+        if (sha256 == null) {
+            ByteBuffer buffer = ByteBuffer.allocate(
+                    (this.lightmaps.length * 4) + this.indirectLightmaps.length + this.colorMap.length
+            );
+            
+            for (float f:this.lightmaps) {
+                buffer.putFloat(f);
+            }
+            buffer.put(this.indirectLightmaps);
+            buffer.put(this.colorMap);
+            
+            buffer.flip();
+            
+            sha256 = CryptoUtils.sha256(buffer);
+        }
+        this.sha256 = sha256;
+        
         registerForCleaning();
     }
 
@@ -251,6 +276,10 @@ public class NLightmaps {
         return colorMapHeight;
     }
 
+    public String getSha256() {
+        return sha256;
+    }
+    
     public void sampleIndirect(float u, float v, Vector3f outIndirect) {
         outIndirect.zero();
 
@@ -260,7 +289,7 @@ public class NLightmaps {
         y = Math.min(Math.max(y, 0), this.indirectHeight - 1);
 
         for (int i = 0; i < this.indirectIntensities.length; i++) {
-            Vector3f indirectIntensity = this.indirectIntensities[i];
+            Vector3fc indirectIntensity = this.indirectIntensities[i];
 
             int pixelIndex = (x * 3) + (y * this.indirectWidth * 3) + (i * this.indirectWidth * this.indirectHeight * 3);
             float r = ((this.indirectLightmaps[0 + pixelIndex] & 0xFF) / 255f) * indirectIntensity.x();
