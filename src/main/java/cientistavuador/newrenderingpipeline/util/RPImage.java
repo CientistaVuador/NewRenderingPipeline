@@ -84,23 +84,25 @@ public class RPImage {
                 float b = data[2 + (x * 3) + (y * width * 3)];
                 
                 float intensity = Math.max(r, Math.max(g, b));
-                float invintensity = 1f / intensity;
+                double exponent = (Math.log(intensity) / Math.log(this.base)) + BIAS;
+                int roundExponent = Math.min(Math.max((int) Math.ceil(exponent), 0), 255);
                 
-                r *= invintensity;
-                g *= invintensity;
-                b *= invintensity;
+                float newIntensity = (float) Math.pow(this.base, roundExponent - BIAS);
+                float invIntensity = 1f / newIntensity;
                 
-                double intensityExponent = (Math.log(intensity) / Math.log(this.base)) + BIAS;
+                r *= invIntensity;
+                g *= invIntensity;
+                b *= invIntensity;
                 
                 int mRed = Math.min(Math.max(Math.round(r * 255f), 0), 255);
                 int mGreen = Math.min(Math.max(Math.round(g * 255f), 0), 255);
                 int mBlue = Math.min(Math.max(Math.round(b * 255f), 0), 255);
-                int bExp = Math.min(Math.max((int) Math.round(intensityExponent), 0), 255);
                 
                 this.data[0 + (x * 4) + (y * width * 4)] = (byte) mRed;
                 this.data[1 + (x * 4) + (y * width * 4)] = (byte) mGreen;
                 this.data[2 + (x * 4) + (y * width * 4)] = (byte) mBlue;
-                this.data[3 + (x * 4) + (y * width * 4)] = (byte) bExp;
+                
+                this.data[3 + (x * 4) + (y * width * 4)] = (byte) roundExponent;
             }
         }
         
