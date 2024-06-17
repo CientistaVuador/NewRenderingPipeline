@@ -28,7 +28,9 @@ package cientistavuador.newrenderingpipeline.newrendering;
 
 import cientistavuador.newrenderingpipeline.Main;
 import cientistavuador.newrenderingpipeline.util.CryptoUtils;
+import cientistavuador.newrenderingpipeline.util.ImageUtils;
 import cientistavuador.newrenderingpipeline.util.ObjectCleaner;
+import cientistavuador.newrenderingpipeline.util.RPImage;
 import cientistavuador.newrenderingpipeline.util.StringUtils;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
@@ -38,7 +40,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import org.joml.Vector3f;
-import org.joml.Vector3fc;
 import org.joml.Vector4f;
 import org.lwjgl.opengl.ARBTextureCompressionBPTC;
 import org.lwjgl.opengl.EXTTextureFilterAnisotropic;
@@ -57,9 +58,10 @@ public class NLightmaps {
 
     public static final NLightmaps NULL_LIGHTMAPS = new NLightmaps(
             "Empty/Null Lightmaps", new String[]{"None"}, 0,
-            new float[]{0f, 0f, 0f}, 1, 1,
-            new Vector3f[]{new Vector3f(0f, 0f, 0f)}, new byte[]{0, 0, 0}, 1, 1,
-            new byte[]{0, 0, 0, 1}, 1, 1,
+            1, 1,
+            new float[]{0f, 0f, 0f}, new float[]{0f, 0f, 0f}, new float[]{1f, 1f, 1f, 1f},
+            null, null,
+            0, 0, null,
             null
     );
 
@@ -71,10 +73,8 @@ public class NLightmaps {
     private final int width;
     private final int height;
 
-    private final Vector3fc[] indirectIntensities;
-    private final byte[] indirectLightmaps;
-    private final int indirectWidth;
-    private final int indirectHeight;
+    private final RPImage cpuLightmaps;
+    private final RPImage cpuLightmapsEmissive;
 
     private final byte[] colorMap;
     private final int colorMapWidth;
@@ -82,7 +82,7 @@ public class NLightmaps {
 
     private final Map<String, Integer> nameMap = new HashMap<>();
     private final float[] intensities;
-    
+
     private final String sha256;
 
     static class WrappedLightmap {
@@ -94,9 +94,10 @@ public class NLightmaps {
 
     public NLightmaps(
             String name, String[] names, int margin,
-            float[] lightmaps, int width, int height,
-            Vector3fc[] indirectIntensities, byte[] indirectLightmaps, int indirectWidth, int indirectHeight,
-            byte[] colorMap, int colorMapWidth, int colorMapHeight,
+            int width, int height,
+            float[] lightmaps, float[] lightmapsEmissive, float[] color,
+            RPImage cpuLightmaps, RPImage cpuLightmapsEmissive,
+            int colorWidth, int colorHeight, byte[] colorMap,
             String sha256
     ) {
         if (name == null) {
@@ -104,9 +105,6 @@ public class NLightmaps {
         }
         Objects.requireNonNull(names, "Names is null");
         Objects.requireNonNull(lightmaps, "Lightmaps is null");
-        Objects.requireNonNull(indirectLightmaps, "Indirect Lightmaps is null");
-        Objects.requireNonNull(indirectIntensities, "Indirect Intensities is null");
-        Objects.requireNonNull(colorMap, "Color Map is null");
         if (width < 0) {
             throw new IllegalArgumentException("Width is negative");
         }
@@ -116,43 +114,11 @@ public class NLightmaps {
         if (margin < 0) {
             throw new IllegalArgumentException("Margin is negative");
         }
-        if (indirectWidth < 0) {
-            throw new IllegalArgumentException("Indirect Width is negative");
-        }
-        if (indirectHeight < 0) {
-            throw new IllegalArgumentException("Indirect Height is negative");
-        }
-        if (colorMapWidth < 0) {
-            throw new IllegalArgumentException("Color Map Width is negative");
-        }
-        if (colorMapHeight < 0) {
-            throw new IllegalArgumentException("Color Map Height is negative");
-        }
-        if (indirectIntensities.length != names.length) {
-            throw new IllegalArgumentException("Invalid amount of indirect intensities! required " + names.length + ", found " + indirectIntensities.length);
-        }
-        indirectIntensities = indirectIntensities.clone();
-        for (int i = 0; i < indirectIntensities.length; i++) {
-            Vector3fc at = indirectIntensities[i];
-            if (at == null) {
-                throw new IllegalArgumentException("Indirect Intensity is null at index " + i);
-            }
-            indirectIntensities[i] = new Vector3f(at);
-        }
 
         int requiredPixels = width * height * names.length * 3;
+
         if (lightmaps.length != requiredPixels) {
             throw new IllegalArgumentException("Invalid lightmaps size! required " + requiredPixels + ", found " + lightmaps.length);
-        }
-
-        int requiredIndirectPixels = indirectWidth * indirectHeight * names.length * 3;
-        if (indirectLightmaps.length != requiredIndirectPixels) {
-            throw new IllegalArgumentException("Invalid indirect lightmaps size! required " + requiredIndirectPixels + ", found " + indirectLightmaps.length);
-        }
-
-        int requiredColorMapPixels = colorMapWidth * colorMapHeight * 4;
-        if (colorMap.length != requiredColorMapPixels) {
-            throw new IllegalArgumentException("Invalid color map size! required " + requiredColorMapPixels + ", found " + colorMap.length);
         }
 
         Set<String> nameSet = new HashSet<>();
@@ -169,13 +135,97 @@ public class NLightmaps {
         this.name = name;
         this.names = names;
         this.margin = margin;
+
         this.lightmaps = lightmaps;
         this.width = width;
         this.height = height;
-        this.indirectIntensities = indirectIntensities;
-        this.indirectLightmaps = indirectLightmaps;
-        this.indirectWidth = indirectWidth;
-        this.indirectHeight = indirectHeight;
+
+        int divisions = Math.max((int) Math.floor(Math.log(margin) / Math.log(2.0)), 2);
+
+        if (cpuLightmaps == null) {
+            float[] newLightmaps = lightmaps.clone();
+            int newLightmapsWidth = width;
+            int newLightmapsHeight = height * names.length;
+
+            for (int i = 0; i < divisions; i++) {
+                newLightmaps = ImageUtils.mipmap(newLightmaps, newLightmapsWidth, newLightmapsHeight, 3);
+                newLightmapsWidth /= 2;
+                newLightmapsHeight /= 2;
+            }
+
+            this.cpuLightmaps = new RPImage(newLightmaps, newLightmapsWidth, newLightmapsHeight);
+        } else {
+            this.cpuLightmaps = cpuLightmaps;
+        }
+
+        if (cpuLightmapsEmissive == null) {
+            Objects.requireNonNull(lightmapsEmissive, "Lightmaps emissive is null.");
+
+            if (lightmapsEmissive.length != requiredPixels) {
+                throw new IllegalArgumentException("Invalid lightmaps emissive size! required " + requiredPixels + ", found " + lightmapsEmissive.length);
+            }
+
+            float[] newEmissive = lightmapsEmissive.clone();
+            int newEmissiveWidth = width;
+            int newEmissiveHeight = height * names.length;
+
+            for (int i = 0; i < divisions; i++) {
+                newEmissive = ImageUtils.mipmap(newEmissive, newEmissiveWidth, newEmissiveHeight, 3);
+                newEmissiveWidth /= 2;
+                newEmissiveHeight /= 2;
+            }
+
+            this.cpuLightmapsEmissive = new RPImage(newEmissive, newEmissiveWidth, newEmissiveHeight);
+        } else {
+            this.cpuLightmapsEmissive = cpuLightmapsEmissive;
+        }
+
+        if (colorMap == null) {
+            Objects.requireNonNull(color, "Color is null");
+
+            int requiredColorPixels = width * height * 4;
+
+            if (color.length != requiredColorPixels) {
+                throw new IllegalArgumentException("Invalid color size! required " + requiredColorPixels + ", found " + color.length);
+            }
+
+            float[] newColor = color;
+            int newColorWidth = width;
+            int newColorHeight = height;
+
+            for (int i = 0; i < divisions; i++) {
+                newColor = ImageUtils.mipmap(newColor, newColorWidth, newColorHeight, 4);
+                newColorWidth /= 2;
+                newColorHeight /= 2;
+            }
+
+            this.colorMap = new byte[newColorWidth * newColorHeight * 4];
+            for (int y = 0; y < newColorHeight; y++) {
+                for (int x = 0; x < newColorWidth; x++) {
+                    int r = (int) Math.min(Math.max(newColor[0 + (x * 4) + (y * newColorWidth * 4)] * 255f, 0f), 255f);
+                    int g = (int) Math.min(Math.max(newColor[1 + (x * 4) + (y * newColorWidth * 4)] * 255f, 0f), 255f);
+                    int b = (int) Math.min(Math.max(newColor[2 + (x * 4) + (y * newColorWidth * 4)] * 255f, 0f), 255f);
+                    int a = (int) Math.min(Math.max(newColor[3 + (x * 4) + (y * newColorWidth * 4)] * 255f, 0f), 255f);
+
+                    this.colorMap[0 + (x * 4) + (y * newColorWidth * 4)] = (byte) r;
+                    this.colorMap[1 + (x * 4) + (y * newColorWidth * 4)] = (byte) g;
+                    this.colorMap[2 + (x * 4) + (y * newColorWidth * 4)] = (byte) b;
+                    this.colorMap[3 + (x * 4) + (y * newColorWidth * 4)] = (byte) a;
+                }
+            }
+            this.colorMapWidth = newColorWidth;
+            this.colorMapHeight = newColorHeight;
+        } else {
+            int required = colorWidth * colorHeight * 4;
+            if (colorMap.length != required) {
+                throw new IllegalArgumentException("Color Map requires " + required + " components! but found " + colorMap.length);
+            }
+            
+            this.colorMap = colorMap;
+            this.colorMapWidth = colorWidth;
+            this.colorMapHeight = colorHeight;
+        }
+
         for (int i = 0; i < this.names.length; i++) {
             this.nameMap.put(this.names[i], i);
         }
@@ -183,27 +233,25 @@ public class NLightmaps {
         for (int i = 0; i < this.intensities.length; i++) {
             this.intensities[i] = 1f;
         }
-        this.colorMap = colorMap;
-        this.colorMapWidth = colorMapWidth;
-        this.colorMapHeight = colorMapHeight;
-        
+
         if (sha256 == null) {
             ByteBuffer buffer = ByteBuffer.allocate(
-                    (this.lightmaps.length * 4) + this.indirectLightmaps.length + this.colorMap.length
+                    (this.lightmaps.length * 4) + this.cpuLightmaps.getData().length + this.colorMap.length
             );
-            
-            for (float f:this.lightmaps) {
+
+            for (float f : this.lightmaps) {
                 buffer.putFloat(f);
             }
-            buffer.put(this.indirectLightmaps);
+            buffer.put(this.cpuLightmaps.getData());
             buffer.put(this.colorMap);
-            
+
             buffer.flip();
-            
-            sha256 = CryptoUtils.sha256(buffer);
+
+            this.sha256 = CryptoUtils.sha256(buffer);
+        } else {
+            this.sha256 = sha256;
         }
-        this.sha256 = sha256;
-        
+
         registerForCleaning();
     }
 
@@ -244,24 +292,12 @@ public class NLightmaps {
         return height;
     }
 
-    public int getNumberOfIndirectIntensities() {
-        return this.indirectIntensities.length;
+    public RPImage getCPULightmaps() {
+        return cpuLightmaps;
     }
 
-    public Vector3fc getIndirectIntensity(int index) {
-        return this.indirectIntensities[index];
-    }
-
-    public byte[] getIndirectLightmaps() {
-        return indirectLightmaps;
-    }
-
-    public int getIndirectWidth() {
-        return indirectWidth;
-    }
-
-    public int getIndirectHeight() {
-        return indirectHeight;
+    public RPImage getCPULightmapsEmissive() {
+        return cpuLightmapsEmissive;
     }
 
     public byte[] getColorMap() {
@@ -279,30 +315,61 @@ public class NLightmaps {
     public String getSha256() {
         return sha256;
     }
-    
-    public void sampleIndirect(float u, float v, Vector3f outIndirect) {
-        outIndirect.zero();
 
-        int x = (int) (u * this.indirectWidth);
-        int y = (int) (v * this.indirectHeight);
-        x = Math.min(Math.max(x, 0), this.indirectWidth - 1);
-        y = Math.min(Math.max(y, 0), this.indirectHeight - 1);
+    public void sampleCPULightmaps(float u, float v, Vector3f outLightmap) {
+        int w = this.cpuLightmaps.getWidth();
+        int h = this.cpuLightmaps.getHeight() / this.intensities.length;
 
-        for (int i = 0; i < this.indirectIntensities.length; i++) {
-            Vector3fc indirectIntensity = this.indirectIntensities[i];
+        int x = (int) (u * w);
+        int y = (int) (v * h);
+        x = Math.min(Math.max(x, 0), w - 1);
+        y = Math.min(Math.max(y, 0), h - 1);
 
-            int pixelIndex = (x * 3) + (y * this.indirectWidth * 3) + (i * this.indirectWidth * this.indirectHeight * 3);
-            float r = ((this.indirectLightmaps[0 + pixelIndex] & 0xFF) / 255f) * indirectIntensity.x();
-            float g = ((this.indirectLightmaps[1 + pixelIndex] & 0xFF) / 255f) * indirectIntensity.y();
-            float b = ((this.indirectLightmaps[2 + pixelIndex] & 0xFF) / 255f) * indirectIntensity.z();
-
+        float r = 0f;
+        float g = 0f;
+        float b = 0f;
+        for (int i = 0; i < this.intensities.length; i++) {
             float intensity = this.intensities[i];
-            r *= intensity;
-            g *= intensity;
-            b *= intensity;
+            this.cpuLightmaps.sample(
+                    x,
+                    y + (i * h),
+                    outLightmap
+            );
 
-            outIndirect.add(r, g, b);
+            r += outLightmap.x() * intensity;
+            g += outLightmap.y() * intensity;
+            b += outLightmap.z() * intensity;
         }
+
+        outLightmap.set(r, g, b);
+    }
+
+    public void sampleCPULightmapsEmissive(float u, float v, Vector3f outLightmap) {
+        int w = this.cpuLightmapsEmissive.getWidth();
+        int h = this.cpuLightmapsEmissive.getHeight() / this.intensities.length;
+
+        int x = (int) (u * w);
+        int y = (int) (v * h);
+        x = Math.min(Math.max(x, 0), w - 1);
+        y = Math.min(Math.max(y, 0), h - 1);
+
+        float r = 0f;
+        float g = 0f;
+        float b = 0f;
+        for (int i = 0; i < this.intensities.length; i++) {
+            float intensity = this.intensities[i];
+            this.cpuLightmapsEmissive.sample(
+                    x,
+                    y + (i * h),
+                    outLightmap
+            );
+
+            r += outLightmap.x() * intensity;
+            g += outLightmap.y() * intensity;
+            b += outLightmap.z() * intensity;
+        }
+
+        outLightmap.set(r, g, b);
     }
 
     public void sampleColorMap(float u, float v, Vector4f outColor) {
@@ -359,7 +426,7 @@ public class NLightmaps {
         /*
         it looks like the bptc compressor on amd cards does
         not work correctly
-        */
+         */
         String vendor = glGetString(GL_VENDOR);
         if (vendor != null && vendor.toLowerCase().contains("nvidia")) {
             if (Main.isSupported(4, 2)) {

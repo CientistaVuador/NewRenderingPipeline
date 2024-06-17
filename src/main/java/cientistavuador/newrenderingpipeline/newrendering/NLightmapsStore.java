@@ -27,6 +27,7 @@
 package cientistavuador.newrenderingpipeline.newrendering;
 
 import cientistavuador.newrenderingpipeline.util.MultiPNG;
+import cientistavuador.newrenderingpipeline.util.RPImage;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -72,7 +73,6 @@ public class NLightmapsStore {
 
         int index;
         String name;
-        Vector3f indirectIntensity;
         float intensity;
 
         String toXML() {
@@ -80,9 +80,6 @@ public class NLightmapsStore {
             b.append(INDENT).append("<lightmap").append('\n');
             b.append(INDENT).append(INDENT).append("index=").append('"').append(this.index).append('"').append('\n');
             b.append(INDENT).append(INDENT).append("name=").append('"').append(URLEncoder.encode(this.name, StandardCharsets.UTF_8)).append('"').append('\n');
-            b.append(INDENT).append(INDENT).append("indirectIntensityR=").append('"').append(this.indirectIntensity.x()).append('"').append(' ');
-            b.append("indirectIntensityG=").append('"').append(this.indirectIntensity.y()).append('"').append(' ');
-            b.append("indirectIntensityB=").append('"').append(this.indirectIntensity.z()).append('"').append('\n');
             b.append(INDENT).append(INDENT).append("intensity=").append('"').append(this.intensity).append('"').append('\n');
             b.append(INDENT).append("/>");
             return b.toString();
@@ -95,8 +92,14 @@ public class NLightmapsStore {
         int margin;
 
         String colorFile;
-        String indirectFile;
-        String lightmapFile;
+
+        String lightmapsFile;
+        String cpuLightmapsFile;
+        String cpuLightmapsEmissiveFile;
+
+        double lightmapsBase;
+        double cpuLightmapsBase;
+        double cpuLightmapsEmissiveBase;
 
         String sha256;
 
@@ -110,8 +113,14 @@ public class NLightmapsStore {
             b.append(INDENT).append("margin=").append('"').append(this.margin).append('"').append('\n');
             b.append(INDENT).append('\n');
             b.append(INDENT).append("colorFile=").append('"').append(this.colorFile).append('"').append('\n');
-            b.append(INDENT).append("indirectFile=").append('"').append(this.indirectFile).append('"').append('\n');
-            b.append(INDENT).append("lightmapFile=").append('"').append(this.lightmapFile).append('"').append('\n');
+            b.append(INDENT).append('\n');
+            b.append(INDENT).append("lightmapsFile=").append('"').append(this.lightmapsFile).append('"').append('\n');
+            b.append(INDENT).append("cpuLightmapsFile=").append('"').append(this.cpuLightmapsFile).append('"').append('\n');
+            b.append(INDENT).append("cpuLightmapsEmissiveFile=").append('"').append(this.cpuLightmapsEmissiveFile).append('"').append('\n');
+            b.append(INDENT).append('\n');
+            b.append(INDENT).append("lightmapsBase=").append('"').append(this.lightmapsBase).append('"').append('\n');
+            b.append(INDENT).append("cpuLightmapsBase=").append('"').append(this.cpuLightmapsBase).append('"').append('\n');
+            b.append(INDENT).append("cpuLightmapsEmissiveBase=").append('"').append(this.cpuLightmapsEmissiveBase).append('"').append('\n');
             b.append(INDENT).append('\n');
             b.append(INDENT).append("sha256=").append('"').append(this.sha256).append('"').append('\n');
             b.append(">\n");
@@ -166,49 +175,54 @@ public class NLightmapsStore {
         }
 
         {
-            zipOut.putNextEntry(new ZipEntry("indirect.png"));
+            zipOut.putNextEntry(new ZipEntry("lightmaps.png"));
 
-            BufferedImage outputImage = new BufferedImage(
-                    lightmaps.getIndirectWidth(),
-                    lightmaps.getIndirectHeight() * lightmaps.getNumberOfLightmaps(),
-                    BufferedImage.TYPE_INT_ARGB
+            RPImage img = new RPImage(
+                    lightmaps.getLightmaps(),
+                    lightmaps.getWidth(),
+                    lightmaps.getHeight() * lightmaps.getNumberOfLightmaps()
             );
 
-            byte[] indirectMap = lightmaps.getIndirectLightmaps();
-
-            for (int y = 0; y < outputImage.getHeight(); y++) {
-                for (int x = 0; x < outputImage.getWidth(); x++) {
-                    int r = indirectMap[0 + (x * 3) + (y * outputImage.getWidth() * 3)] & 0xFF;
-                    int g = indirectMap[1 + (x * 3) + (y * outputImage.getWidth() * 3)] & 0xFF;
-                    int b = indirectMap[2 + (x * 3) + (y * outputImage.getWidth() * 3)] & 0xFF;
-                    int a = 255;
-
-                    int argb = (a << 24) | (r << 16) | (g << 8) | (b << 0);
-
-                    outputImage.setRGB(x, (outputImage.getHeight() - 1) - y, argb);
-                }
-            }
-
-            ImageIO.write(outputImage, "PNG", zipOut);
+            ImageIO.write(
+                    img.toBufferedImage(),
+                    "PNG",
+                    zipOut
+            );
 
             zipOut.closeEntry();
-
-            storeLightmaps.indirectFile = "indirect.png";
+            
+            storeLightmaps.lightmapsFile = "lightmaps.png";
+            storeLightmaps.lightmapsBase = img.getBase();
         }
 
         {
-            zipOut.putNextEntry(new ZipEntry("light.mpng"));
+            zipOut.putNextEntry(new ZipEntry("cpuLightmaps.png"));
 
-            MultiPNG.encode(
-                    lightmaps.getLightmaps(),
-                    lightmaps.getWidth(), lightmaps.getHeight() * lightmaps.getNumberOfLightmaps(),
-                    0.001f,
+            ImageIO.write(
+                    lightmaps.getCPULightmaps().toBufferedImage(),
+                    "PNG",
                     zipOut
             );
 
             zipOut.closeEntry();
 
-            storeLightmaps.lightmapFile = "light.mpng";
+            storeLightmaps.cpuLightmapsFile = "cpuLightmaps.png";
+            storeLightmaps.cpuLightmapsBase = lightmaps.getCPULightmaps().getBase();
+        }
+
+        {
+            zipOut.putNextEntry(new ZipEntry("cpuLightmapsEmissive.png"));
+
+            ImageIO.write(
+                    lightmaps.getCPULightmapsEmissive().toBufferedImage(),
+                    "PNG",
+                    zipOut
+            );
+
+            zipOut.closeEntry();
+
+            storeLightmaps.cpuLightmapsEmissiveFile = "cpuLightmapsEmissive.png";
+            storeLightmaps.cpuLightmapsEmissiveBase = lightmaps.getCPULightmapsEmissive().getBase();
         }
 
         storeLightmaps.sha256 = lightmaps.getSha256();
@@ -220,9 +234,8 @@ public class NLightmapsStore {
 
             lightmap.index = i;
             lightmap.name = lightmaps.getName(i);
-            lightmap.indirectIntensity = new Vector3f(lightmaps.getIndirectIntensity(i));
             lightmap.intensity = lightmaps.getIntensity(i);
-
+            
             storeLightmaps.lightmaps.add(lightmap);
         }
 
@@ -269,7 +282,7 @@ public class NLightmapsStore {
                     img.height = heightBuffer.get();
                     img.data = new byte[imageData.remaining()];
                     imageData.get(img.data).flip();
-                    
+
                     return img;
                 } finally {
                     stbi_image_free(imageData);
@@ -279,7 +292,12 @@ public class NLightmapsStore {
             memFree(imageMemory);
         }
     }
-
+    
+    private static RPImage loadRP(byte[] image, double base) throws IOException {
+        Image img = load(image, 4);
+        return new RPImage(base, img.data, img.width, img.height);
+    }
+    
     public static NLightmaps readLightmaps(InputStream input) throws IOException {
         ZipInputStream zipInput = new ZipInputStream(input, StandardCharsets.UTF_8);
 
@@ -317,9 +335,15 @@ public class NLightmapsStore {
         storeLightmaps.margin = Integer.parseInt(rootNode.getAttribute("margin"));
 
         storeLightmaps.colorFile = rootNode.getAttribute("colorFile");
-        storeLightmaps.indirectFile = rootNode.getAttribute("indirectFile");
-        storeLightmaps.lightmapFile = rootNode.getAttribute("lightmapFile");
-
+        
+        storeLightmaps.lightmapsFile = rootNode.getAttribute("lightmapsFile");
+        storeLightmaps.cpuLightmapsFile = rootNode.getAttribute("cpuLightmapsFile");
+        storeLightmaps.cpuLightmapsEmissiveFile = rootNode.getAttribute("cpuLightmapsEmissiveFile");
+        
+        storeLightmaps.lightmapsBase = Double.parseDouble(rootNode.getAttribute("lightmapsBase"));
+        storeLightmaps.cpuLightmapsBase = Double.parseDouble(rootNode.getAttribute("cpuLightmapsBase"));
+        storeLightmaps.cpuLightmapsEmissiveBase = Double.parseDouble(rootNode.getAttribute("cpuLightmapsEmissiveBase"));
+        
         storeLightmaps.sha256 = rootNode.getAttribute("sha256");
         if (storeLightmaps.sha256.isBlank()) {
             storeLightmaps.sha256 = null;
@@ -338,47 +362,42 @@ public class NLightmapsStore {
 
             storeLightmap.index = Integer.parseInt(map.getAttribute("index"));
             storeLightmap.name = URLDecoder.decode(map.getAttribute("name"), StandardCharsets.UTF_8);
-            storeLightmap.indirectIntensity = new Vector3f(
-                    Float.parseFloat(map.getAttribute("indirectIntensityR")),
-                    Float.parseFloat(map.getAttribute("indirectIntensityG")),
-                    Float.parseFloat(map.getAttribute("indirectIntensityB"))
-            );
             storeLightmap.intensity = Float.parseFloat(map.getAttribute("intensity"));
-
+            
             storeLightmaps.lightmaps.add(storeLightmap);
         }
-        
+
         int amountOfLightmaps = storeLightmaps.lightmaps.size();
-        
+
         String[] names = new String[amountOfLightmaps];
-        Vector3fc[] indirectIntensities = new Vector3fc[amountOfLightmaps];
         float[] intensities = new float[amountOfLightmaps];
-        
-        for (StoreLightmap l:storeLightmaps.lightmaps) {
+
+        for (StoreLightmap l : storeLightmaps.lightmaps) {
             names[l.index] = l.name;
-            indirectIntensities[l.index] = l.indirectIntensity;
             intensities[l.index] = l.intensity;
         }
-        
+
         Image color = load(fs.get(storeLightmaps.colorFile), 4);
-        Image indirect = load(fs.get(storeLightmaps.indirectFile), 3);
-        MultiPNG.MultiPNGOutput light = MultiPNG.decode(new ByteArrayInputStream(fs.get(storeLightmaps.lightmapFile)));
-        
-        NLightmaps lightmaps = new NLightmaps(
+        RPImage lightmaps = loadRP(fs.get(storeLightmaps.lightmapsFile), storeLightmaps.lightmapsBase);
+        RPImage cpuLightmaps = loadRP(fs.get(storeLightmaps.cpuLightmapsFile), storeLightmaps.cpuLightmapsBase);
+        RPImage cpuLightmapsEmissive = loadRP(fs.get(storeLightmaps.cpuLightmapsEmissiveFile), storeLightmaps.cpuLightmapsEmissiveBase);
+
+        NLightmaps resultLightmaps = new NLightmaps(
                 storeLightmaps.name, names, storeLightmaps.margin,
-                light.data(), light.width(), light.height() / names.length, 
-                indirectIntensities, indirect.data, indirect.width, indirect.height / names.length,
-                color.data, color.width, color.height,
+                lightmaps.getWidth(), lightmaps.getHeight() / names.length, lightmaps.toFloatArray(),
+                null, null,
+                cpuLightmaps, cpuLightmapsEmissive,
+                color.width, color.height, color.data,
                 storeLightmaps.sha256
         );
-        
-        for (int i = 0; i < intensities.length; i++) {
-            lightmaps.setIntensity(i, intensities[i]);
-        }
-        
-        return lightmaps;
-    }
 
+        for (int i = 0; i < intensities.length; i++) {
+            resultLightmaps.setIntensity(i, intensities[i]);
+        }
+
+        return resultLightmaps;
+    }
+    
     private NLightmapsStore() {
 
     }

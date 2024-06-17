@@ -679,7 +679,7 @@ public class N3DObjectRenderer {
                     sg = 0f;
                     sb = 0f;
                 }
-
+                
                 NProgram.sendMaterial(variant, new NProgram.NProgramMaterial(
                         d.x(), d.y(), d.z(), d.w(),
                         sr, sg, sb,

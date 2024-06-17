@@ -37,6 +37,9 @@ import cientistavuador.newrenderingpipeline.util.raycast.LocalRayResult;
 import com.jme3.bullet.collision.shapes.MeshCollisionShape;
 import com.jme3.bullet.collision.shapes.infos.IndexedMesh;
 import com.jme3.util.BufferUtils;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -514,6 +517,7 @@ public class NMap {
 
         Vector4f textureColor = new Vector4f();
         Vector3f color = new Vector3f();
+        Vector3f emissive = new Vector3f();
         Vector3f weights = new Vector3f();
         
         int[] rayCount = new int[NCubemap.SIDES];
@@ -547,10 +551,13 @@ public class NMap {
                 float lu = localRay.lerp(weights, NMesh.OFFSET_LIGHTMAP_TEXTURE_XY + 0);
                 float lv = localRay.lerp(weights, NMesh.OFFSET_LIGHTMAP_TEXTURE_XY + 1);
 
-                this.lightmaps.sampleIndirect(lu, lv, color);
+                this.lightmaps.sampleCPULightmaps(lu, lv, color);
+                this.lightmaps.sampleCPULightmapsEmissive(lu, lv, emissive);
                 this.lightmaps.sampleColorMap(lu, lv, textureColor);
 
-                color.mul(textureColor.x(), textureColor.y(), textureColor.z());
+                color
+                        .mul(textureColor.x(), textureColor.y(), textureColor.z())
+                        .add(emissive);
             } else {
                 color.set(ambientColor);
             }
@@ -595,45 +602,7 @@ public class NMap {
             }
         }
     }
-
-    public void sampleAmbientCubeOld(
-            Vector3fc ambientColor,
-            double pX, double pY, double pZ,
-            NAmbientCube ambientCube
-    ) {
-        Vector4f textureColor = new Vector4f();
-        Vector3f color = new Vector3f();
-        Vector3f weights = new Vector3f();
-        for (int i = 0; i < NAmbientCube.SIDES; i++) {
-            color.set(ambientColor);
-
-            if (this.lightmaps != null) {
-                Vector3fc direction = NAmbientCube.SIDE_DIRECTIONS[i];
-
-                List<NRayResult> rayResults = testRay(
-                        pX, pY, pZ,
-                        direction.x(), direction.y(), direction.z()
-                );
-                if (!rayResults.isEmpty()) {
-                    NRayResult closest = rayResults.get(0);
-
-                    LocalRayResult localRay = closest.getLocalRay();
-                    localRay.weights(weights);
-
-                    float lu = localRay.lerp(weights, NMesh.OFFSET_LIGHTMAP_TEXTURE_XY + 0);
-                    float lv = localRay.lerp(weights, NMesh.OFFSET_LIGHTMAP_TEXTURE_XY + 1);
-
-                    this.lightmaps.sampleIndirect(lu, lv, color);
-                    this.lightmaps.sampleColorMap(lu, lv, textureColor);
-
-                    color.mul(textureColor.x(), textureColor.y(), textureColor.z());
-                }
-            }
-
-            ambientCube.setSide(i, color);
-        }
-    }
-
+    
     public BakeStatus bake(Scene scene) {
         CompletableFuture<Void> task = new CompletableFuture<>();
         BakeStatus status = new BakeStatus(task);
@@ -798,44 +767,15 @@ public class NMap {
                 opaqueMesh, alphaMesh
         );
         status.setLightmapper(lightmapper);
-        Lightmapper.LightmapperOutput lightmapperOutput = lightmapper.bake();
-        Lightmapper.Lightmap[] lightmapperLightmaps = lightmapperOutput.getLightmaps();
-
-        String[] names = new String[lightmapperLightmaps.length];
-        float[] totalLightmaps = new float[this.lightmapSize * this.lightmapSize * 3 * lightmapperLightmaps.length];
-
-        Vector3fc[] indirectIntensities = new Vector3f[0];
-        byte[] indirectLightmaps = new byte[0];
-        int indirectSize = 0;
-        if (lightmapperLightmaps.length != 0) {
-            indirectIntensities = new Vector3f[lightmapperLightmaps.length];
-            indirectSize = lightmapperLightmaps[0].getIndirectSize();
-            indirectLightmaps = new byte[indirectSize * indirectSize * 3 * lightmapperLightmaps.length];
-        }
-
-        for (int i = 0; i < lightmapperLightmaps.length; i++) {
-            Lightmapper.Lightmap lightmap = lightmapperLightmaps[i];
-
-            names[i] = lightmap.getName();
-            System.arraycopy(
-                    lightmap.getLightmap(), 0,
-                    totalLightmaps, i * this.lightmapSize * this.lightmapSize * 3,
-                    lightmap.getLightmap().length
-            );
-
-            indirectIntensities[i] = new Vector3f(lightmap.getIndirectIntensity());
-            System.arraycopy(
-                    lightmap.getIndirectLightmap(), 0,
-                    indirectLightmaps, i * indirectSize * indirectSize * 3,
-                    lightmap.getIndirectLightmap().length
-            );
-        }
+        
+        Lightmapper.LightmapperOutput output = lightmapper.bake();
 
         NLightmaps finalLightmaps = new NLightmaps(
-                this.name, names, this.lightmapMargin,
-                totalLightmaps, this.lightmapSize, this.lightmapSize,
-                indirectIntensities, indirectLightmaps, indirectSize, indirectSize,
-                lightmapperOutput.getColorMap(), lightmapperOutput.getColorMapSize(), lightmapperOutput.getColorMapSize(),
+                this.name, output.getNames(), this.lightmapMargin,
+                this.lightmapSize, this.lightmapSize,
+                output.getLightmaps(), output.getLightmapsEmissive(), output.getColor(),
+                null, null,
+                0, 0, null,
                 null
         );
         

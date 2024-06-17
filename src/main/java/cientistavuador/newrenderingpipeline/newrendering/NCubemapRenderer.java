@@ -28,9 +28,6 @@ package cientistavuador.newrenderingpipeline.newrendering;
 
 import cientistavuador.newrenderingpipeline.Main;
 import cientistavuador.newrenderingpipeline.camera.PerspectiveCamera;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
 import java.nio.FloatBuffer;
 import java.util.List;
 import static org.lwjgl.opengl.GL33C.*;
@@ -146,7 +143,7 @@ public class NCubemapRenderer {
 
         return new NCubemap(name, info, null, null, size, cubemap);
     }
-    
+
     private NCubemapRenderer() {
 
     }

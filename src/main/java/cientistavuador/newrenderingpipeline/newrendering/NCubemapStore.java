@@ -26,7 +26,8 @@
  */
 package cientistavuador.newrenderingpipeline.newrendering;
 
-import cientistavuador.newrenderingpipeline.util.MultiPNG;
+import cientistavuador.newrenderingpipeline.util.ImageUtils;
+import cientistavuador.newrenderingpipeline.util.RPImage;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -38,6 +39,7 @@ import java.util.Properties;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
+import javax.imageio.ImageIO;
 import org.joml.Quaternionf;
 import org.joml.Vector3d;
 import org.joml.Vector3f;
@@ -64,18 +66,20 @@ public class NCubemapStore {
         properties.setProperty("colorG", Float.toString(cubemap.getCubemapColor().y()));
         properties.setProperty("colorB", Float.toString(cubemap.getCubemapColor().z()));
         
-        final String cubemapFile = "cubemap.mpng";
+        final String cubemapFile = "cubemap.png";
+        
+        RPImage cubemapImage = new RPImage(
+                cubemap.getCubemap(),
+                cubemap.getSize(),
+                cubemap.getSize() * NCubemap.SIDES
+        );
         
         zipOut.putNextEntry(new ZipEntry(cubemapFile));
-        MultiPNG.encode(
-                cubemap.getCubemap(),
-                cubemap.getSize(), cubemap.getSize() * NCubemap.SIDES,
-                0.001f,
-                zipOut
-        );
+        ImageIO.write(cubemapImage.toBufferedImage(), "PNG", zipOut);
         zipOut.closeEntry();
         
         properties.setProperty("cubemapFile", cubemapFile);
+        properties.setProperty("cubemapFileBase", Double.toString(cubemapImage.getBase()));
         
         NCubemapInfo info = cubemap.getCubemapInfo();
         
@@ -150,7 +154,15 @@ public class NCubemapStore {
         );
         
         String cubemapFile = properties.getProperty("cubemapFile");
-        MultiPNG.MultiPNGOutput cubemapImage = MultiPNG.decode(new ByteArrayInputStream(fs.get(cubemapFile)));
+        double cubemapFileBase = Double.parseDouble(properties.getProperty("cubemapFileBase"));
+        
+        ImageUtils.Image cubemapImage = ImageUtils.load(fs.get(cubemapFile), 4);
+        
+        RPImage resultCubemapImage = new RPImage(
+                cubemapFileBase,
+                cubemapImage.getData(),
+                cubemapImage.getWidth(), cubemapImage.getHeight()
+        );
         
         NCubemap cubemap = new NCubemap(
                 properties.getProperty("name"),
@@ -161,8 +173,8 @@ public class NCubemapStore {
                         Float.parseFloat(properties.getProperty("colorG")),
                         Float.parseFloat(properties.getProperty("colorB"))
                 ),
-                cubemapImage.width(),
-                cubemapImage.data()
+                resultCubemapImage.getWidth(),
+                resultCubemapImage.toFloatArray()
         );
         
         return cubemap;

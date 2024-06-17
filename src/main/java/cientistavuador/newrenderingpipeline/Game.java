@@ -56,7 +56,9 @@ import com.jme3.bullet.objects.PhysicsRigidBody;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import org.joml.Vector3f;
 import static org.lwjgl.glfw.GLFW.*;
@@ -151,11 +153,7 @@ public class Game {
 
             this.triceratops.setMap(this.map);
             this.plasticBall.setMap(this.map);
-
-            System.out.println(StringUtils.formatMemory(Lightmapper.approximatedMemoryUsage(this.map.getLightmapSize(), 9)));
-
-            System.out.println(this.map.getLightmapSize());
-
+            
             this.flashlight.setInnerConeAngle(10f);
             this.flashlight.setOuterConeAngle(40f);
             this.flashlight.setDiffuseSpecularAmbient(1f);
@@ -275,6 +273,8 @@ public class Game {
         this.plasticBallRotation.rotateY((float) (Main.TPF * 0.5));
         this.plasticBall.getPosition().set(this.plasticBallRotation).mul(3f).add(15.29, 1.95, -9.52);
         
+        this.plasticBall.getPosition().set(this.camera.getPosition()).add(this.camera.getFront());
+        
         this.flashlight.getPosition().set(this.camera.getPosition());
         this.flashlight.getDirection().set(this.camera.getFront());
 
@@ -372,9 +372,16 @@ public class Game {
                             );
 
                             this.nextMap = newMap;
-
+                            
+                            Set<String> groups = new HashSet<>();
+                            for (Scene.Light light:this.scene.getLights()) {
+                                if (!groups.contains(light.getGroupName())) {
+                                    groups.add(light.getGroupName());
+                                }
+                            }
+                            
                             int size = newMap.getLightmapSize();
-                            long requiredMemory = Lightmapper.approximatedMemoryUsage(size, this.scene.getSamplingMode().numSamples());
+                            long requiredMemory = Lightmapper.approximatedMemoryUsage(size, this.scene.getSamplingMode().numSamples(), groups.size());
                             
                             ContinuePopup.show(p,
                                     "Lightmap Size: " + size + "x" + size + "\n"
