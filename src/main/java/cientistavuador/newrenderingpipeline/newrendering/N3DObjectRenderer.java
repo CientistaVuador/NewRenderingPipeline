@@ -26,6 +26,7 @@
  */
 package cientistavuador.newrenderingpipeline.newrendering;
 
+import cientistavuador.newrenderingpipeline.util.bakedlighting.AmbientCube;
 import cientistavuador.newrenderingpipeline.Main;
 import cientistavuador.newrenderingpipeline.camera.Camera;
 import cientistavuador.newrenderingpipeline.util.BetterUniformSetter;
@@ -622,7 +623,7 @@ public class N3DObjectRenderer {
         Matrix4f transformedBone = new Matrix4f();
         
         NProgram.NProgramLight[] lastLights = null;
-        NAmbientCube lastAmbientCube = null;
+        AmbientCube lastAmbientCube = null;
         NLightmaps lastLightmaps = null;
         NMaterial lastMaterial = null;
         NTextures lastTextures = null;
@@ -638,7 +639,7 @@ public class N3DObjectRenderer {
             N3DModel n3dmodel = render.obj.getN3DModel();
 
             NProgram.NProgramLight[] lights = render.lights;
-            NAmbientCube ambientCube = render.obj.getAmbientCube();
+            AmbientCube ambientCube = render.obj.getAmbientCube();
             NLightmaps lightmaps = render.obj.getLightmaps();
             NMaterial material = render.geometry.getMaterial();
             NTextures textures = material.getTextures();

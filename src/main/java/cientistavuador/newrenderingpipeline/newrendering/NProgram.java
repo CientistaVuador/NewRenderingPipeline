@@ -26,6 +26,7 @@
  */
 package cientistavuador.newrenderingpipeline.newrendering;
 
+import cientistavuador.newrenderingpipeline.util.bakedlighting.AmbientCube;
 import cientistavuador.newrenderingpipeline.util.BetterUniformSetter;
 import cientistavuador.newrenderingpipeline.util.ProgramCompiler;
 import java.util.Map;
@@ -737,7 +738,7 @@ public class NProgram {
         new ProgramCompiler.ShaderConstant("DIFFUSE_STRENGTH", DIFFUSE_STRENGTH),
         new ProgramCompiler.ShaderConstant("SPECULAR_STRENGTH", SPECULAR_STRENGTH),
         new ProgramCompiler.ShaderConstant("MAX_AMOUNT_OF_CUBEMAPS", MAX_AMOUNT_OF_CUBEMAPS),
-        new ProgramCompiler.ShaderConstant("NUMBER_OF_AMBIENT_CUBE_SIDES", NAmbientCube.SIDES)
+        new ProgramCompiler.ShaderConstant("NUMBER_OF_AMBIENT_CUBE_SIDES", AmbientCube.SIDES)
     };
 
     static {
@@ -835,11 +836,11 @@ public class NProgram {
         }
     }
     
-    public static void sendAmbientCube(BetterUniformSetter uniforms, NAmbientCube ambientCube) {
+    public static void sendAmbientCube(BetterUniformSetter uniforms, AmbientCube ambientCube) {
         if (ambientCube == null) {
-            ambientCube = NAmbientCube.NULL_AMBIENT_CUBE;
+            ambientCube = AmbientCube.NULL_AMBIENT_CUBE;
         }
-        for (int i = 0; i < NAmbientCube.SIDES; i++) {
+        for (int i = 0; i < AmbientCube.SIDES; i++) {
             Vector3fc color = ambientCube.getSide(i);
             glUniform3f(
                     uniforms.locationOf("ambientCube["+i+"]"),

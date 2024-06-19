@@ -26,6 +26,7 @@
  */
 package cientistavuador.newrenderingpipeline.newrendering;
 
+import cientistavuador.newrenderingpipeline.util.bakedlighting.AmbientCube;
 import cientistavuador.newrenderingpipeline.Main;
 import cientistavuador.newrenderingpipeline.util.ColorUtils;
 import cientistavuador.newrenderingpipeline.util.MeshUtils;
@@ -37,16 +38,12 @@ import cientistavuador.newrenderingpipeline.util.raycast.LocalRayResult;
 import com.jme3.bullet.collision.shapes.MeshCollisionShape;
 import com.jme3.bullet.collision.shapes.infos.IndexedMesh;
 import com.jme3.util.BufferUtils;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
-import java.util.concurrent.ThreadLocalRandom;
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
@@ -474,135 +471,70 @@ public class NMap {
                 .add(1f - dest.w(), 1f - dest.w(), 1f - dest.w())
                 .mul(1f - dest.w());
     }
-
-    private void addToAllExcept(NAmbientCube ambientCube, Vector3fc color, int except) {
-        for (int i = 0; i < NAmbientCube.SIDES; i++) {
-            if (i == except) {
-                continue;
-            }
-            Vector3fc sideColor = ambientCube.getSide(i);
-            ambientCube.setSide(i,
-                    sideColor.x() + color.x(),
-                    sideColor.y() + color.y(),
-                    sideColor.z() + color.z()
-            );
-        }
-    }
-    
-    private void incrementAllExcept(int[] rayCount, int except) {
-        for (int i = 0; i < NAmbientCube.SIDES; i++) {
-            if (i == except) {
-                continue;
-            }
-            rayCount[i]++;
-        }
-    }
     
     public void sampleAmbientCube(
             Vector3fc ambientColor,
             double pX, double pY, double pZ,
-            NAmbientCube ambientCube
+            AmbientCube ambientCube
     ) {
         if (this.lightmaps == null) {
-            for (int i = 0; i < NAmbientCube.SIDES; i++) {
+            for (int i = 0; i < AmbientCube.SIDES; i++) {
                 ambientCube.setSide(i, ambientColor);
             }
             return;
         }
-        
-        ambientCube.zero();
-        
-        final int numberOfRays = 2048;
-        ThreadLocalRandom random = ThreadLocalRandom.current();
 
-        Vector4f textureColor = new Vector4f();
-        Vector3f color = new Vector3f();
-        Vector3f emissive = new Vector3f();
+        Vector3f direction = new Vector3f();
         Vector3f weights = new Vector3f();
         
-        int[] rayCount = new int[NCubemap.SIDES];
-        
-        for (int j = 0; j < numberOfRays; j++) {
-            float dirX;
-            float dirY;
-            float dirZ;
-            do {
-                dirX = (random.nextFloat() * 2f) - 1f;
-                dirY = (random.nextFloat() * 2f) - 1f;
-                dirZ = (random.nextFloat() * 2f) - 1f;
-            } while (((dirX * dirX) + (dirY * dirY) + (dirZ * dirZ)) > 1f);
-            float invlength = 1f / Vector3f.length(dirX, dirY, dirZ);
-            if (Float.isFinite(invlength)) {
-                dirX *= invlength;
-                dirY *= invlength;
-                dirZ *= invlength;
-            }
+        Vector4f textureColor = new Vector4f();
+        Vector3f lightmapColor = new Vector3f();
+        Vector3f emissiveColor = new Vector3f();
 
-            List<NRayResult> rayResults = testRay(
-                    pX, pY, pZ,
-                    dirX, dirY, dirZ
-            );
-            if (!rayResults.isEmpty()) {
-                NRayResult closest = rayResults.get(0);
-
-                LocalRayResult localRay = closest.getLocalRay();
-                localRay.weights(weights);
-
-                float lu = localRay.lerp(weights, NMesh.OFFSET_LIGHTMAP_TEXTURE_XY + 0);
-                float lv = localRay.lerp(weights, NMesh.OFFSET_LIGHTMAP_TEXTURE_XY + 1);
-
-                this.lightmaps.sampleCPULightmaps(lu, lv, color);
-                this.lightmaps.sampleCPULightmapsEmissive(lu, lv, emissive);
-                this.lightmaps.sampleColorMap(lu, lv, textureColor);
-
-                color
-                        .mul(textureColor.x(), textureColor.y(), textureColor.z())
-                        .add(emissive);
-            } else {
-                color.set(ambientColor);
-            }
-            
-            if (dirX >= 0f) {
-                addToAllExcept(ambientCube, color, NAmbientCube.NEGATIVE_X);
-                incrementAllExcept(rayCount, NAmbientCube.NEGATIVE_X);
-            }
-            if (dirX <= 0f) {
-                addToAllExcept(ambientCube, color, NAmbientCube.POSITIVE_X);
-                incrementAllExcept(rayCount, NAmbientCube.POSITIVE_X);
-            }
-            if (dirY >= 0f) {
-                addToAllExcept(ambientCube, color, NAmbientCube.NEGATIVE_Y);
-                incrementAllExcept(rayCount, NAmbientCube.NEGATIVE_Y);
-            }
-            if (dirY <= 0f) {
-                addToAllExcept(ambientCube, color, NAmbientCube.POSITIVE_Y);
-                incrementAllExcept(rayCount, NAmbientCube.POSITIVE_Y);
-            }
-            if (dirZ >= 0f) {
-                addToAllExcept(ambientCube, color, NAmbientCube.NEGATIVE_Z);
-                incrementAllExcept(rayCount, NAmbientCube.NEGATIVE_Z);
-            }
-            if (dirZ <= 0f) {
-                addToAllExcept(ambientCube, color, NAmbientCube.POSITIVE_Z);
-                incrementAllExcept(rayCount, NAmbientCube.POSITIVE_Z);
-            }
-        }
-        
-        for (int i = 0; i < NAmbientCube.SIDES; i++) {
-            int count = rayCount[i];
-            if (count != 0) {
-                float invcount = 1f / count;
+        final int numberOfRays = 2048;
+        for (int i = 0; i < AmbientCube.SIDES; i++) {
+            float r = 0f;
+            float g = 0f;
+            float b = 0f;
+            for (int j = 0; j < numberOfRays; j++) {
+                AmbientCube.randomSideDirection(i, direction);
                 
-                Vector3fc sideColor = ambientCube.getSide(i);
-                ambientCube.setSide(i, 
-                        sideColor.x() * invcount,
-                        sideColor.y() * invcount,
-                        sideColor.z() * invcount
+                List<NRayResult> rayResults = testRay(
+                        pX, pY, pZ,
+                        direction.x(), direction.y(), direction.z()
                 );
+                if (!rayResults.isEmpty()) {
+                    NRayResult closest = rayResults.get(0);
+
+                    LocalRayResult localRay = closest.getLocalRay();
+                    localRay.weights(weights);
+
+                    float lu = localRay.lerp(weights, NMesh.OFFSET_LIGHTMAP_TEXTURE_XY + 0);
+                    float lv = localRay.lerp(weights, NMesh.OFFSET_LIGHTMAP_TEXTURE_XY + 1);
+
+                    this.lightmaps.sampleCPULightmaps(lu, lv, lightmapColor);
+                    this.lightmaps.sampleCPULightmapsEmissive(lu, lv, emissiveColor);
+                    this.lightmaps.sampleColorMap(lu, lv, textureColor);
+                    
+                    lightmapColor
+                            .mul(textureColor.x(), textureColor.y(), textureColor.z())
+                            .add(emissiveColor);
+                } else {
+                    lightmapColor.set(ambientColor);
+                }
+                
+                r += lightmapColor.x();
+                g += lightmapColor.y();
+                b += lightmapColor.z();
             }
+            float invrays = 1f / numberOfRays;
+            r *= invrays;
+            g *= invrays;
+            b *= invrays;
+            ambientCube.setSide(i, r, g, b);
         }
     }
-    
+
     public BakeStatus bake(Scene scene) {
         CompletableFuture<Void> task = new CompletableFuture<>();
         BakeStatus status = new BakeStatus(task);
@@ -767,7 +699,7 @@ public class NMap {
                 opaqueMesh, alphaMesh
         );
         status.setLightmapper(lightmapper);
-        
+
         Lightmapper.LightmapperOutput output = lightmapper.bake();
 
         NLightmaps finalLightmaps = new NLightmaps(

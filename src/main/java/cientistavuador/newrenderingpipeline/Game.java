@@ -48,7 +48,10 @@ import cientistavuador.newrenderingpipeline.text.GLFontRenderer;
 import cientistavuador.newrenderingpipeline.text.GLFontSpecifications;
 import cientistavuador.newrenderingpipeline.ubo.CameraUBO;
 import cientistavuador.newrenderingpipeline.ubo.UBOBindingPoints;
+import cientistavuador.newrenderingpipeline.util.E8Image;
 import cientistavuador.newrenderingpipeline.util.StringUtils;
+import cientistavuador.newrenderingpipeline.util.bakedlighting.AmbientCubeDebug;
+import cientistavuador.newrenderingpipeline.util.bakedlighting.LightmapAmbientCube;
 import cientistavuador.newrenderingpipeline.util.bakedlighting.Lightmapper;
 import cientistavuador.newrenderingpipeline.util.bakedlighting.Scene;
 import com.jme3.bullet.PhysicsSpace;
@@ -69,6 +72,8 @@ import static org.lwjgl.glfw.GLFW.*;
  */
 public class Game {
 
+    public static List<LightmapAmbientCube> cubes = null;
+    
     private static final Game GAME = new Game();
 
     public static Game get() {
@@ -247,7 +252,7 @@ public class Game {
     public void start() {
         this.camera.setUBO(CameraUBO.create(UBOBindingPoints.PLAYER_CAMERA));
     }
-
+    
     private final Vector3f plasticBallRotation = new Vector3f(0f, 0f, 1f);
 
     public void loop() {
@@ -273,7 +278,7 @@ public class Game {
         this.plasticBallRotation.rotateY((float) (Main.TPF * 0.5));
         this.plasticBall.getPosition().set(this.plasticBallRotation).mul(3f).add(15.29, 1.95, -9.52);
         
-        this.plasticBall.getPosition().set(this.camera.getPosition()).add(this.camera.getFront());
+        //this.plasticBall.getPosition().set(this.camera.getPosition()).add(this.camera.getFront());
         
         this.flashlight.getPosition().set(this.camera.getPosition());
         this.flashlight.getDirection().set(this.camera.getFront());
@@ -286,14 +291,18 @@ public class Game {
             
             this.nextMap = null;
         }
-
+        
+        if (Game.cubes != null) {
+            AmbientCubeDebug.render(Game.cubes, this.camera.getProjection(), this.camera.getView(), this.camera.getPosition());
+        }
+        
         for (int i = 0; i < this.map.getNumberOfObjects(); i++) {
             N3DObjectRenderer.queueRender(this.map.getObject(i));
         }
-
+        
         N3DObjectRenderer.queueRender(this.triceratops);
         N3DObjectRenderer.queueRender(this.plasticBall);
-
+        
         N3DObjectRenderer.render(this.camera, this.lights, this.cubemaps);
 
         AabRender.renderQueue(this.camera);

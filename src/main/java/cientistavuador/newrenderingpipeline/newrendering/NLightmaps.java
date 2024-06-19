@@ -30,7 +30,7 @@ import cientistavuador.newrenderingpipeline.Main;
 import cientistavuador.newrenderingpipeline.util.CryptoUtils;
 import cientistavuador.newrenderingpipeline.util.ImageUtils;
 import cientistavuador.newrenderingpipeline.util.ObjectCleaner;
-import cientistavuador.newrenderingpipeline.util.RPImage;
+import cientistavuador.newrenderingpipeline.util.E8Image;
 import cientistavuador.newrenderingpipeline.util.StringUtils;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
@@ -73,8 +73,8 @@ public class NLightmaps {
     private final int width;
     private final int height;
 
-    private final RPImage cpuLightmaps;
-    private final RPImage cpuLightmapsEmissive;
+    private final E8Image cpuLightmaps;
+    private final E8Image cpuLightmapsEmissive;
 
     private final byte[] colorMap;
     private final int colorMapWidth;
@@ -96,7 +96,7 @@ public class NLightmaps {
             String name, String[] names, int margin,
             int width, int height,
             float[] lightmaps, float[] lightmapsEmissive, float[] color,
-            RPImage cpuLightmaps, RPImage cpuLightmapsEmissive,
+            E8Image cpuLightmaps, E8Image cpuLightmapsEmissive,
             int colorWidth, int colorHeight, byte[] colorMap,
             String sha256
     ) {
@@ -153,7 +153,7 @@ public class NLightmaps {
                 newLightmapsHeight /= 2;
             }
 
-            this.cpuLightmaps = new RPImage(newLightmaps, newLightmapsWidth, newLightmapsHeight);
+            this.cpuLightmaps = new E8Image(newLightmaps, newLightmapsWidth, newLightmapsHeight);
         } else {
             this.cpuLightmaps = cpuLightmaps;
         }
@@ -175,7 +175,7 @@ public class NLightmaps {
                 newEmissiveHeight /= 2;
             }
 
-            this.cpuLightmapsEmissive = new RPImage(newEmissive, newEmissiveWidth, newEmissiveHeight);
+            this.cpuLightmapsEmissive = new E8Image(newEmissive, newEmissiveWidth, newEmissiveHeight);
         } else {
             this.cpuLightmapsEmissive = cpuLightmapsEmissive;
         }
@@ -292,11 +292,11 @@ public class NLightmaps {
         return height;
     }
 
-    public RPImage getCPULightmaps() {
+    public E8Image getCPULightmaps() {
         return cpuLightmaps;
     }
 
-    public RPImage getCPULightmapsEmissive() {
+    public E8Image getCPULightmapsEmissive() {
         return cpuLightmapsEmissive;
     }
 
@@ -330,7 +330,7 @@ public class NLightmaps {
         float b = 0f;
         for (int i = 0; i < this.intensities.length; i++) {
             float intensity = this.intensities[i];
-            this.cpuLightmaps.sample(
+            this.cpuLightmaps.read(
                     x,
                     y + (i * h),
                     outLightmap
@@ -358,7 +358,7 @@ public class NLightmaps {
         float b = 0f;
         for (int i = 0; i < this.intensities.length; i++) {
             float intensity = this.intensities[i];
-            this.cpuLightmapsEmissive.sample(
+            this.cpuLightmapsEmissive.read(
                     x,
                     y + (i * h),
                     outLightmap

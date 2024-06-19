@@ -24,29 +24,44 @@
  *
  * For more information, please refer to <https://unlicense.org>
  */
-package cientistavuador.newrenderingpipeline.geometry;
+package cientistavuador.newrenderingpipeline.util.bakedlighting;
 
-import cientistavuador.newrenderingpipeline.resources.mesh.MeshConfiguration;
-import cientistavuador.newrenderingpipeline.resources.mesh.MeshData;
+import org.joml.Vector3f;
+import org.joml.Vector3fc;
 
 /**
  *
  * @author Cien
  */
-public class Geometries {
+public class LightmapAmbientCube {
     
-    public static final MeshData DEBUG_SPHERE;
+    private final Vector3f position = new Vector3f();
+    private final float radius;
+    private final AmbientCube[] ambientCubes;
     
-    static {
-        DEBUG_SPHERE = GeometriesLoader.load(new MeshConfiguration("debug_sphere.obj", false, false, 0f, 0, 0f)).get("debug_sphere.obj");
-    }
-    
-    public static void init() {
-        
+    public LightmapAmbientCube(float x, float y, float z, float radius, int numberOfAmbientCubes) {
+        this.position.set(x, y, z);
+        this.radius = radius;
+        this.ambientCubes = new AmbientCube[numberOfAmbientCubes];
+        for (int i = 0; i < this.ambientCubes.length; i++) {
+            this.ambientCubes[i] = new AmbientCube();
+        }
     }
 
-    private Geometries() {
-
+    public Vector3fc getPosition() {
+        return position;
     }
 
+    public float getRadius() {
+        return radius;
+    }
+    
+    public int getNumberOfAmbientCubes() {
+        return this.ambientCubes.length;
+    }
+    
+    public AmbientCube getAmbientCube(int index) {
+        return this.ambientCubes[index];
+    }
+    
 }

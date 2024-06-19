@@ -80,7 +80,7 @@ public class AudioResources {
                     if (data == null) {
                         throw new RuntimeException("Could not read '"+name+"'");
                     }
-                    audio = new NativeAudio(data, channels, sampleRate);
+                    audio = new NativeAudio(name, data, channels, sampleRate);
                 }
                 
                 return audio;

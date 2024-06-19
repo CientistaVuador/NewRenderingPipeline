@@ -27,7 +27,7 @@
 package cientistavuador.newrenderingpipeline.newrendering;
 
 import cientistavuador.newrenderingpipeline.util.ImageUtils;
-import cientistavuador.newrenderingpipeline.util.RPImage;
+import cientistavuador.newrenderingpipeline.util.E8Image;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -68,7 +68,7 @@ public class NCubemapStore {
         
         final String cubemapFile = "cubemap.png";
         
-        RPImage cubemapImage = new RPImage(
+        E8Image cubemapImage = new E8Image(
                 cubemap.getCubemap(),
                 cubemap.getSize(),
                 cubemap.getSize() * NCubemap.SIDES
@@ -79,7 +79,6 @@ public class NCubemapStore {
         zipOut.closeEntry();
         
         properties.setProperty("cubemapFile", cubemapFile);
-        properties.setProperty("cubemapFileBase", Double.toString(cubemapImage.getBase()));
         
         NCubemapInfo info = cubemap.getCubemapInfo();
         
@@ -154,12 +153,10 @@ public class NCubemapStore {
         );
         
         String cubemapFile = properties.getProperty("cubemapFile");
-        double cubemapFileBase = Double.parseDouble(properties.getProperty("cubemapFileBase"));
         
         ImageUtils.Image cubemapImage = ImageUtils.load(fs.get(cubemapFile), 4);
         
-        RPImage resultCubemapImage = new RPImage(
-                cubemapFileBase,
+        E8Image resultCubemapImage = new E8Image(
                 cubemapImage.getData(),
                 cubemapImage.getWidth(), cubemapImage.getHeight()
         );

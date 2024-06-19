@@ -36,6 +36,8 @@ import static org.lwjgl.openal.AL11.*;
  */
 public class NativeAudio {
     
+    private final String name;
+    
     private final ShortBuffer data;
     private final int channels;
     private final int sampleRate;
@@ -44,13 +46,18 @@ public class NativeAudio {
     private boolean freed = false;
     private int audioBuffer = 0;
     
-    protected NativeAudio(ShortBuffer data, int channels, int sampleRate) {
+    protected NativeAudio(String name, ShortBuffer data, int channels, int sampleRate) {
+        this.name = name;
         this.data = data;
         this.channels = channels;
         this.sampleRate = sampleRate;
         this.duration = (data.capacity() / ((float)channels)) / sampleRate;
     }
 
+    public String getName() {
+        return name;
+    }
+    
     public ShortBuffer getData() {
         throwExceptionIfFreed();
         return data;

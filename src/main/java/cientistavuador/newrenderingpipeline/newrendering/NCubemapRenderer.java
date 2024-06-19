@@ -140,7 +140,7 @@ public class NCubemapRenderer {
         } finally {
             memFree(sides);
         }
-
+        
         return new NCubemap(name, info, null, null, size, cubemap);
     }
 

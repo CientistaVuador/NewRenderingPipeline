@@ -29,24 +29,89 @@ package cientistavuador.newrenderingpipeline.util;
 import java.awt.image.BufferedImage;
 import java.util.Objects;
 import org.joml.Vector3f;
+import org.joml.Vector3fc;
 
 /**
  *
  * @author Cien
  */
-public class RPImage {
+public class E8Image {
 
-    public static final RPImage NULL_IMAGE = new RPImage(new float[0], 0, 0);
-
+    public static final int MAX_EXPONENT = 255;
     public static final int BIAS = 127;
-    public static final double MINIMUM_BASE = Math.pow(32.0, 1.0 / (255 - BIAS));
+    public static final float BASE = (float) Math.pow(65535.0, 1.0 / (MAX_EXPONENT - BIAS));
+    public static final float INVERSE_LOG_BASE = (float) (1.0 / Math.log(BASE));
     
-    private final double base;
+    public static final float MAX_VALUE = (float) Math.pow(BASE, MAX_EXPONENT - BIAS);
+    public static final float MIN_VALUE = (float) (Math.pow(BASE, 0 - BIAS) * (1f / 255f));
+
+    private static final float[] LOOKUP_TABLE = new float[MAX_EXPONENT + 1];
+
+    static {
+        for (int exp = 0; exp < LOOKUP_TABLE.length; exp++) {
+            LOOKUP_TABLE[exp] = (float) Math.pow(BASE, exp - BIAS);
+        }
+    }
+    
+    private static final float[] INVERSE_LOOKUP_TABLE = new float[LOOKUP_TABLE.length];
+    
+    static {
+        for (int exp = 0; exp < INVERSE_LOOKUP_TABLE.length; exp++) {
+            INVERSE_LOOKUP_TABLE[exp] = 1f / LOOKUP_TABLE[exp];
+        }
+    }
+
+    private static void encodeTo(float r, float g, float b, int index, byte[] data) {
+        int mR = 255;
+        int mG = 255;
+        int mB = 255;
+        int exp = 255;
+        
+        encode:
+        {
+            if (!Float.isFinite(r) || !Float.isFinite(g) || !Float.isFinite(b)) {
+                break encode;
+            }
+            r = Math.max(r, 0f);
+            g = Math.max(g, 0f);
+            b = Math.max(b, 0f);
+
+            float intensity = Math.max(r, Math.max(g, b));
+            if (intensity == 0f) {
+                mR = 0;
+                mG = 0;
+                mB = 0;
+                exp = 0;
+                break encode;
+            }
+
+            exp = (int) Math.ceil((Math.log(intensity) * INVERSE_LOG_BASE) + BIAS);
+            exp = Math.min(Math.max(exp, 0), MAX_EXPONENT);
+            
+            float refinedInverseIntensity = INVERSE_LOOKUP_TABLE[exp];
+            
+            r *= refinedInverseIntensity;
+            g *= refinedInverseIntensity;
+            b *= refinedInverseIntensity;
+
+            mR = Math.min(Math.max(Math.round(r * 255f), 0), 255);
+            mG = Math.min(Math.max(Math.round(g * 255f), 0), 255);
+            mB = Math.min(Math.max(Math.round(b * 255f), 0), 255);
+        }
+        
+        data[0 + index] = (byte) mR;
+        data[1 + index] = (byte) mG;
+        data[2 + index] = (byte) mB;
+        data[3 + index] = (byte) exp;
+    }
+    
+    public static final E8Image NULL_IMAGE = new E8Image(new float[0], 0, 0);
+    
     private final byte[] data;
     private final int width;
     private final int height;
 
-    public RPImage(double base, byte[] data, int width, int height) {
+    public E8Image(byte[] data, int width, int height) {
         Objects.requireNonNull(data, "data is null");
 
         int pixels = width * height;
@@ -54,29 +119,18 @@ public class RPImage {
             throw new IllegalArgumentException("Invalid amount of pixels! required " + pixels + ", found " + (data.length / 4));
         }
 
-        this.base = base;
         this.data = data;
         this.width = width;
         this.height = height;
     }
 
-    public RPImage(float[] data, int width, int height) {
+    public E8Image(float[] data, int width, int height) {
         Objects.requireNonNull(data, "data is null");
 
         int pixels = width * height;
         if (data.length / 3 != pixels) {
             throw new IllegalArgumentException("Invalid amount of pixels! required " + pixels + ", found " + (data.length / 4));
         }
-
-        float maxValue = 0f;
-        for (float f : data) {
-            if (f < 0f || !Float.isFinite(f)) {
-                throw new IllegalArgumentException("Image contains negative or invalid values.");
-            }
-            maxValue = Math.max(maxValue, f);
-        }
-
-        this.base = Math.max(Math.pow(maxValue, 1.0 / (255 - BIAS)), MINIMUM_BASE);
 
         this.data = new byte[width * height * 4];
         for (int y = 0; y < height; y++) {
@@ -85,44 +139,12 @@ public class RPImage {
                 float g = data[1 + (x * 3) + (y * width * 3)];
                 float b = data[2 + (x * 3) + (y * width * 3)];
 
-                float intensity = Math.max(r, Math.max(g, b));
-
-                if (intensity == 0f) {
-                    this.data[0 + (x * 4) + (y * width * 4)] = 0;
-                    this.data[1 + (x * 4) + (y * width * 4)] = 0;
-                    this.data[2 + (x * 4) + (y * width * 4)] = 0;
-                    this.data[3 + (x * 4) + (y * width * 4)] = 0;
-                    continue;
-                }
-
-                double exponent = (Math.log(intensity) / Math.log(this.base)) + BIAS;
-                int roundExponent = Math.min(Math.max((int) Math.ceil(exponent), 0), 255);
-
-                float newIntensity = (float) Math.pow(this.base, roundExponent - BIAS);
-                float invIntensity = 1f / newIntensity;
-
-                r *= invIntensity;
-                g *= invIntensity;
-                b *= invIntensity;
-
-                int mRed = Math.min(Math.max(Math.round(r * 255f), 0), 255);
-                int mGreen = Math.min(Math.max(Math.round(g * 255f), 0), 255);
-                int mBlue = Math.min(Math.max(Math.round(b * 255f), 0), 255);
-
-                this.data[0 + (x * 4) + (y * width * 4)] = (byte) mRed;
-                this.data[1 + (x * 4) + (y * width * 4)] = (byte) mGreen;
-                this.data[2 + (x * 4) + (y * width * 4)] = (byte) mBlue;
-
-                this.data[3 + (x * 4) + (y * width * 4)] = (byte) roundExponent;
+                encodeTo(r, g, b, (x * 4) + (y * width * 4), this.data);
             }
         }
 
         this.width = width;
         this.height = height;
-    }
-
-    public double getBase() {
-        return base;
     }
 
     public byte[] getData() {
@@ -137,20 +159,26 @@ public class RPImage {
         return height;
     }
 
-    public void sample(int x, int y, Vector3f outColor) {
+    public void read(int x, int y, Vector3f outColor) {
         int index = (x * 4) + (y * this.width * 4);
 
-        int mRed = this.data[0 + index] & 0xFF;
-        int mGreen = this.data[1 + index] & 0xFF;
-        int mBlue = this.data[2 + index] & 0xFF;
-        int bExp = this.data[3 + index] & 0xFF;
+        int mR = this.data[0 + index] & 0xFF;
+        int mG = this.data[1 + index] & 0xFF;
+        int mB = this.data[2 + index] & 0xFF;
+        int exp = this.data[3 + index] & 0xFF;
+        
+        outColor.set(mR, mG, mB)
+                .div(255f)
+                .mul(LOOKUP_TABLE[exp])
+                ;
+    }
 
-        float r = mRed / 255f;
-        float g = mGreen / 255f;
-        float b = mBlue / 255f;
-        float intensity = (float) Math.pow(this.base, bExp - BIAS);
-
-        outColor.set(r, g, b).mul(intensity);
+    public void write(int x, int y, Vector3fc inColor) {
+        encodeTo(
+                inColor.x(), inColor.y(), inColor.z(),
+                (x * 4) + (y * this.width * 4),
+                this.data
+        );
     }
 
     public float[] toFloatArray() {
@@ -160,7 +188,7 @@ public class RPImage {
 
         for (int y = 0; y < this.height; y++) {
             for (int x = 0; x < this.width; x++) {
-                sample(x, y, color);
+                read(x, y, color);
 
                 array[0 + (x * 3) + (y * this.width * 3)] = color.x();
                 array[1 + (x * 3) + (y * this.width * 3)] = color.y();
@@ -179,7 +207,7 @@ public class RPImage {
                 int g = data[1 + (x * 4) + (y * resultImage.getWidth() * 4)] & 0xFF;
                 int b = data[2 + (x * 4) + (y * resultImage.getWidth() * 4)] & 0xFF;
                 int e = data[3 + (x * 4) + (y * resultImage.getWidth() * 4)] & 0xFF;
-                
+
                 int argb = (e << 24) | (r << 16) | (g << 8) | (b << 0);
 
                 resultImage.setRGB(x, (resultImage.getHeight() - 1) - y, argb);
