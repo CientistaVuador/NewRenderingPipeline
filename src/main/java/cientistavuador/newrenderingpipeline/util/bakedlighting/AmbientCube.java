@@ -37,23 +37,7 @@ import org.joml.Vector3fc;
  */
 public class AmbientCube {
     
-    public static final AmbientCube NULL_AMBIENT_CUBE = new AmbientCube() {
-        @Override
-        public void setSide(int side, Vector3fc color) {
-            throw new UnsupportedOperationException("Trying to set a side on null ambient cube.");
-        }
-
-        @Override
-        public void setSide(int side, float r, float g, float b) {
-            throw new UnsupportedOperationException("Trying to set a side on null ambient cube.");
-        }
-
-        @Override
-        public void setLerp(AmbientCube a, AmbientCube b, float factor) {
-            throw new UnsupportedOperationException("Trying to set a side on null ambient cube.");
-        }
-        
-    };
+    public static final AmbientCube NULL_AMBIENT_CUBE = new AmbientCube();
     
     public static final int SIDES = 6;
     
@@ -181,6 +165,12 @@ public class AmbientCube {
             Vector3fc colorB = b.getSide(i);
             
             this.sides[i].set(colorA).lerp(colorB, factor);
+        }
+    }
+    
+    public void set(AmbientCube other) {
+        for (int i = 0; i < this.sides.length; i++) {
+            setSide(i, other.getSide(i));
         }
     }
     
