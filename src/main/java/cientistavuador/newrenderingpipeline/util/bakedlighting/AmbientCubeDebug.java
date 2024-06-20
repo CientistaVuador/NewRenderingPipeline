@@ -26,16 +26,19 @@
  */
 package cientistavuador.newrenderingpipeline.util.bakedlighting;
 
+import cientistavuador.newrenderingpipeline.Main;
 import cientistavuador.newrenderingpipeline.geometry.Geometries;
 import cientistavuador.newrenderingpipeline.resources.mesh.MeshData;
 import cientistavuador.newrenderingpipeline.util.BetterUniformSetter;
 import cientistavuador.newrenderingpipeline.util.ProgramCompiler;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
 import org.joml.Vector3dc;
 import org.joml.Vector3f;
+import org.joml.Vector3fc;
 import static org.lwjgl.opengl.GL33C.*;
 
 /**
@@ -50,8 +53,7 @@ public class AmbientCubeDebug {
             """
             #version 330 core
             
-            uniform mat4 projection;
-            uniform mat4 view;
+            uniform mat4 projectionView;
             uniform mat4 model[INSTANCES_PER_DRAWCALL];
             
             layout (location = 0) in vec3 vertexPosition;
@@ -63,7 +65,7 @@ public class AmbientCubeDebug {
             void main() {
                 instanceID = gl_InstanceID;
                 fragNormal = vertexNormal;
-                gl_Position = projection * view * model[instanceID] * vec4(vertexPosition, 1.0);
+                gl_Position = projectionView * model[instanceID] * vec4(vertexPosition, 1.0);
             }
             """,
             """
@@ -73,6 +75,19 @@ public class AmbientCubeDebug {
             
             flat in int instanceID;
             in vec3 fragNormal;
+            
+            vec3 ACESFilm(vec3 rgb) {
+                float a = 2.51;
+                float b = 0.03;
+                float c = 2.43;
+                float d = 0.59;
+                float e = 0.14;
+                return (rgb*(a*rgb+b))/(rgb*(c*rgb+d)+e);
+            }
+            
+            vec3 gammaCorrection(vec3 rgb) {
+                return pow(rgb, vec3(1.0/2.2));
+            }
             
             vec3 ambientLight(vec3 normal) {
                 vec3 normalSquared = normal * normal;
@@ -87,7 +102,7 @@ public class AmbientCubeDebug {
             
             void main() {
                 vec3 normal = normalize(fragNormal);
-                outColor = vec4(pow(ambientLight(normal), vec3(1.0 / 2.2)), 1.0);
+                outColor = vec4(gammaCorrection(ACESFilm(ambientLight(normal))), 1.0);
             }
             """,
             new HashMap<>() {{
@@ -105,10 +120,42 @@ public class AmbientCubeDebug {
             return;
         }
         
+        Matrix4f projectionView = new Matrix4f(projection).mul(view);
+        
+        {
+            MeshData sphere = Geometries.DEBUG_SPHERE;
+            
+            Vector3fc min = sphere.getBVH().getMin();
+            Vector3fc max = sphere.getBVH().getMax();
+            
+            List<LightmapAmbientCube> filteredList = new ArrayList<>();
+            for (LightmapAmbientCube e:cubesList) {
+                float rX = (float) (e.getPosition().x() - position.x());
+                float rY = (float) (e.getPosition().y() - position.y());
+                float rZ = (float) (e.getPosition().z() - position.z());
+                
+                float minX = rX + min.x();
+                float minY = rY + min.y();
+                float minZ = rZ + min.z();
+                
+                float maxX = rX + max.x();
+                float maxY = rY + max.y();
+                float maxZ = rZ + max.z();
+                
+                if (projectionView.testAab(minX, minY, minZ, maxX, maxY, maxZ)) {
+                    filteredList.add(e);
+                }
+            }
+            cubesList = filteredList;
+        }
+        
+        if (cubesList.isEmpty()) {
+            return;
+        }
+        
         glUseProgram(SHADER_PROGRAM);
         
-        BetterUniformSetter.uniformMatrix4fv(UNIFORMS.locationOf("projection"), projection);
-        BetterUniformSetter.uniformMatrix4fv(UNIFORMS.locationOf("view"), view);
+        BetterUniformSetter.uniformMatrix4fv(UNIFORMS.locationOf("projectionView"), projectionView);
         
         Matrix4f model = new Matrix4f();
         Vector3f totalSideColor = new Vector3f();
@@ -153,6 +200,9 @@ public class AmbientCubeDebug {
             sphere.bind();
             glDrawElementsInstanced(GL_TRIANGLES, sphere.getAmountOfIndices(), GL_UNSIGNED_INT, 0, instances);
             sphere.unbind();
+            
+            Main.NUMBER_OF_DRAWCALLS++;
+            Main.NUMBER_OF_VERTICES += (sphere.getAmountOfIndices() * instances);
         }
         
         glUseProgram(0);

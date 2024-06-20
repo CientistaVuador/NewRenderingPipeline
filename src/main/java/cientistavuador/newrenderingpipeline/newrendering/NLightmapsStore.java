@@ -27,6 +27,8 @@
 package cientistavuador.newrenderingpipeline.newrendering;
 
 import cientistavuador.newrenderingpipeline.util.E8Image;
+import cientistavuador.newrenderingpipeline.util.bakedlighting.LightmapAmbientCubeBVH;
+import cientistavuador.newrenderingpipeline.util.bakedlighting.LightmapAmbientCubeBVHStore;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -93,6 +95,7 @@ public class NLightmapsStore {
         String lightmapsFile;
         String cpuLightmapsFile;
         String cpuLightmapsEmissiveFile;
+        String ambientCubesFile;
         
         String sha256;
 
@@ -110,6 +113,7 @@ public class NLightmapsStore {
             b.append(INDENT).append("lightmapsFile=").append('"').append(this.lightmapsFile).append('"').append('\n');
             b.append(INDENT).append("cpuLightmapsFile=").append('"').append(this.cpuLightmapsFile).append('"').append('\n');
             b.append(INDENT).append("cpuLightmapsEmissiveFile=").append('"').append(this.cpuLightmapsEmissiveFile).append('"').append('\n');
+            b.append(INDENT).append("ambientCubesFile=").append('"').append(this.ambientCubesFile).append('"').append('\n');
             b.append(INDENT).append('\n');
             b.append(INDENT).append("sha256=").append('"').append(this.sha256).append('"').append('\n');
             b.append(">\n");
@@ -210,7 +214,15 @@ public class NLightmapsStore {
 
             storeLightmaps.cpuLightmapsEmissiveFile = "cpuLightmapsEmissive.png";
         }
-
+        
+        {
+            zipOut.putNextEntry(new ZipEntry("ambientCubes.acb"));
+            LightmapAmbientCubeBVHStore.writeBVH(lightmaps.getAmbientCubes(), zipOut);
+            zipOut.closeEntry();
+            
+            storeLightmaps.ambientCubesFile = "ambientCubes.acb";
+        }
+        
         storeLightmaps.sha256 = lightmaps.getSha256();
 
         storeLightmaps.lightmaps = new ArrayList<>();
@@ -325,6 +337,7 @@ public class NLightmapsStore {
         storeLightmaps.lightmapsFile = rootNode.getAttribute("lightmapsFile");
         storeLightmaps.cpuLightmapsFile = rootNode.getAttribute("cpuLightmapsFile");
         storeLightmaps.cpuLightmapsEmissiveFile = rootNode.getAttribute("cpuLightmapsEmissiveFile");
+        storeLightmaps.ambientCubesFile = rootNode.getAttribute("ambientCubesFile");
         
         storeLightmaps.sha256 = rootNode.getAttribute("sha256");
         if (storeLightmaps.sha256.isBlank()) {
@@ -363,6 +376,7 @@ public class NLightmapsStore {
         E8Image lightmaps = loadE8(fs.get(storeLightmaps.lightmapsFile));
         E8Image cpuLightmaps = loadE8(fs.get(storeLightmaps.cpuLightmapsFile));
         E8Image cpuLightmapsEmissive = loadE8(fs.get(storeLightmaps.cpuLightmapsEmissiveFile));
+        LightmapAmbientCubeBVH bvh = LightmapAmbientCubeBVHStore.readBVH(new ByteArrayInputStream(fs.get(storeLightmaps.ambientCubesFile)));
 
         NLightmaps resultLightmaps = new NLightmaps(
                 storeLightmaps.name, names, storeLightmaps.margin,
@@ -370,6 +384,7 @@ public class NLightmapsStore {
                 null, null,
                 cpuLightmaps, cpuLightmapsEmissive,
                 color.width, color.height, color.data,
+                bvh,
                 storeLightmaps.sha256
         );
 
