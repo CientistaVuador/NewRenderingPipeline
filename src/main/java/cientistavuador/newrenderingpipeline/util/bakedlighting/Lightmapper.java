@@ -26,6 +26,7 @@
  */
 package cientistavuador.newrenderingpipeline.util.bakedlighting;
 
+import cientistavuador.newrenderingpipeline.Game;
 import cientistavuador.newrenderingpipeline.util.ColorUtils;
 import cientistavuador.newrenderingpipeline.util.MeshUtils;
 import cientistavuador.newrenderingpipeline.util.RasterUtils;
@@ -34,7 +35,6 @@ import cientistavuador.newrenderingpipeline.util.postprocess.MarginAutomata;
 import cientistavuador.newrenderingpipeline.util.raycast.BVH;
 import cientistavuador.newrenderingpipeline.util.raycast.LocalRayResult;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -168,22 +168,19 @@ public class Lightmapper {
         private final float[] lightmaps;
         private final float[] lightmapsEmissive;
         private final float[] color;
-        private final LightmapAmbientCubeBVH ambientCubes;
 
         public LightmapperOutput(
                 int size,
                 String[] names,
                 float[] lightmaps,
                 float[] lightmapsEmissive,
-                float[] color,
-                LightmapAmbientCubeBVH ambientCubes
+                float[] color
         ) {
             this.size = size;
             this.names = names;
             this.lightmaps = lightmaps;
             this.lightmapsEmissive = lightmapsEmissive;
             this.color = color;
-            this.ambientCubes = ambientCubes;
         }
 
         public int getSize() {
@@ -205,11 +202,6 @@ public class Lightmapper {
         public float[] getColor() {
             return color;
         }
-
-        public LightmapAmbientCubeBVH getAmbientCubes() {
-            return ambientCubes;
-        }
-
     }
 
     private static class LightGroup {
@@ -855,20 +847,8 @@ public class Lightmapper {
     private void placeAmbientCubes() {
         ThreadLocalRandom random = ThreadLocalRandom.current();
 
-        Vector3f worldMin = new Vector3f(this.alphaBVH.getMin())
-                .min(this.opaqueBVH.getMin())
-                .sub(
-                        AMBIENT_CUBE_DISTANCE_FROM_WALLS * 2f,
-                        AMBIENT_CUBE_DISTANCE_FROM_WALLS * 2f,
-                        AMBIENT_CUBE_DISTANCE_FROM_WALLS * 2f
-                );
-        Vector3f worldMax = new Vector3f(this.alphaBVH.getMax())
-                .max(this.opaqueBVH.getMax())
-                .add(
-                        AMBIENT_CUBE_DISTANCE_FROM_WALLS * 2f,
-                        AMBIENT_CUBE_DISTANCE_FROM_WALLS * 2f,
-                        AMBIENT_CUBE_DISTANCE_FROM_WALLS * 2f
-                );
+        Vector3f worldMin = new Vector3f(this.alphaBVH.getMin()).min(this.opaqueBVH.getMin());
+        Vector3f worldMax = new Vector3f(this.alphaBVH.getMax()).max(this.opaqueBVH.getMax());
 
         float width = worldMax.x() - worldMin.x();
         float height = worldMax.y() - worldMin.y();
@@ -904,16 +884,26 @@ public class Lightmapper {
                     for (int j = 0; j < NUMBER_OF_AMBIENT_CUBE_OCCLUSION_RAYS_PER_SIDE; j++) {
                         AmbientCube.randomSideDirection(side, rayDirection);
 
-                        List<LocalRayResult> rays = this.opaqueBVH.testRay(
+                        List<LocalRayResult> opaqueRays = this.opaqueBVH.testRaySorted(
                                 rayPosition,
-                                rayDirection
+                                rayDirection,
+                                false
                         );
-                        rays.addAll(this.alphaBVH.testRay(rayPosition, rayDirection));
-                        
-                        rays.sort((o1, o2) -> Float.compare(o1.getLocalDistance(), o2.getLocalDistance()));
-                        
-                        if (!rays.isEmpty() && !rays.get(0).frontFace()) {
-                            continue findPosition;
+                        List<LocalRayResult> alphaRays = this.alphaBVH.testRaySorted(
+                                rayPosition,
+                                rayDirection,
+                                false
+                        );
+
+                        if (!opaqueRays.isEmpty()) {
+                            if (!opaqueRays.get(0).frontFace()) {
+                                continue findPosition;
+                            }
+                        }
+                        if (!alphaRays.isEmpty()) {
+                            if (!alphaRays.get(0).frontFace()) {
+                                continue findPosition;
+                            }
                         }
                     }
                 }
@@ -1751,29 +1741,24 @@ public class Lightmapper {
                     Vector3f rayLight = new Vector3f();
                     Vector3f rayEmissive = new Vector3f();
                     Vector4f rayColor = new Vector4f();
-                    
-                    Vector3f finalColor = new Vector3f();
 
                     for (int side = 0; side < AmbientCube.SIDES; side++) {
                         sideColor.zero();
                         for (int k = 0; k < NUMBER_OF_AMBIENT_CUBE_RAYS_PER_SIDE; k++) {
                             AmbientCube.randomSideDirection(side, rayDirection);
 
-                            List<LocalRayResult> results = this.opaqueBVH.testRay(
+                            List<LocalRayResult> results = this.opaqueBVH.testRaySorted(
                                     cube.getPosition(),
-                                    rayDirection
+                                    rayDirection,
+                                    false
                             );
-                            results.addAll(this.alphaBVH.testRay(cube.getPosition(), rayDirection));
-                            Comparator<LocalRayResult> comparator = ((o1, o2) -> Float.compare(o1.getLocalDistance(), o2.getLocalDistance()));
-                            results.sort(comparator.reversed());
 
-                            finalColor.set(ambient);
+                            if (!results.isEmpty()) {
+                                LocalRayResult closest = results.get(0);
+                                closest.weights(rayWeights);
 
-                            for (LocalRayResult ray : results) {
-                                ray.weights(rayWeights);
-
-                                float lu = ray.lerp(rayWeights, OFFSET_LIGHTMAP_XY + 0);
-                                float lv = ray.lerp(rayWeights, OFFSET_LIGHTMAP_XY + 1);
+                                float lu = closest.lerp(rayWeights, OFFSET_LIGHTMAP_XY + 0);
+                                float lv = closest.lerp(rayWeights, OFFSET_LIGHTMAP_XY + 1);
 
                                 int tx = Math.min(Math.max((int) (lu * this.lightmapSize), 0), this.lightmapSize - 1);
                                 int ty = Math.min(Math.max((int) (lv * this.lightmapSize), 0), this.lightmapSize - 1);
@@ -1781,28 +1766,16 @@ public class Lightmapper {
                                 this.lightmap.read(rayLight, tx, ty);
                                 this.lightmapEmissive.read(rayEmissive, tx, ty);
                                 this.textureColors.read(rayColor, tx, ty);
-                                
+
                                 rayLight
                                         .mul(rayColor.x(), rayColor.y(), rayColor.z())
-                                        .add(rayEmissive.x(), rayEmissive.y(), rayEmissive.z())
-                                        .mul(rayColor.w())
-                                        ;
-                                
-                                finalColor.mul(
-                                        (rayColor.x() * rayColor.w()) + (1f - rayColor.w()),
-                                        (rayColor.y() * rayColor.w()) + (1f - rayColor.w()),
-                                        (rayColor.z() * rayColor.w()) + (1f - rayColor.w())
-                                ).mul(1f - rayColor.w());
-                                
-                                finalColor.add(rayLight);
+                                        .add(rayEmissive);
+
+                                sideColor.add(rayLight);
+                            } else {
+                                sideColor.add(ambient);
                             }
-                            
-                            sideColor.add(
-                                    finalColor.x(),
-                                    finalColor.y(),
-                                    finalColor.z()
-                            );
-                            
+
                             addRay();
                         }
                         sideColor.div(NUMBER_OF_AMBIENT_CUBE_RAYS_PER_SIDE);
@@ -1893,20 +1866,16 @@ public class Lightmapper {
                 outputLightmap();
             }
 
-            setStatus("Generating Ambient Cube BVH", 1);
-            LightmapAmbientCubeBVH ambientCubeBVH = LightmapAmbientCubeBVH.create(this.ambientCubes);
-            addProgress(1);
-
             setStatus("Done", 1);
             addProgress(1);
 
+            Game.cubes = this.ambientCubes;
             return new LightmapperOutput(
                     this.lightmapSize,
                     this.lightmapsNames,
                     this.totalLightmaps.getData(),
                     this.totalLightmapsEmissive.getData(),
-                    this.textureColors.getData(),
-                    ambientCubeBVH
+                    this.textureColors.getData()
             );
         } finally {
             this.service.shutdownNow();

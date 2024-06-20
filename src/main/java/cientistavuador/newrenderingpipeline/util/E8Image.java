@@ -60,7 +60,7 @@ public class E8Image {
             INVERSE_LOOKUP_TABLE[exp] = 1f / LOOKUP_TABLE[exp];
         }
     }
-    
+
     private static void encodeTo(float r, float g, float b, int index, byte[] data) {
         int mR = 255;
         int mG = 255;

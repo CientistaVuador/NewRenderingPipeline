@@ -32,13 +32,9 @@ import cientistavuador.newrenderingpipeline.util.ImageUtils;
 import cientistavuador.newrenderingpipeline.util.ObjectCleaner;
 import cientistavuador.newrenderingpipeline.util.E8Image;
 import cientistavuador.newrenderingpipeline.util.StringUtils;
-import cientistavuador.newrenderingpipeline.util.bakedlighting.LightmapAmbientCube;
-import cientistavuador.newrenderingpipeline.util.bakedlighting.LightmapAmbientCubeBVH;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -66,7 +62,6 @@ public class NLightmaps {
             new float[]{0f, 0f, 0f}, new float[]{0f, 0f, 0f}, new float[]{1f, 1f, 1f, 1f},
             null, null,
             0, 0, null,
-            null,
             null
     );
 
@@ -84,8 +79,6 @@ public class NLightmaps {
     private final byte[] colorMap;
     private final int colorMapWidth;
     private final int colorMapHeight;
-    
-    private final LightmapAmbientCubeBVH ambientCubes;
 
     private final Map<String, Integer> nameMap = new HashMap<>();
     private final float[] intensities;
@@ -105,7 +98,6 @@ public class NLightmaps {
             float[] lightmaps, float[] lightmapsEmissive, float[] color,
             E8Image cpuLightmaps, E8Image cpuLightmapsEmissive,
             int colorWidth, int colorHeight, byte[] colorMap,
-            LightmapAmbientCubeBVH ambientCubes,
             String sha256
     ) {
         if (name == null) {
@@ -138,10 +130,6 @@ public class NLightmaps {
                 throw new IllegalArgumentException("Duplicate lightmap name: " + names[i]);
             }
             nameSet.add(names[i]);
-        }
-        
-        if (ambientCubes == null) {
-            ambientCubes = LightmapAmbientCubeBVH.create(new ArrayList<>());
         }
 
         this.name = name;
@@ -237,9 +225,7 @@ public class NLightmaps {
             this.colorMapWidth = colorWidth;
             this.colorMapHeight = colorHeight;
         }
-        
-        this.ambientCubes = ambientCubes;
-        
+
         for (int i = 0; i < this.names.length; i++) {
             this.nameMap.put(this.names[i], i);
         }
@@ -326,20 +312,8 @@ public class NLightmaps {
         return colorMapHeight;
     }
 
-    public LightmapAmbientCubeBVH getAmbientCubes() {
-        return ambientCubes;
-    }
-
     public String getSha256() {
         return sha256;
-    }
-    
-    public List<LightmapAmbientCube> searchStaticAmbientCubes(float x, float y, float z) {
-        List<LightmapAmbientCube> cubes = this.ambientCubes.search(
-                x, y, z,
-                this.ambientCubes.getAverageRadius() * 2f
-        );
-        return cubes;
     }
 
     public void sampleCPULightmaps(float u, float v, Vector3f outLightmap) {

@@ -30,17 +30,24 @@ import cientistavuador.newrenderingpipeline.util.bakedlighting.AmbientCube;
 import cientistavuador.newrenderingpipeline.Main;
 import cientistavuador.newrenderingpipeline.camera.Camera;
 import cientistavuador.newrenderingpipeline.util.ObjectCleaner;
+import cientistavuador.newrenderingpipeline.util.Pair;
 import cientistavuador.newrenderingpipeline.util.raycast.BVH;
 import cientistavuador.newrenderingpipeline.util.raycast.LocalRayResult;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import org.joml.Matrix4d;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
 import org.joml.Quaternionf;
 import org.joml.Vector3d;
 import org.joml.Vector3f;
+import org.joml.Vector3fc;
 import static org.lwjgl.opengl.GL33C.*;
 
 /**
@@ -81,7 +88,9 @@ public class N3DObject {
     private long nextAmbientCubeUpdate = System.currentTimeMillis() + 10;
 
     private final AmbientCube ambientCube = new AmbientCube();
-    private final Vector3d lastAmbientCubePosition = new Vector3d(Double.NaN);
+    private final Vector3d lastAmbientCubePosition = new Vector3d();
+
+    private Future<Pair<AmbientCube, Vector3d>> futureAmbientCubeTask = null;
 
     public N3DObject(String name, N3DModel n3DModel) {
         this.name = name;
@@ -250,17 +259,13 @@ public class N3DObject {
         return ambientCube;
     }
 
-    public void updateAmbientCube(double pX, double pY, double pZ) {
+    public void updateAmbientCube(Vector3fc ambientColor, double pX, double pY, double pZ) {
         if (this.map == null || this.lightmaps != NLightmaps.NULL_LIGHTMAPS) {
-            this.ambientCube.zero();
+            for (int i = 0; i < AmbientCube.SIDES; i++) {
+                this.ambientCube.setSide(i, 0f, 0f, 0f);
+            }
             return;
         }
-        
-        if (this.lastAmbientCubePosition.isFinite() && this.lastAmbientCubePosition.distance(pX, pY, pZ) < 0.01) {
-            return;
-        }
-        this.lastAmbientCubePosition.set(pX, pY, pZ);
-        
         if (System.currentTimeMillis() < this.nextAmbientCubeUpdate) {
             long start = this.currentAmbientCubeUpdate;
             long end = this.nextAmbientCubeUpdate;
@@ -271,18 +276,45 @@ public class N3DObject {
             this.ambientCube.setLerp(this.ambientCubeA, this.ambientCubeB, factor);
             return;
         }
-        
+
         for (int i = 0; i < AmbientCube.SIDES; i++) {
             this.ambientCubeA.setSide(i, this.ambientCubeB.getSide(i));
         }
-        
-        this.map.sampleStaticAmbientCube(pX, pY, pZ, this.ambientCubeB);
-        
-        int nextTime = 100 + ThreadLocalRandom.current().nextInt(100 + 1);
-        long time = System.currentTimeMillis();
 
-        this.currentAmbientCubeUpdate = time;
-        this.nextAmbientCubeUpdate = time + nextTime;
+        if (this.lastAmbientCubePosition.distance(this.position) > 0.1) {
+            if (this.futureAmbientCubeTask != null && this.futureAmbientCubeTask.isDone()) {
+                try {
+                    Pair<AmbientCube, Vector3d> pair = this.futureAmbientCubeTask.get();
+                    AmbientCube ambient = pair.getA();
+                    for (int i = 0; i < AmbientCube.SIDES; i++) {
+                        this.ambientCubeB.setSide(i, ambient.getSide(i));
+                    }
+                    this.lastAmbientCubePosition.set(pair.getB());
+                    this.futureAmbientCubeTask = null;
+
+                    int nextTime = 100 + ThreadLocalRandom.current().nextInt(100 + 1);
+                    long time = System.currentTimeMillis();
+
+                    this.currentAmbientCubeUpdate = time;
+                    this.nextAmbientCubeUpdate = time + nextTime;
+                } catch (InterruptedException | ExecutionException ex) {
+                    throw new RuntimeException(ex);
+                }
+            } else if (this.futureAmbientCubeTask == null) {
+                this.futureAmbientCubeTask = CompletableFuture.supplyAsync(() -> {
+                    AmbientCube ambient = new AmbientCube();
+                    Vector3d pos = new Vector3d(pX, pY, pZ);
+
+                    this.map.sampleAmbientCube(
+                            ambientColor,
+                            pX, pY, pZ,
+                            ambient
+                    );
+
+                    return new Pair<>(ambient, pos);
+                });
+            }
+        }
     }
 
     public List<NRayResult> testRay(

@@ -31,7 +31,6 @@ import cientistavuador.newrenderingpipeline.Main;
 import cientistavuador.newrenderingpipeline.util.ColorUtils;
 import cientistavuador.newrenderingpipeline.util.MeshUtils;
 import cientistavuador.newrenderingpipeline.util.Pair;
-import cientistavuador.newrenderingpipeline.util.bakedlighting.LightmapAmbientCube;
 import cientistavuador.newrenderingpipeline.util.bakedlighting.LightmapUVs;
 import cientistavuador.newrenderingpipeline.util.bakedlighting.Lightmapper;
 import cientistavuador.newrenderingpipeline.util.bakedlighting.Scene;
@@ -39,9 +38,6 @@ import cientistavuador.newrenderingpipeline.util.raycast.LocalRayResult;
 import com.jme3.bullet.collision.shapes.MeshCollisionShape;
 import com.jme3.bullet.collision.shapes.infos.IndexedMesh;
 import com.jme3.util.BufferUtils;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -475,124 +471,8 @@ public class NMap {
                 .add(1f - dest.w(), 1f - dest.w(), 1f - dest.w())
                 .mul(1f - dest.w());
     }
-
-    public void sampleStaticAmbientCube(
-            double pX, double pY, double pZ,
-            AmbientCube ambientCube
-    ) {
-        final float epsilon = 0.001f;
-
-        ambientCube.zero();
-
-        if (this.lightmaps == null) {
-            return;
-        }
-
-        List<LightmapAmbientCube> lightmapAmbientCubes = this.lightmaps.searchStaticAmbientCubes(
-                (float) pX, (float) pY, (float) pZ
-        );
-
-        if (lightmapAmbientCubes.isEmpty()) {
-            return;
-        }
-
-        {
-            Vector3f direction = new Vector3f();
-
-            List<LightmapAmbientCube> filtered = new ArrayList<>();
-            for (LightmapAmbientCube e : lightmapAmbientCubes) {
-                direction.set(
-                        (float) (e.getPosition().x() - pX),
-                        (float) (e.getPosition().y() - pY),
-                        (float) (e.getPosition().z() - pZ)
-                );
-                float distance = direction.length();
-                if (distance < epsilon) {
-                    filtered.add(e);
-                    continue;
-                }
-                direction.div(distance);
-
-                List<NRayResult> results = testRay(
-                        pX, pY, pZ,
-                        direction.x(), direction.y(), direction.z()
-                );
-
-                if (!results.isEmpty()) {
-                    NRayResult closest = results.get(0);
-                    if (closest.getDistance() > distance) {
-                        filtered.add(e);
-                    }
-                } else {
-                    filtered.add(e);
-                }
-            }
-
-            lightmapAmbientCubes = filtered;
-        }
-
-        if (lightmapAmbientCubes.isEmpty()) {
-            return;
-        }
-
-        float[] weights = new float[lightmapAmbientCubes.size()];
-
-        if (weights.length > 1) {
-            float totalDistance = 0f;
-
-            for (int i = 0; i < weights.length; i++) {
-                weights[i] = lightmapAmbientCubes
-                        .get(i)
-                        .getPosition()
-                        .distance((float) pX, (float) pY, (float) pZ);
-                totalDistance += weights[i];
-            }
-
-            if (totalDistance != 0f) {
-                float totalWeight = 0f;
-                for (int i = 0; i < weights.length; i++) {
-                    weights[i] = 1f - (weights[i] / totalDistance);
-                    totalWeight += weights[i];
-                }
-                for (int i = 0; i < weights.length; i++) {
-                    weights[i] = weights[i] / totalWeight;
-                }
-            } else {
-                for (int i = 0; i < weights.length; i++) {
-                    weights[i] = 1f;
-                }
-            }
-        } else {
-            for (int i = 0; i < weights.length; i++) {
-                weights[i] = 1f;
-            }
-        }
-
-        for (int side = 0; side < AmbientCube.SIDES; side++) {
-            float r = 0f;
-            float g = 0f;
-            float b = 0f;
-
-            for (int i = 0; i < lightmapAmbientCubes.size(); i++) {
-                LightmapAmbientCube cube = lightmapAmbientCubes.get(i);
-                float weight = weights[i];
-
-                for (int j = 0; j < cube.getNumberOfAmbientCubes(); j++) {
-                    float intensity = this.lightmaps.getIntensity(j);
-                    Vector3fc sideColor = cube.getAmbientCube(j).getSide(side);
-
-                    r += sideColor.x() * weight * intensity;
-                    g += sideColor.y() * weight * intensity;
-                    b += sideColor.z() * weight * intensity;
-                }
-            }
-
-            ambientCube.setSide(side, r, g, b);
-        }
-
-    }
-
-    public void sampleDynamicAmbientCube(
+    
+    public void sampleAmbientCube(
             Vector3fc ambientColor,
             double pX, double pY, double pZ,
             AmbientCube ambientCube
@@ -606,7 +486,7 @@ public class NMap {
 
         Vector3f direction = new Vector3f();
         Vector3f weights = new Vector3f();
-
+        
         Vector4f textureColor = new Vector4f();
         Vector3f lightmapColor = new Vector3f();
         Vector3f emissiveColor = new Vector3f();
@@ -618,7 +498,7 @@ public class NMap {
             float b = 0f;
             for (int j = 0; j < numberOfRays; j++) {
                 AmbientCube.randomSideDirection(i, direction);
-
+                
                 List<NRayResult> rayResults = testRay(
                         pX, pY, pZ,
                         direction.x(), direction.y(), direction.z()
@@ -635,14 +515,14 @@ public class NMap {
                     this.lightmaps.sampleCPULightmaps(lu, lv, lightmapColor);
                     this.lightmaps.sampleCPULightmapsEmissive(lu, lv, emissiveColor);
                     this.lightmaps.sampleColorMap(lu, lv, textureColor);
-
+                    
                     lightmapColor
                             .mul(textureColor.x(), textureColor.y(), textureColor.z())
                             .add(emissiveColor);
                 } else {
                     lightmapColor.set(ambientColor);
                 }
-
+                
                 r += lightmapColor.x();
                 g += lightmapColor.y();
                 b += lightmapColor.z();
@@ -828,10 +708,9 @@ public class NMap {
                 output.getLightmaps(), output.getLightmapsEmissive(), output.getColor(),
                 null, null,
                 0, 0, null,
-                output.getAmbientCubes(),
                 null
         );
-
+        
         Main.MAIN_TASKS.add(() -> {
             this.lightmaps = finalLightmaps;
             for (N3DObject obj : this.objects) {

@@ -48,8 +48,10 @@ import cientistavuador.newrenderingpipeline.text.GLFontRenderer;
 import cientistavuador.newrenderingpipeline.text.GLFontSpecifications;
 import cientistavuador.newrenderingpipeline.ubo.CameraUBO;
 import cientistavuador.newrenderingpipeline.ubo.UBOBindingPoints;
+import cientistavuador.newrenderingpipeline.util.E8Image;
 import cientistavuador.newrenderingpipeline.util.StringUtils;
 import cientistavuador.newrenderingpipeline.util.bakedlighting.AmbientCubeDebug;
+import cientistavuador.newrenderingpipeline.util.bakedlighting.LightmapAmbientCube;
 import cientistavuador.newrenderingpipeline.util.bakedlighting.Lightmapper;
 import cientistavuador.newrenderingpipeline.util.bakedlighting.Scene;
 import com.jme3.bullet.PhysicsSpace;
@@ -70,6 +72,8 @@ import static org.lwjgl.glfw.GLFW.*;
  */
 public class Game {
 
+    public static List<LightmapAmbientCube> cubes = null;
+    
     private static final Game GAME = new Game();
 
     public static Game get() {
@@ -120,9 +124,7 @@ public class Game {
     private final NLight.NSpotLight flashlight = new NLight.NSpotLight("flashlight");
     private final List<NLight> lights = new ArrayList<>();
     private final Scene scene = new Scene();
-    
-    private boolean ambientCubeDebug = false;
-    
+
     private final PhysicsSpace physicsSpace = new PhysicsSpace(PhysicsSpace.BroadphaseType.DBVT);
     private final PlayerController playerController = new PlayerController();
 
@@ -276,6 +278,8 @@ public class Game {
         this.plasticBallRotation.rotateY((float) (Main.TPF * 0.5));
         this.plasticBall.getPosition().set(this.plasticBallRotation).mul(3f).add(15.29, 1.95, -9.52);
         
+        //this.plasticBall.getPosition().set(this.camera.getPosition()).add(this.camera.getFront());
+        
         this.flashlight.getPosition().set(this.camera.getPosition());
         this.flashlight.getDirection().set(this.camera.getFront());
 
@@ -288,14 +292,8 @@ public class Game {
             this.nextMap = null;
         }
         
-        if (this.map.getLightmaps() != null && this.ambientCubeDebug) {
-            AmbientCubeDebug.render(
-                    this.map
-                    .getLightmaps()
-                    .getAmbientCubes()
-                    .getAmbientCubes(),
-                    this.camera.getProjection(), this.camera.getView(), this.camera.getPosition()
-            );
+        if (Game.cubes != null) {
+            AmbientCubeDebug.render(Game.cubes, this.camera.getProjection(), this.camera.getView(), this.camera.getPosition());
         }
         
         for (int i = 0; i < this.map.getNumberOfObjects(); i++) {
@@ -456,9 +454,6 @@ public class Game {
             N3DObjectRenderer.SPECULAR_ENABLED = true;
             N3DObjectRenderer.HDR_OUTPUT = false;
             N3DObjectRenderer.REFLECTIONS_DEBUG = reflectionsDebug;
-        }
-        if (key == GLFW_KEY_F6 && action == GLFW_PRESS) {
-            this.ambientCubeDebug = !this.ambientCubeDebug;
         }
         if (key == GLFW_KEY_F && action == GLFW_PRESS) {
             if (this.flashlight.getDiffuse().x() == 0f) {

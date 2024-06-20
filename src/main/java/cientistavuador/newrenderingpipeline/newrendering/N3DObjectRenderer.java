@@ -146,7 +146,7 @@ public class N3DObjectRenderer {
         return objects;
     }
 
-    private static List<N3DObject> filterOccluded(Camera camera, List<N3DObject> objects) {
+    private static List<N3DObject> filterOccluded(Vector3fc ambientColor, Camera camera, List<N3DObject> objects) {
         List<N3DObject> notOccludedObjects = new ArrayList<>();
 
         Matrix4f projectionView = new Matrix4f(camera.getProjection()).mul(camera.getView());
@@ -218,7 +218,7 @@ public class N3DObjectRenderer {
                 double absCenterY = camera.getPosition().y() + ((transformedMin.y() + transformedMax.y()) * 0.5f);
                 double absCenterZ = camera.getPosition().z() + ((transformedMin.z() + transformedMax.z()) * 0.5f);
                 
-                obj.updateAmbientCube(absCenterX, absCenterY, absCenterZ);
+                obj.updateAmbientCube(ambientColor, absCenterX, absCenterY, absCenterZ);
                 
                 notOccludedObjects.add(obj);
             }
@@ -267,6 +267,7 @@ public class N3DObjectRenderer {
 
         List<N3DObject> objectsToRender = collectObjects();
         objectsToRender = filterOccluded(
+                cubemaps.getSkybox().getCubemapColor(),
                 camera,
                 objectsToRender
         );
