@@ -22,6 +22,7 @@
           <include>**/*.glb</include>
           <include>**/*.mdl</include>
           <include>**/*.jpeg</include>
+          <include>**/*.n3dm</include>
         </includes>
       </resource>
     </resources>

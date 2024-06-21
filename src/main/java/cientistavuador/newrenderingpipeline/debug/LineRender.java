@@ -40,6 +40,11 @@ import static org.lwjgl.opengl.GL33C.*;
  * @author Cien
  */
 public class LineRender {
+    
+    public static void init() {
+        
+    }
+    
     private static final String VERTEX_SHADER = 
             """
             #version 330 core

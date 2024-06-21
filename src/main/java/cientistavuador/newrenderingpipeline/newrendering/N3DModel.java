@@ -434,5 +434,29 @@ public class N3DModel {
     public int getVerticesCount() {
         return verticesCount;
     }
+    
+    public void loadEverything() {
+        for (NTextures t:this.textures) {
+            t.r_g_b_a();
+            t.er_eg_eb_ny();
+            t.ht_rg_mt_nx();
+        }
+        
+        for (NMesh m:this.meshes) {
+            m.getVBO();
+            m.getEBO();
+            m.getVAO();
+        }
+    }
+    
+    public void freeEverything() {
+        for (NTextures t:this.textures) {
+            t.manualFree();
+        }
+        
+        for (NMesh m:this.meshes) {
+            m.manualFree();
+        }
+    }
 
 }

@@ -39,8 +39,13 @@ import static org.lwjgl.opengl.GL33C.*;
  */
 public class AabRender {
 
+    public static void init() {
+        
+    }
+    
     private static final String VERTEX_SHADER
-            = """
+            = 
+            """
             #version 330 core
             
             layout (std140) uniform Camera {

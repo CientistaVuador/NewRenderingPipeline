@@ -30,7 +30,7 @@ import cientistavuador.newrenderingpipeline.camera.FreeCamera;
 import cientistavuador.newrenderingpipeline.debug.AabRender;
 import cientistavuador.newrenderingpipeline.debug.LineRender;
 import cientistavuador.newrenderingpipeline.newrendering.N3DModel;
-import cientistavuador.newrenderingpipeline.newrendering.N3DModelImporter;
+import cientistavuador.newrenderingpipeline.newrendering.N3DModelStore;
 import cientistavuador.newrenderingpipeline.newrendering.N3DObject;
 import cientistavuador.newrenderingpipeline.newrendering.N3DObjectRenderer;
 import cientistavuador.newrenderingpipeline.newrendering.NAnimator;
@@ -131,29 +131,28 @@ public class Game {
             this.skybox = NCubemapImporter.loadFromJar("cientistavuador/newrenderingpipeline/resources/image/generic_cubemap2.png", true, false);
             
             List<N3DObject> mapObjects = new ArrayList<>();
-
             {
-                N3DModel waterBottle3DModel = N3DModelImporter.importFromJarFile("cientistavuador/newrenderingpipeline/nrp.glb");
-                N3DObject nrp = new N3DObject("nrp", waterBottle3DModel);
+                N3DModel nrpModel = N3DModelStore.readModel("cientistavuador/newrenderingpipeline/resources/models/nrp.n3dm");
+                N3DObject nrp = new N3DObject("nrp", nrpModel);
                 mapObjects.add(nrp);
             }
-
+            
             {
-                N3DModel model = N3DModelImporter.importFromJarFile("cientistavuador/newrenderingpipeline/cc0_zacxophone_triceratops.glb");
+                N3DModel triceratopsModel = N3DModelStore.readModel("cientistavuador/newrenderingpipeline/resources/models/triceratops.n3dm");
                 
-                this.triceratops = new N3DObject("triceratops", model);
+                this.triceratops = new N3DObject("triceratops", triceratopsModel);
                 this.triceratops.getPosition().set(-15f, 0.9f, 3f);
-                this.triceratops.setAnimator(new NAnimator(model, "Armature|Armature|Fall"));
+                this.triceratops.setAnimator(new NAnimator(triceratopsModel, "Armature|Armature|Fall"));
             }
 
             {
-                N3DModel model = N3DModelImporter.importFromJarFile("cientistavuador/newrenderingpipeline/plastic_ball.glb");
+                N3DModel plasticBallModel = N3DModelStore.readModel("cientistavuador/newrenderingpipeline/resources/models/plastic_ball.n3dm");
 
-                this.plasticBall = new N3DObject("plastic ball", model);
+                this.plasticBall = new N3DObject("plastic ball", plasticBallModel);
             }
-
+            
             this.map = new NMap("map", mapObjects, NMap.DEFAULT_LIGHTMAP_MARGIN, 1f / 0.2f);
-
+            
             this.triceratops.setMap(this.map);
             this.plasticBall.setMap(this.map);
             
@@ -249,6 +248,12 @@ public class Game {
 
     public void start() {
         this.camera.setUBO(CameraUBO.create(UBOBindingPoints.PLAYER_CAMERA));
+        
+        for (int i = 0; i < this.map.getNumberOfObjects(); i++) {
+            this.map.getObject(i).getN3DModel().loadEverything();
+        }
+        
+        this.skybox.cubemap();
     }
     
     private final Vector3f plasticBallRotation = new Vector3f(0f, 0f, 1f);

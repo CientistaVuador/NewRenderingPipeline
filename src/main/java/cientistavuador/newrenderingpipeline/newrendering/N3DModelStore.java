@@ -29,6 +29,7 @@ package cientistavuador.newrenderingpipeline.newrendering;
 import cientistavuador.newrenderingpipeline.util.MeshStore;
 import cientistavuador.newrenderingpipeline.util.raycast.BVH;
 import cientistavuador.newrenderingpipeline.util.raycast.BVHStore;
+import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -1020,7 +1021,13 @@ public class N3DModelStore {
 
         return model.object;
     }
-
+    
+    public static N3DModel readModel(String jarFile) throws IOException {
+        try (BufferedInputStream stream = new BufferedInputStream(ClassLoader.getSystemResourceAsStream(jarFile))) {
+            return readModel(stream);
+        }
+    }
+    
     public static N3DModel readModel(InputStream input) throws IOException {
         Map<String, byte[]> fs = readVirtualFileSystem(input);
 

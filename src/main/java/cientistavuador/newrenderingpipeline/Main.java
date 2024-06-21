@@ -26,6 +26,8 @@
  */
 package cientistavuador.newrenderingpipeline;
 
+import cientistavuador.newrenderingpipeline.debug.AabRender;
+import cientistavuador.newrenderingpipeline.debug.LineRender;
 import cientistavuador.newrenderingpipeline.sound.SoundSystem;
 import cientistavuador.newrenderingpipeline.geometry.Geometries;
 import cientistavuador.newrenderingpipeline.newrendering.NProgram;
@@ -156,8 +158,6 @@ public class Main {
         glfwMakeContextCurrent(0);
 
         glfwDestroyWindow(dummyWindow);
-
-        glfwWindowHint(GLFW_VISIBLE, GLFW_TRUE);
     }
 
     public static boolean isSupported(int major, int minor) {
@@ -324,7 +324,9 @@ public class Main {
             glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_ANY_PROFILE);
             glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_FALSE);
         }
-
+        
+        glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+        
         WINDOW_POINTER = glfwCreateWindow(Main.WIDTH, Main.HEIGHT, Main.WINDOW_TITLE, NULL, NULL);
         if (WINDOW_POINTER == NULL) {
             throw new IllegalStateException("Found a compatible OpenGL version but now it's not compatible anymore.");
@@ -488,17 +490,19 @@ public class Main {
         
         Main.checkGLError();
         
-        GLFonts.init(); //static initialize
-        Textures.init(); //static initialize
-        Geometries.init(); //static initialize
-        SoundSystem.init(); //static initialize
-        Sounds.init(); //static initialize
-        Cursors.init(); //static initialize
-        NProgram.init(); //static initialize
-        GPUOcclusion.init(); //static initialize
-        ConvexPolygonRenderer.polyStaticInit(); //static initialize
-        NSkybox.init(); //static initialize
-        Game.get(); //static initialize
+        GLFonts.init();
+        Textures.init();
+        Geometries.init();
+        SoundSystem.init();
+        Sounds.init();
+        Cursors.init();
+        NProgram.init();
+        GPUOcclusion.init();
+        ConvexPolygonRenderer.polyStaticInit();
+        NSkybox.init();
+        AabRender.init();
+        LineRender.init();
+        Game.get();
 
         Main.checkGLError();
 
@@ -623,6 +627,8 @@ public class Main {
         Game.get().start();
 
         Main.checkGLError();
+        
+        glfwShowWindow(WINDOW_POINTER);
 
         int frames = 0;
         long nextFpsUpdate = System.currentTimeMillis() + 1000;

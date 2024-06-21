@@ -124,20 +124,21 @@ public class N3DModelImporter {
     }
 
     private static N3DModel process(AIScene modelScene) {
+        String error = aiGetErrorString();
         if (modelScene == null) {
-            throw new RuntimeException("Failed to import.");
+            throw new RuntimeException("Failed to import: "+error);
         }
 
         try {
             if ((modelScene.mFlags() & AI_SCENE_FLAGS_INCOMPLETE) != 0) {
-                throw new RuntimeException("Failed to import.");
+                throw new RuntimeException("Failed to import: "+error);
             }
 
             AINode rootNode = modelScene.mRootNode();
             if (rootNode == null) {
-                throw new RuntimeException("Failed to import.");
+                throw new RuntimeException("Failed to import: "+error);
             }
-
+            
             return new N3DModelImporter(modelScene).process();
         } finally {
             aiFreeScene(modelScene);

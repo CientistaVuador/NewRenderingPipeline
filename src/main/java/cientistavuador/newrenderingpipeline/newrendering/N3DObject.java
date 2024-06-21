@@ -256,11 +256,6 @@ public class N3DObject {
             return;
         }
         
-        if (this.lastAmbientCubePosition.isFinite() && this.lastAmbientCubePosition.distance(pX, pY, pZ) < 0.01) {
-            return;
-        }
-        this.lastAmbientCubePosition.set(pX, pY, pZ);
-        
         if (System.currentTimeMillis() < this.nextAmbientCubeUpdate) {
             long start = this.currentAmbientCubeUpdate;
             long end = this.nextAmbientCubeUpdate;
@@ -271,6 +266,11 @@ public class N3DObject {
             this.ambientCube.setLerp(this.ambientCubeA, this.ambientCubeB, factor);
             return;
         }
+        
+        if (this.lastAmbientCubePosition.isFinite() && this.lastAmbientCubePosition.distance(pX, pY, pZ) < 0.01) {
+            return;
+        }
+        this.lastAmbientCubePosition.set(pX, pY, pZ);
         
         for (int i = 0; i < AmbientCube.SIDES; i++) {
             this.ambientCubeA.setSide(i, this.ambientCubeB.getSide(i));
@@ -284,7 +284,7 @@ public class N3DObject {
         this.currentAmbientCubeUpdate = time;
         this.nextAmbientCubeUpdate = time + nextTime;
     }
-
+    
     public List<NRayResult> testRay(
             double pX, double pY, double pZ,
             float dX, float dY, float dZ

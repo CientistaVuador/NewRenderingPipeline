@@ -27,6 +27,9 @@
 package cientistavuador.newrenderingpipeline;
 
 import cientistavuador.newrenderingpipeline.natives.Natives;
+import cientistavuador.newrenderingpipeline.newrendering.N3DModel;
+import cientistavuador.newrenderingpipeline.newrendering.N3DModelImporter;
+import cientistavuador.newrenderingpipeline.newrendering.N3DModelStore;
 import cientistavuador.newrenderingpipeline.sound.SoundSystem;
 import cientistavuador.newrenderingpipeline.util.postprocess.MarginAutomata;
 import com.formdev.flatlaf.FlatDarkLaf;
@@ -34,8 +37,10 @@ import com.jme3.bullet.objects.PhysicsRigidBody;
 import com.jme3.system.NativeLibraryLoader;
 import java.awt.Toolkit;
 import java.awt.image.BufferedImage;
+import java.io.BufferedOutputStream;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.io.UncheckedIOException;
@@ -188,7 +193,7 @@ public class MainWrapper {
         
         System.out.println("Finished!");
         
-        Path outputFile = path.toAbsolutePath().getParent().resolve(UUID.randomUUID().toString()+".png");
+        Path outputFile = path.toAbsolutePath().getParent().resolve(path.getFileName()+"_margin.png");
         
         System.out.println("Writing to "+outputFile.getFileName());
         
@@ -201,6 +206,46 @@ public class MainWrapper {
         }
         
         System.out.println("Done!");
+        
+        System.exit(0);
+    }
+    
+    public static void importModel(String file) {
+        Path path = Path.of(file);
+        
+        if (!Files.exists(path)) {
+            System.out.println(file+" does not exists");
+            return;
+        }
+        
+        if (!Files.isRegularFile(path)) {
+            System.out.println(file+" is not a valid file.");
+            return;
+        }
+        
+        System.out.println("Importing...");
+        N3DModel model;
+        try {
+            model = N3DModelImporter.importFromFile(file);
+        } catch (Exception ex) {
+            ex.printStackTrace(System.out);
+            return;
+        }
+        System.out.println("Done Importing!");
+        
+        System.out.println("Writing to File...");
+        try {
+            Path outputFile = path.toAbsolutePath().getParent().resolve(path.getFileName()+".n3dm");
+            try (BufferedOutputStream outBuffer = new BufferedOutputStream(Files.newOutputStream(outputFile))) {
+                N3DModelStore.writeModel(model, outBuffer);
+            }
+        } catch (IOException ex) {
+            ex.printStackTrace(System.out);
+            return;
+        }
+        System.out.println("Done!");
+        
+        System.exit(0);
     }
     
     /**
@@ -236,6 +281,21 @@ public class MainWrapper {
                 }
             }
             marginAutomata(fileBuilder.toString(), iterations, keepAlpha);
+            return;
+        }
+        if (args.length != 0 && args[0].toLowerCase().equals("-import")) {
+            if (args.length == 1) {
+                System.out.println("Usage: -import <file>");
+                return;
+            }
+            StringBuilder fileBuilder = new StringBuilder();
+            for (int i = 1; i < args.length; i++) {
+                fileBuilder.append(args[i]);
+                if (i != (args.length - 1)) {
+                    fileBuilder.append(' ');
+                }
+            }
+            importModel(fileBuilder.toString());
             return;
         }
         
