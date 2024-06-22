@@ -36,24 +36,36 @@ import java.io.UncheckedIOException;
  */
 public class NCubemapImporter {
 
-    public static NCubemap loadFromJar(String path, boolean srgb, boolean compressed) {
+    public static NCubemap loadFromJar(String path, boolean srgb) {
         String[] split = path.split("/");
         String name = split[split.length - 1];
 
         byte[] imageData;
         try {
-            InputStream stream = ClassLoader.getSystemResourceAsStream(path);
-            imageData = stream.readAllBytes();
+            try (InputStream stream = ClassLoader.getSystemResourceAsStream(path)) {
+                imageData = stream.readAllBytes();
+            }
         } catch (IOException ex) {
             throw new UncheckedIOException(ex);
         }
 
-        return loadFromImage(name, imageData, srgb, compressed);
+        return loadFromImage(name, imageData, srgb);
+    }
+    
+    public static NCubemap loadFromStream(String name, InputStream stream, boolean srgb) {
+        byte[] imageData;
+        try {
+            imageData = stream.readAllBytes();
+        } catch (IOException ex) {
+            throw new UncheckedIOException(ex);
+        }
+        
+        return loadFromImage(name, imageData, srgb);
     }
 
-    public static NCubemap loadFromImage(String name, byte[] image, boolean srgb, boolean compressed) {
+    public static NCubemap loadFromImage(String name, byte[] image, boolean srgb) {
         NTexturesImporter.LoadedImage img = NTexturesImporter.loadImage(image);
-        return load(name, img.width, img.height, img.pixelData, srgb, compressed);
+        return load(name, img.width, img.height, img.pixelData, srgb);
     }
 
     private static void getSide(
@@ -88,7 +100,7 @@ public class NCubemapImporter {
         }
     }
 
-    public static NCubemap load(String name, int width, int height, byte[] cubemap, boolean srgb, boolean compressed) {
+    public static NCubemap load(String name, int width, int height, byte[] cubemap, boolean srgb) {
         int pixels = width * height;
         if (cubemap.length / 4 != pixels) {
             throw new IllegalArgumentException("Invalid image size, expected " + pixels + " pixels but found " + (cubemap.length / 4) + " pixels!");

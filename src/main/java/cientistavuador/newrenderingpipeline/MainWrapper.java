@@ -30,6 +30,9 @@ import cientistavuador.newrenderingpipeline.natives.Natives;
 import cientistavuador.newrenderingpipeline.newrendering.N3DModel;
 import cientistavuador.newrenderingpipeline.newrendering.N3DModelImporter;
 import cientistavuador.newrenderingpipeline.newrendering.N3DModelStore;
+import cientistavuador.newrenderingpipeline.newrendering.NCubemap;
+import cientistavuador.newrenderingpipeline.newrendering.NCubemapImporter;
+import cientistavuador.newrenderingpipeline.newrendering.NCubemapStore;
 import cientistavuador.newrenderingpipeline.sound.SoundSystem;
 import cientistavuador.newrenderingpipeline.util.postprocess.MarginAutomata;
 import com.formdev.flatlaf.FlatDarkLaf;
@@ -40,8 +43,8 @@ import java.awt.image.BufferedImage;
 import java.io.BufferedOutputStream;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.PrintStream;
 import java.io.UncheckedIOException;
 import java.nio.ByteOrder;
@@ -63,7 +66,7 @@ import static org.lwjgl.openal.ALC11.*;
  * @author Cien
  */
 public class MainWrapper {
-
+    
     static {
         Locale.setDefault(Locale.US);
 
@@ -82,10 +85,10 @@ public class MainWrapper {
 
         String osName = System.getProperty("os.name");
         System.out.println("Running on " + osName + " - " + ByteOrder.nativeOrder().toString() + " - " + Platform.get());
-        
+
         try {
             Path path = Natives.extract().toAbsolutePath();
-            
+
             org.lwjgl.system.Configuration.LIBRARY_PATH.set(path.toString());
             PhysicsRigidBody.logger2.setLevel(Level.WARNING);
             NativeLibraryLoader.loadLibbulletjme(true, path.toFile(), "Release", "Sp");
@@ -96,47 +99,47 @@ public class MainWrapper {
 
     public static void marginAutomata(String file, int iterations, boolean keepAlpha) {
         Path path = Path.of(file);
-        
+
         if (!Files.exists(path)) {
-            System.out.println(file+" does not exists");
+            System.out.println(file + " does not exists");
             return;
         }
-        
+
         if (!Files.isRegularFile(path)) {
-            System.out.println(file+" is not a valid file.");
+            System.out.println(file + " is not a valid file.");
             return;
         }
-        
+
         byte[] imageData;
         try {
             imageData = Files.readAllBytes(path);
         } catch (IOException ex) {
-            System.out.println("Failed to read file "+file);
+            System.out.println("Failed to read file " + file);
             ex.printStackTrace(System.out);
             return;
         }
-        
-        System.out.println("Reading "+file+"...");
-        
+
+        System.out.println("Reading " + file + "...");
+
         BufferedImage image;
         try {
             image = ImageIO.read(new ByteArrayInputStream(imageData));
         } catch (IOException ex) {
-            System.out.println("Failed to read image "+file);
+            System.out.println("Failed to read image " + file);
             ex.printStackTrace(System.out);
             return;
         }
         if (image == null) {
-            System.out.println("Failed to read image "+file);
+            System.out.println("Failed to read image " + file);
             System.out.println("Image is corrupted or uses a unknown format");
             return;
         }
-        
-        System.out.println(image.getWidth()+"x"+image.getHeight()+" pixels");
+
+        System.out.println(image.getWidth() + "x" + image.getHeight() + " pixels");
         System.out.println("Processing... (this may take a while!)");
-        
+
         BufferedImage output = new BufferedImage(image.getWidth(), image.getHeight(), BufferedImage.TYPE_INT_ARGB);
-        
+
         MarginAutomata.MarginAutomataIO io = new MarginAutomata.MarginAutomataIO() {
             @Override
             public int width() {
@@ -152,7 +155,7 @@ public class MainWrapper {
             public boolean empty(int x, int y) {
                 return ((image.getRGB(x, y) >>> 24) & 0xFF) == 0;
             }
-            
+
             @Override
             public void read(int x, int y, MarginAutomata.MarginAutomataColor color) {
                 int argb = image.getRGB(x, y);
@@ -166,9 +169,9 @@ public class MainWrapper {
 
             @Override
             public void write(int x, int y, MarginAutomata.MarginAutomataColor color) {
-                int red = Math.min(Math.max((int)(color.r * 255f), 0), 255);
-                int green = Math.min(Math.max((int)(color.g * 255f), 0), 255);
-                int blue = Math.min(Math.max((int)(color.b * 255f), 0), 255);
+                int red = Math.min(Math.max((int) (color.r * 255f), 0), 255);
+                int green = Math.min(Math.max((int) (color.g * 255f), 0), 255);
+                int blue = Math.min(Math.max((int) (color.b * 255f), 0), 255);
                 int alpha;
                 if (keepAlpha) {
                     alpha = (image.getRGB(x, y) >>> 24) & 0xFF;
@@ -181,22 +184,22 @@ public class MainWrapper {
 
             @Override
             public void progressStatus(int currentIteration, int maxIterations) {
-                System.out.println(currentIteration+"/"+maxIterations);
+                System.out.println(currentIteration + "/" + maxIterations);
             }
-            
+
             @Override
             public void writeEmptyPixel(int x, int y) {
                 output.setRGB(x, y, image.getRGB(x, y));
             }
         };
         MarginAutomata.generateMargin(io, iterations);
-        
+
         System.out.println("Finished!");
-        
-        Path outputFile = path.toAbsolutePath().getParent().resolve(path.getFileName()+"_margin.png");
-        
-        System.out.println("Writing to "+outputFile.getFileName());
-        
+
+        Path outputFile = path.toAbsolutePath().getParent().resolve(path.getFileName() + "_margin.png");
+
+        System.out.println("Writing to " + outputFile.getFileName());
+
         try {
             ImageIO.write(output, "PNG", outputFile.toFile());
         } catch (IOException ex) {
@@ -204,25 +207,25 @@ public class MainWrapper {
             ex.printStackTrace(System.out);
             return;
         }
-        
+
         System.out.println("Done!");
-        
+
         System.exit(0);
     }
-    
+
     public static void importModel(String file) {
         Path path = Path.of(file);
-        
+
         if (!Files.exists(path)) {
-            System.out.println(file+" does not exists");
+            System.out.println(file + " does not exists");
             return;
         }
-        
+
         if (!Files.isRegularFile(path)) {
-            System.out.println(file+" is not a valid file.");
+            System.out.println(file + " is not a valid file.");
             return;
         }
-        
+
         System.out.println("Importing...");
         N3DModel model;
         try {
@@ -232,10 +235,10 @@ public class MainWrapper {
             return;
         }
         System.out.println("Done Importing!");
-        
+
         System.out.println("Writing to File...");
         try {
-            Path outputFile = path.toAbsolutePath().getParent().resolve(path.getFileName()+".n3dm");
+            Path outputFile = path.toAbsolutePath().getParent().resolve(path.getFileName() + ".n3dm");
             try (BufferedOutputStream outBuffer = new BufferedOutputStream(Files.newOutputStream(outputFile))) {
                 N3DModelStore.writeModel(model, outBuffer);
             }
@@ -244,7 +247,47 @@ public class MainWrapper {
             return;
         }
         System.out.println("Done!");
-        
+
+        System.exit(0);
+    }
+
+    public static void importCubemap(String file) {
+        Path path = Path.of(file);
+
+        if (!Files.exists(path)) {
+            System.out.println(file + " does not exists");
+            return;
+        }
+
+        if (!Files.isRegularFile(path)) {
+            System.out.println(file + " is not a valid file.");
+            return;
+        }
+
+        System.out.println("Importing...");
+        NCubemap cubemap;
+        try {
+            try (InputStream stream = Files.newInputStream(path)) {
+                cubemap = NCubemapImporter.loadFromStream(path.getFileName().toString(), stream, true);
+            }
+        } catch (Exception ex) {
+            ex.printStackTrace(System.out);
+            return;
+        }
+        System.out.println("Done Importing!");
+
+        System.out.println("Writing to File...");
+        try {
+            Path outputFile = path.toAbsolutePath().getParent().resolve(path.getFileName() + ".cbm");
+            try (BufferedOutputStream outBuffer = new BufferedOutputStream(Files.newOutputStream(outputFile))) {
+                NCubemapStore.writeCubemap(cubemap, outBuffer);
+            }
+        } catch (IOException ex) {
+            ex.printStackTrace(System.out);
+            return;
+        }
+        System.out.println("Done!");
+
         System.exit(0);
     }
     
@@ -252,6 +295,14 @@ public class MainWrapper {
      * @param args the command line arguments
      */
     public static void main(String[] args) {
+        StringBuilder fileBuilder = new StringBuilder();
+        for (int i = 1; i < args.length; i++) {
+            fileBuilder.append(args[i]);
+            if (i != (args.length - 1)) {
+                fileBuilder.append(' ');
+            }
+        }
+        String file = fileBuilder.toString();
         if (args.length != 0 && args[0].toLowerCase().startsWith("-marginautomata")) {
             int iterations = -1;
             boolean keepAlpha = false;
@@ -273,14 +324,7 @@ public class MainWrapper {
                     }
                 }
             }
-            StringBuilder fileBuilder = new StringBuilder();
-            for (int i = 1; i < args.length; i++) {
-                fileBuilder.append(args[i]);
-                if (i != (args.length - 1)) {
-                    fileBuilder.append(' ');
-                }
-            }
-            marginAutomata(fileBuilder.toString(), iterations, keepAlpha);
+            marginAutomata(file, iterations, keepAlpha);
             return;
         }
         if (args.length != 0 && args[0].toLowerCase().equals("-import")) {
@@ -288,19 +332,20 @@ public class MainWrapper {
                 System.out.println("Usage: -import <file>");
                 return;
             }
-            StringBuilder fileBuilder = new StringBuilder();
-            for (int i = 1; i < args.length; i++) {
-                fileBuilder.append(args[i]);
-                if (i != (args.length - 1)) {
-                    fileBuilder.append(' ');
-                }
-            }
-            importModel(fileBuilder.toString());
+            importModel(file);
             return;
         }
-        
+        if (args.length != 0 && args[0].toLowerCase().equals("-importcubemap")) {
+            if (args.length == 1) {
+                System.out.println("Usage: -importcubemap <file>");
+                return;
+            }
+            importCubemap(file);
+            return;
+        }
+
         boolean error = false;
-        
+
         try {
             Main.main(args);
         } catch (Throwable e) {
@@ -327,7 +372,7 @@ public class MainWrapper {
                     "Game crashed!",
                     JOptionPane.ERROR_MESSAGE
             );
-            
+
             error = true;
         }
 
@@ -340,7 +385,7 @@ public class MainWrapper {
             error = true;
             e.printStackTrace(System.out);
         }
-        
+
         if (!error) {
             System.exit(0);
         } else {

@@ -296,6 +296,12 @@ public class NLightmapsStore {
         return new E8Image(img.data, img.width, img.height);
     }
     
+    public static NLightmaps readLightmaps(String jarFile) throws IOException {
+        try (InputStream stream = ClassLoader.getSystemResourceAsStream(jarFile)) {
+            return readLightmaps(stream);
+        }
+    }
+    
     public static NLightmaps readLightmaps(InputStream input) throws IOException {
         ZipInputStream zipInput = new ZipInputStream(input, StandardCharsets.UTF_8);
 

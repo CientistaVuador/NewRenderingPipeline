@@ -32,6 +32,7 @@ import cientistavuador.newrenderingpipeline.sound.SoundSystem;
 import cientistavuador.newrenderingpipeline.geometry.Geometries;
 import cientistavuador.newrenderingpipeline.newrendering.NProgram;
 import cientistavuador.newrenderingpipeline.newrendering.NSkybox;
+import cientistavuador.newrenderingpipeline.popups.LoadingPopup;
 import cientistavuador.newrenderingpipeline.sound.Sounds;
 import cientistavuador.newrenderingpipeline.text.GLFonts;
 import cientistavuador.newrenderingpipeline.texture.Textures;
@@ -302,6 +303,9 @@ public class Main {
      * @param args the command line arguments
      */
     public static void main(String[] args) {
+        LoadingPopup loadingPopup = new LoadingPopup();
+        loadingPopup.setVisible(true);
+        
         glfwSetErrorCallback((error, description) -> {
             GLFWErrorException exception = new GLFWErrorException("GLFW Error " + error + ": " + memASCIISafe(description));
             if (THROW_GL_GLFW_ERRORS) {
@@ -627,6 +631,9 @@ public class Main {
         Game.get().start();
 
         Main.checkGLError();
+        
+        loadingPopup.setVisible(false);
+        loadingPopup.dispose();
         
         glfwShowWindow(WINDOW_POINTER);
 

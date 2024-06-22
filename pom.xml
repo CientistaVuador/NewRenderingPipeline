@@ -35,6 +35,8 @@
                     <include>**/*.mdl</include>
                     <include>**/*.jpeg</include>
                     <include>**/*.n3dm</include>
+                    <include>**/*.cbm</include>
+                    <include>**/*.lit</include>
                 </includes>
             </resource>
         </resources>

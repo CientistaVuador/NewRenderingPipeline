@@ -38,6 +38,17 @@ import java.util.List;
  */
 public class DebugCounter {
 
+    private static final ThreadLocal<DebugCounter> threadLocalCounter = new ThreadLocal<>() {
+        @Override
+        protected DebugCounter initialValue() {
+            return new DebugCounter();
+        }
+    };
+    
+    public static DebugCounter get() {
+        return DebugCounter.threadLocalCounter.get();
+    }
+    
     public static final class CloseableCounter implements AutoCloseable {
 
         private final DebugCounter counter;

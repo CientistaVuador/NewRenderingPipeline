@@ -39,9 +39,6 @@ import cientistavuador.newrenderingpipeline.util.raycast.LocalRayResult;
 import com.jme3.bullet.collision.shapes.MeshCollisionShape;
 import com.jme3.bullet.collision.shapes.infos.IndexedMesh;
 import com.jme3.util.BufferUtils;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -831,9 +828,10 @@ public class NMap {
                 output.getAmbientCubes(),
                 null
         );
-
+        
+        this.lightmaps = finalLightmaps;
+        
         Main.MAIN_TASKS.add(() -> {
-            this.lightmaps = finalLightmaps;
             for (N3DObject obj : this.objects) {
                 obj.setLightmaps(finalLightmaps);
             }

@@ -35,11 +35,12 @@ import cientistavuador.newrenderingpipeline.newrendering.N3DObject;
 import cientistavuador.newrenderingpipeline.newrendering.N3DObjectRenderer;
 import cientistavuador.newrenderingpipeline.newrendering.NAnimator;
 import cientistavuador.newrenderingpipeline.newrendering.NCubemap;
-import cientistavuador.newrenderingpipeline.newrendering.NCubemapImporter;
 import cientistavuador.newrenderingpipeline.newrendering.NCubemapInfo;
 import cientistavuador.newrenderingpipeline.newrendering.NCubemapRenderer;
+import cientistavuador.newrenderingpipeline.newrendering.NCubemapStore;
 import cientistavuador.newrenderingpipeline.newrendering.NCubemaps;
 import cientistavuador.newrenderingpipeline.newrendering.NLight;
+import cientistavuador.newrenderingpipeline.newrendering.NLightmapsStore;
 import cientistavuador.newrenderingpipeline.newrendering.NMap;
 import cientistavuador.newrenderingpipeline.physics.PlayerController;
 import cientistavuador.newrenderingpipeline.popups.BakePopup;
@@ -54,13 +55,13 @@ import cientistavuador.newrenderingpipeline.util.bakedlighting.Lightmapper;
 import cientistavuador.newrenderingpipeline.util.bakedlighting.Scene;
 import com.jme3.bullet.PhysicsSpace;
 import com.jme3.bullet.objects.PhysicsRigidBody;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
 import org.joml.Vector3f;
 import static org.lwjgl.glfw.GLFW.*;
 
@@ -120,26 +121,26 @@ public class Game {
     private final NLight.NSpotLight flashlight = new NLight.NSpotLight("flashlight");
     private final List<NLight> lights = new ArrayList<>();
     private final Scene scene = new Scene();
-    
+
     private boolean ambientCubeDebug = false;
-    
+
     private final PhysicsSpace physicsSpace = new PhysicsSpace(PhysicsSpace.BroadphaseType.DBVT);
     private final PlayerController playerController = new PlayerController();
 
     {
         try {
-            this.skybox = NCubemapImporter.loadFromJar("cientistavuador/newrenderingpipeline/resources/image/generic_cubemap2.png", true, false);
-            
+            this.skybox = NCubemapStore.readCubemap("cientistavuador/newrenderingpipeline/resources/cubemaps/generic_cubemap2.cbm");
+
             List<N3DObject> mapObjects = new ArrayList<>();
             {
                 N3DModel nrpModel = N3DModelStore.readModel("cientistavuador/newrenderingpipeline/resources/models/nrp.n3dm");
                 N3DObject nrp = new N3DObject("nrp", nrpModel);
                 mapObjects.add(nrp);
             }
-            
+
             {
                 N3DModel triceratopsModel = N3DModelStore.readModel("cientistavuador/newrenderingpipeline/resources/models/triceratops.n3dm");
-                
+
                 this.triceratops = new N3DObject("triceratops", triceratopsModel);
                 this.triceratops.getPosition().set(-15f, 0.9f, 3f);
                 this.triceratops.setAnimator(new NAnimator(triceratopsModel, "Armature|Armature|Fall"));
@@ -150,15 +151,16 @@ public class Game {
 
                 this.plasticBall = new N3DObject("plastic ball", plasticBallModel);
             }
-            
-            this.map = new NMap("map", mapObjects, NMap.DEFAULT_LIGHTMAP_MARGIN, 1f / 0.2f);
-            
+
+            this.map = new NMap("map", mapObjects, NMap.DEFAULT_LIGHTMAP_MARGIN, 32f);
+            this.map.setLightmaps(NLightmapsStore.readLightmaps("cientistavuador/newrenderingpipeline/resources/lightmaps/lightmap.lit"));
+
             this.triceratops.setMap(this.map);
             this.plasticBall.setMap(this.map);
-            
+
             this.flashlight.setInnerConeAngle(10f);
             this.flashlight.setOuterConeAngle(40f);
-            this.flashlight.setDiffuseSpecularAmbient(1f);
+            this.flashlight.setDiffuseSpecularAmbient(0f);
             this.lights.add(this.flashlight);
 
             {
@@ -233,7 +235,15 @@ public class Game {
             this.scene.getLights().add(NMap.convertLight(light));
         }
 
-        this.cubemaps = new NCubemaps(this.skybox, null);
+        List<NCubemap> cubemapsList = new ArrayList<>();
+        try {
+            for (String name : this.cubemapNames) {
+                cubemapsList.add(NCubemapStore.readCubemap("cientistavuador/newrenderingpipeline/resources/cubemaps/" + name + ".cbm"));
+            }
+        } catch (IOException ex) {
+            throw new UncheckedIOException(ex);
+        }
+        this.cubemaps = new NCubemaps(this.skybox, cubemapsList);
 
         this.camera.setMovementDisabled(true);
         this.playerController.getCharacterController().addToPhysicsSpace(this.physicsSpace);
@@ -254,8 +264,14 @@ public class Game {
         }
         
         this.skybox.cubemap();
+
+        this.map.getLightmaps().lightmaps();
+        
+        for (int i = 0; i < this.cubemaps.getNumberOfCubemaps(); i++) {
+            this.cubemaps.getCubemap(i).cubemap();
+        }
     }
-    
+
     private final Vector3f plasticBallRotation = new Vector3f(0f, 0f, 1f);
 
     public void loop() {
@@ -280,55 +296,58 @@ public class Game {
 
         this.plasticBallRotation.rotateY((float) (Main.TPF * 0.5));
         this.plasticBall.getPosition().set(this.plasticBallRotation).mul(3f).add(15.29, 1.95, -9.52);
-        
+
         this.flashlight.getPosition().set(this.camera.getPosition());
         this.flashlight.getDirection().set(this.camera.getFront());
 
         if (this.nextMap != null) {
             this.map = this.nextMap;
-            
+
             this.triceratops.setMap(this.map);
             this.plasticBall.setMap(this.map);
-            
+
             this.nextMap = null;
         }
-        
+
         if (this.map.getLightmaps() != null && this.ambientCubeDebug) {
             AmbientCubeDebug.render(
                     this.map
-                    .getLightmaps()
-                    .getAmbientCubes()
-                    .getAmbientCubes(),
+                            .getLightmaps()
+                            .getAmbientCubes()
+                            .getAmbientCubes(),
                     this.camera.getProjection(), this.camera.getView(), this.camera.getPosition()
             );
         }
-        
+
         for (int i = 0; i < this.map.getNumberOfObjects(); i++) {
             N3DObjectRenderer.queueRender(this.map.getObject(i));
         }
-        
+
         N3DObjectRenderer.queueRender(this.triceratops);
         N3DObjectRenderer.queueRender(this.plasticBall);
-        
+
         N3DObjectRenderer.render(this.camera, this.lights, this.cubemaps);
 
         AabRender.renderQueue(this.camera);
         LineRender.renderQueue(this.camera);
 
-        if (this.status != null && this.status.getTask().isDone()) {
-            try {
-                this.status.getTask().get();
-            } catch (InterruptedException | ExecutionException ex) {
-                throw new RuntimeException(ex);
+        if (this.status != null) {
+            if (!this.status.getTask().isDone()) {
+                String text = this.status.getStatus() + '\n'
+                        + String.format("%,.2f", this.status.getRaysPerSecond()) + " Rays Per Second" + '\n'
+                        + String.format("%,.2f", this.status.getProgress() * 100.0) + "%";
+                GLFontRenderer.render(-0.94f, 0.94f, GLFontSpecifications.SPACE_MONO_REGULAR_0_035_BLACK, text);
+                GLFontRenderer.render(-0.95f, 0.95f, GLFontSpecifications.SPACE_MONO_REGULAR_0_035_WHITE, text);
+            } else {
+                try {
+                    try (FileOutputStream out = new FileOutputStream("lightmap.lit")) {
+                        NLightmapsStore.writeLightmaps(this.map.getLightmaps(), out);
+                    }
+                } catch (IOException ex) {
+                    throw new UncheckedIOException(ex);
+                }
+                this.status = null;
             }
-        }
-
-        if (this.status != null && !this.status.getTask().isDone()) {
-            String text = this.status.getStatus() + '\n'
-                    + String.format("%,.2f", this.status.getRaysPerSecond()) + " Rays Per Second" + '\n'
-                    + String.format("%,.2f", this.status.getProgress() * 100.0) + "%";
-            GLFontRenderer.render(-0.94f, 0.94f, GLFontSpecifications.SPACE_MONO_REGULAR_0_035_BLACK, text);
-            GLFontRenderer.render(-0.95f, 0.95f, GLFontSpecifications.SPACE_MONO_REGULAR_0_035_WHITE, text);
         }
 
         Main.WINDOW_TITLE += " (DrawCalls: " + Main.NUMBER_OF_DRAWCALLS + ", Vertices: " + Main.NUMBER_OF_VERTICES + ")";
@@ -361,18 +380,18 @@ public class Game {
                 if (this.status != null && !this.status.getTask().isDone()) {
                     break bake;
                 }
-                
+
                 if (this.camera.isCaptureMouse()) {
                     this.camera.pressEscape();
                 }
-                
+
                 BakePopup.show(
                         (p) -> {
                             BakePopup.fromScene(this.scene, p);
                         },
                         (p) -> {
                             p.getBakeButton().setEnabled(false);
-                            
+
                             BakePopup.toScene(this.scene, p);
 
                             List<N3DObject> list = new ArrayList<>();
@@ -388,17 +407,17 @@ public class Game {
                             );
 
                             this.nextMap = newMap;
-                            
+
                             Set<String> groups = new HashSet<>();
-                            for (Scene.Light light:this.scene.getLights()) {
+                            for (Scene.Light light : this.scene.getLights()) {
                                 if (!groups.contains(light.getGroupName())) {
                                     groups.add(light.getGroupName());
                                 }
                             }
-                            
+
                             int size = newMap.getLightmapSize();
                             long requiredMemory = Lightmapper.approximatedMemoryUsage(size, this.scene.getSamplingMode().numSamples(), groups.size());
-                            
+
                             ContinuePopup.show(p,
                                     "Lightmap Size: " + size + "x" + size + "\n"
                                     + "Required Memory: " + StringUtils.formatMemory(requiredMemory) + "\n"
@@ -408,14 +427,14 @@ public class Game {
                                         this.status = newMap.bake(this.scene);
                                         e.setVisible(false);
                                         e.dispose();
-                                        
+
                                         p.setVisible(false);
                                         p.dispose();
                                     },
                                     (e) -> {
                                         e.setVisible(false);
                                         e.dispose();
-                                        
+
                                         p.getBakeButton().setEnabled(true);
                                     }
                             );
@@ -453,6 +472,16 @@ public class Game {
                 );
 
                 cubemapsList.add(cubemap);
+            }
+
+            for (NCubemap cubemap : cubemapsList) {
+                try {
+                    try (FileOutputStream out = new FileOutputStream(cubemap.getName() + ".cbm")) {
+                        NCubemapStore.writeCubemap(cubemap, out);
+                    }
+                } catch (IOException ex) {
+                    throw new UncheckedIOException(ex);
+                }
             }
 
             this.cubemaps = new NCubemaps(this.skybox, cubemapsList);

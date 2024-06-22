@@ -81,7 +81,6 @@ public class N3DObject {
     private long nextAmbientCubeUpdate = System.currentTimeMillis() + 10;
 
     private final AmbientCube ambientCube = new AmbientCube();
-    private final Vector3d lastAmbientCubePosition = new Vector3d(Double.NaN);
 
     public N3DObject(String name, N3DModel n3DModel) {
         this.name = name;
@@ -266,11 +265,6 @@ public class N3DObject {
             this.ambientCube.setLerp(this.ambientCubeA, this.ambientCubeB, factor);
             return;
         }
-        
-        if (this.lastAmbientCubePosition.isFinite() && this.lastAmbientCubePosition.distance(pX, pY, pZ) < 0.01) {
-            return;
-        }
-        this.lastAmbientCubePosition.set(pX, pY, pZ);
         
         for (int i = 0; i < AmbientCube.SIDES; i++) {
             this.ambientCubeA.setSide(i, this.ambientCubeB.getSide(i));

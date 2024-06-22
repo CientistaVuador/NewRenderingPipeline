@@ -108,6 +108,12 @@ public class NCubemapStore {
         zipOut.finish();
     }
     
+    public static NCubemap readCubemap(String jarFile) throws IOException {
+        try (InputStream stream = ClassLoader.getSystemResourceAsStream(jarFile)) {
+            return readCubemap(stream);
+        }
+    }
+    
     public static NCubemap readCubemap(InputStream in) throws IOException {
         ZipInputStream zipIn = new ZipInputStream(in, StandardCharsets.UTF_8);
         
