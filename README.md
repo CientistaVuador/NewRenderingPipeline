@@ -1,21 +1,21 @@
 # NewRenderingPipeline
-Creating and testing a new rendering pipeline
+Creating and testing a new rendering pipeline<br/>
 
-Java 17 and OpenGL 3.3 is required
+Java 17 and OpenGL 3.3 is required<br/>
 
-Controls:
+Controls:<br/>
 
-WASD - Move
-Space - Jump
-F - Flashlight
-V - Noclip
+WASD - Move<br/>
+Space - Jump<br/>
+F - Flashlight<br/>
+V - Noclip<br/>
 
-Bake:
-F4 - Bake lightmaps
-F5 - Bake cubemaps
+Bake:<br/>
+F4 - Bake lightmaps<br/>
+F5 - Bake cubemaps<br/>
 
-Debug:
-F1 - Toggle reflections
-F2 - Toggle parallax mapping
-F3 - Show reflections only
-F6 - Show ambient cubes
+Debug:<br/>
+F1 - Toggle reflections<br/>
+F2 - Toggle parallax mapping<br/>
+F3 - Show reflections only<br/>
+F6 - Show ambient cubes<br/>
