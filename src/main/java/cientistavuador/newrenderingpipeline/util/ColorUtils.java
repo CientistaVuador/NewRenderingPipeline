@@ -27,6 +27,8 @@
 package cientistavuador.newrenderingpipeline.util;
 
 import java.util.List;
+import org.joml.Vector3f;
+import org.joml.Vector3fc;
 import org.joml.Vector4f;
 import org.joml.Vector4fc;
 
@@ -36,6 +38,34 @@ import org.joml.Vector4fc;
  */
 public class ColorUtils {
 
+    public static void lightBlend(
+            List<Vector4fc> colors,
+            List<Vector3fc> lights,
+            Vector3f outLight
+    ) {
+        if (colors.size() != lights.size()) {
+            throw new IllegalArgumentException("Colors and lights must have the same size!");
+        }
+        
+        outLight.zero();
+        for (int i = 0; i < colors.size(); i++) {
+            Vector4fc color = colors.get(i);
+            Vector3fc light = lights.get(i);
+            
+            outLight.mul(
+                    (color.x() * color.w()) + (1f - color.w()),
+                    (color.y() * color.w()) + (1f - color.w()),
+                    (color.z() * color.w()) + (1f - color.w())
+            ).mul(1f - color.w());
+            
+            outLight.add(
+                    light.x() * color.x() * color.w(),
+                    light.y() * color.y() * color.w(),
+                    light.z() * color.z() * color.w()
+            );
+        }
+    }
+    
     public static void blend(List<Vector4fc> colors, Vector4f outColor) {
         outColor.zero();
         if (colors == null || colors.isEmpty()) {

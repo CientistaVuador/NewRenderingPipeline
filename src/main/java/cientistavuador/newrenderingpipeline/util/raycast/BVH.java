@@ -29,6 +29,8 @@ package cientistavuador.newrenderingpipeline.util.raycast;
 import cientistavuador.newrenderingpipeline.util.Aab;
 import cientistavuador.newrenderingpipeline.util.MeshUtils;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.BitSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -42,6 +44,8 @@ import org.joml.Vector3fc;
  */
 public class BVH implements Aab {
 
+    private static final float AABB_OFFSET = 0.001f;
+    
     public static BVH create(float[] vertices, int[] indices, int vertexSize, int xyzOffset) {
         return create(null, vertices, indices, vertexSize, xyzOffset);
     }
@@ -50,8 +54,7 @@ public class BVH implements Aab {
         if (vertices.length == 0) {
             return new BVH(userObject, vertices, indices, vertexSize, xyzOffset, new Vector3f(), new Vector3f());
         }
-
-        final float aabOffset = 0.001f;
+        
         final int numberOfTriangles = indices.length / 3;
 
         BVH[] currentArray = new BVH[numberOfTriangles];
@@ -73,29 +76,14 @@ public class BVH implements Aab {
             float v2y = vertices[v2 + 1];
             float v2z = vertices[v2 + 2];
 
-            float minX = Math.min(v0x, Math.min(v1x, v2x));
-            float minY = Math.min(v0y, Math.min(v1y, v2y));
-            float minZ = Math.min(v0z, Math.min(v1z, v2z));
+            float minX = Math.min(v0x, Math.min(v1x, v2x)) - AABB_OFFSET;
+            float minY = Math.min(v0y, Math.min(v1y, v2y)) - AABB_OFFSET;
+            float minZ = Math.min(v0z, Math.min(v1z, v2z)) - AABB_OFFSET;
 
-            float maxX = Math.max(v0x, Math.max(v1x, v2x));
-            float maxY = Math.max(v0y, Math.max(v1y, v2y));
-            float maxZ = Math.max(v0z, Math.max(v1z, v2z));
-
-            if (Math.abs(maxX - minX) < aabOffset) {
-                minX -= aabOffset;
-                maxX += aabOffset;
-            }
-
-            if (Math.abs(maxY - minY) < aabOffset) {
-                minY -= aabOffset;
-                maxY += aabOffset;
-            }
-
-            if (Math.abs(maxZ - minZ) < aabOffset) {
-                minZ -= aabOffset;
-                maxZ += aabOffset;
-            }
-
+            float maxX = Math.max(v0x, Math.max(v1x, v2x)) + AABB_OFFSET;
+            float maxY = Math.max(v0y, Math.max(v1y, v2y)) + AABB_OFFSET;
+            float maxZ = Math.max(v0z, Math.max(v1z, v2z)) + AABB_OFFSET;
+            
             BVH e = new BVH(
                     userObject,
                     vertices,
@@ -109,7 +97,7 @@ public class BVH implements Aab {
             e.triangles = new int[]{i};
             currentArray[i] = e;
         }
-
+        
         BVH[] nextArray = new BVH[numberOfTriangles];
         int currentLength = nextArray.length;
         int nextIndex = 0;
@@ -321,7 +309,7 @@ public class BVH implements Aab {
 
     private boolean fastTestRay(
             Vector3f a, Vector3f b, Vector3f c,
-            Set<Integer> tested, BVH e,
+            BVH e,
             Vector3fc localOrigin, Vector3fc localDirection,
             float maxLength, Vector3f rayMin, Vector3f rayMax
     ) {
@@ -340,40 +328,36 @@ public class BVH implements Aab {
                     int v1xyz = (this.indices[(triangle * 3) + 1] * this.vertexSize) + this.xyzOffset;
                     int v2xyz = (this.indices[(triangle * 3) + 2] * this.vertexSize) + this.xyzOffset;
 
-                    if (!tested.contains(triangle)) {
-                        tested.add(triangle);
+                    a.set(
+                            this.vertices[v0xyz + 0],
+                            this.vertices[v0xyz + 1],
+                            this.vertices[v0xyz + 2]
+                    );
+                    b.set(
+                            this.vertices[v1xyz + 0],
+                            this.vertices[v1xyz + 1],
+                            this.vertices[v1xyz + 2]
+                    );
+                    c.set(
+                            this.vertices[v2xyz + 0],
+                            this.vertices[v2xyz + 1],
+                            this.vertices[v2xyz + 2]
+                    );
 
-                        a.set(
-                                this.vertices[v0xyz + 0],
-                                this.vertices[v0xyz + 1],
-                                this.vertices[v0xyz + 2]
-                        );
-                        b.set(
-                                this.vertices[v1xyz + 0],
-                                this.vertices[v1xyz + 1],
-                                this.vertices[v1xyz + 2]
-                        );
-                        c.set(
-                                this.vertices[v2xyz + 0],
-                                this.vertices[v2xyz + 1],
-                                this.vertices[v2xyz + 2]
-                        );
-
-                        float hit = IntersectionUtils.intersectRayTriangle(localOrigin, localDirection, a, b, c);
-                        if (hit >= 0f && (!Float.isFinite(maxLength) || hit <= maxLength)) {
-                            return true;
-                        }
+                    float hit = IntersectionUtils.intersectRayTriangle(localOrigin, localDirection, a, b, c);
+                    if (hit >= 0f && (!Float.isFinite(maxLength) || hit <= maxLength)) {
+                        return true;
                     }
                 }
             }
 
             if (e.getLeft() != null) {
-                if (fastTestRay(a, b, c, tested, e.getLeft(), localOrigin, localDirection, maxLength, rayMin, rayMax)) {
+                if (fastTestRay(a, b, c, e.getLeft(), localOrigin, localDirection, maxLength, rayMin, rayMax)) {
                     return true;
                 }
             }
             if (e.getRight() != null) {
-                if (fastTestRay(a, b, c, tested, e.getRight(), localOrigin, localDirection, maxLength, rayMin, rayMax)) {
+                if (fastTestRay(a, b, c, e.getRight(), localOrigin, localDirection, maxLength, rayMin, rayMax)) {
                     return true;
                 }
             }
@@ -404,15 +388,13 @@ public class BVH implements Aab {
             rayMin.set(minX, minY, minZ);
             rayMax.set(maxX, maxY, maxZ);
         }
-
-        Set<Integer> tested = new HashSet<>();
-
-        return fastTestRay(a, b, c, tested, this, localOrigin, localDirection, maxLength, rayMin, rayMax);
+        
+        return fastTestRay(a, b, c, this, localOrigin, localDirection, maxLength, rayMin, rayMax);
     }
 
     private void testRay(
             Vector3fc localOrigin, Vector3fc localDirection,
-            List<LocalRayResult> resultsOutput, BVH bvh, Set<Integer> tested,
+            List<LocalRayResult> resultsOutput, BVH bvh, BitSet tested,
             Vector3f normal, Vector3f hitposition, Vector3f a, Vector3f b, Vector3f c
     ) {
         if (IntersectionUtils.testRayAab(localOrigin, localDirection, bvh.getMin(), bvh.getMax())) {
@@ -421,9 +403,10 @@ public class BVH implements Aab {
                 for (int i = 0; i < nodeTriangles.length; i++) {
                     int triangle = nodeTriangles[i];
 
-                    if (tested.contains(triangle)) {
+                    if (tested.get(triangle)) {
                         continue;
                     }
+                    tested.set(triangle);
 
                     int i0 = this.indices[(triangle * 3) + 0];
                     int i1 = this.indices[(triangle * 3) + 1];
@@ -451,8 +434,6 @@ public class BVH implements Aab {
 
                     float hit = IntersectionUtils.intersectRayTriangle(localOrigin, localDirection, a, b, c);
                     if (hit >= 0f) {
-                        tested.add(triangle);
-
                         MeshUtils.calculateTriangleNormal(
                                 this.vertices,
                                 this.vertexSize,
@@ -486,7 +467,7 @@ public class BVH implements Aab {
         Vector3f normal = new Vector3f();
         Vector3f hitposition = new Vector3f();
 
-        Set<Integer> tested = new HashSet<>();
+        BitSet tested = new BitSet(this.indices.length / 3);
 
         Vector3f a = new Vector3f();
         Vector3f b = new Vector3f();

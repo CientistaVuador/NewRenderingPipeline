@@ -30,6 +30,7 @@ import cientistavuador.newrenderingpipeline.camera.FreeCamera;
 import cientistavuador.newrenderingpipeline.debug.AabRender;
 import cientistavuador.newrenderingpipeline.debug.LineRender;
 import cientistavuador.newrenderingpipeline.newrendering.N3DModel;
+import cientistavuador.newrenderingpipeline.newrendering.N3DModelImporter;
 import cientistavuador.newrenderingpipeline.newrendering.N3DModelStore;
 import cientistavuador.newrenderingpipeline.newrendering.N3DObject;
 import cientistavuador.newrenderingpipeline.newrendering.N3DObjectRenderer;
@@ -227,7 +228,7 @@ public class Game {
                 this.skybox.getCubemapColor().z() * 2f
         );
         this.scene.getLights().add(ambient);
-
+        
         for (NLight light : this.lights) {
             if (light.isDynamic()) {
                 continue;

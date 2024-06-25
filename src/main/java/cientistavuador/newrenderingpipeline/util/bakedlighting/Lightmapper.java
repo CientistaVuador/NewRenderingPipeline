@@ -57,23 +57,23 @@ public class Lightmapper {
     public static long approximatedMemoryUsage(int resolution, int samples, int groups) {
         long memory = 0;
 
-        memory += Float.BYTES * 3 * resolution * resolution * groups;
-        memory += Float.BYTES * 3 * resolution * resolution * groups;
+        memory += 1L * Float.BYTES * 3 * resolution * resolution * groups;
+        memory += 1L * Float.BYTES * 3 * resolution * resolution * groups;
 
-        memory += Float.BYTES * 3 * resolution * resolution * samples;
-        memory += Integer.BYTES * 1 * resolution * resolution * samples;
-        memory += Integer.BYTES * 1 * resolution * resolution * samples;
+        memory += 1L * Float.BYTES * 3 * resolution * resolution * samples;
+        memory += 1L * Integer.BYTES * 1 * resolution * resolution * samples;
+        memory += 1L * Integer.BYTES * 1 * resolution * resolution * samples;
 
-        memory += Float.BYTES * 4 * resolution * resolution;
-        memory += Float.BYTES * 3 * resolution * resolution;
+        memory += 1L * Float.BYTES * 4 * resolution * resolution;
+        memory += 1L * Float.BYTES * 3 * resolution * resolution;
 
-        memory += Float.BYTES * 3 * resolution * resolution;
-        memory += Float.BYTES * 3 * resolution * resolution;
-        memory += Float.BYTES * 3 * resolution * resolution;
+        memory += 1L * Float.BYTES * 3 * resolution * resolution;
+        memory += 1L * Float.BYTES * 3 * resolution * resolution;
+        memory += 1L * Float.BYTES * 3 * resolution * resolution;
 
-        memory += Float.BYTES * 3 * resolution * resolution;
-        memory += Float.BYTES * 3 * resolution * resolution;
-
+        memory += 1L * Float.BYTES * 3 * resolution * resolution;
+        memory += 1L * Float.BYTES * 3 * resolution * resolution;
+        
         return memory;
     }
 
@@ -1417,7 +1417,7 @@ public class Lightmapper {
     }
 
     private void finishLightmapMargins() {
-        setStatus("Finishing Lightmap Margins", this.lightmapRectangles.length);
+        setStatus(getGroupName() + " - Finishing Lightmap Margins", this.lightmapRectangles.length);
         for (int i = 0; i < this.lightmapRectangles.length; i++) {
             MarginAutomata.MarginAutomataIO io = createAutomataIO(
                     this.lightmapRectangles[i], this.lightmap, Lightmapper.EMPTY
@@ -1428,7 +1428,7 @@ public class Lightmapper {
     }
 
     private void finishEmissiveMargins() {
-        setStatus("Finishing Emissive Margins", this.lightmapRectangles.length);
+        setStatus(getGroupName() + " - Finishing Emissive Margins", this.lightmapRectangles.length);
         for (int i = 0; i < this.lightmapRectangles.length; i++) {
             MarginAutomata.MarginAutomataIO io = createAutomataIO(
                     this.lightmapRectangles[i], this.lightmapEmissive, Lightmapper.EMPTY
@@ -1675,7 +1675,7 @@ public class Lightmapper {
     }
 
     private void finishIndirectMargins() {
-        setStatus("Finishing Indirect Margins", this.lightmapRectangles.length);
+        setStatus(getGroupName() + " - Finishing Indirect Margins", this.lightmapRectangles.length);
         for (int i = 0; i < this.lightmapRectangles.length; i++) {
             MarginAutomata.MarginAutomataIO io = createAutomataIO(
                     this.lightmapRectangles[i], this.lightmapIndirect, Lightmapper.EMPTY
