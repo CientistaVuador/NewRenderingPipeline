@@ -122,16 +122,8 @@ public class FreeCamera extends PerspectiveCamera {
             float yaw = getRotation().y() + (float) (x * -sensitivity);
             float roll = getRotation().z();
             
-            if (pitch > 89f) {
-                pitch = 89f;
-            }
-            if (pitch < -89f) {
-                pitch = -89f;
-            }
-            
-            if (yaw > 360f || yaw < -360f) {
-                yaw = 0f;
-            }
+            pitch = Math.min(Math.max(pitch, -89f), 89f);
+            yaw = yaw % 360f;
             
             setRotation(pitch, yaw, roll);
         }
