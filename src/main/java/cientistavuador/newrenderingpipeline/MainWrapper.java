@@ -328,6 +328,7 @@ public class MainWrapper {
                         }
                     }
                     marginAutomata(file, iterations, keepAlpha);
+                    return;
                 }
                 case "-import" -> {
                     if (args.length == 1) {
@@ -335,6 +336,7 @@ public class MainWrapper {
                         return;
                     }
                     importModel(file);
+                    return;
                 }
                 case "-importcubemap" -> {
                     if (args.length == 1) {
@@ -342,9 +344,11 @@ public class MainWrapper {
                         return;
                     }
                     importCubemap(file);
+                    return;
                 }
                 case "-channels" -> {
                     ChannelManipulator.main(new String[0]);
+                    return;
                 }
             }
         }
