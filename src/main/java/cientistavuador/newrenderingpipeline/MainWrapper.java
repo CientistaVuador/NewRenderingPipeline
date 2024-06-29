@@ -33,6 +33,7 @@ import cientistavuador.newrenderingpipeline.newrendering.N3DModelStore;
 import cientistavuador.newrenderingpipeline.newrendering.NCubemap;
 import cientistavuador.newrenderingpipeline.newrendering.NCubemapImporter;
 import cientistavuador.newrenderingpipeline.newrendering.NCubemapStore;
+import cientistavuador.newrenderingpipeline.popups.ChannelManipulator;
 import cientistavuador.newrenderingpipeline.sound.SoundSystem;
 import cientistavuador.newrenderingpipeline.util.postprocess.MarginAutomata;
 import com.formdev.flatlaf.FlatDarkLaf;
@@ -66,7 +67,7 @@ import static org.lwjgl.openal.ALC11.*;
  * @author Cien
  */
 public class MainWrapper {
-    
+
     static {
         Locale.setDefault(Locale.US);
 
@@ -290,7 +291,7 @@ public class MainWrapper {
 
         System.exit(0);
     }
-    
+
     /**
      * @param args the command line arguments
      */
@@ -303,47 +304,51 @@ public class MainWrapper {
             }
         }
         String file = fileBuilder.toString();
-        if (args.length != 0 && args[0].toLowerCase().startsWith("-marginautomata")) {
-            int iterations = -1;
-            boolean keepAlpha = false;
-            {
-                String[] split = args[0].split(Pattern.quote("/"));
-                if (split.length > 1) {
-                    String iterationsString = split[1];
-                    try {
-                        iterations = Integer.parseInt(iterationsString);
-                    } catch (NumberFormatException ex) {
-                        System.out.println("Invalid number of iterations:");
-                        ex.printStackTrace(System.out);
-                        return;
-                    }
-                    if (split.length > 2) {
-                        if (split[2].equalsIgnoreCase("keepAlpha")) {
-                            keepAlpha = true;
+        if (args.length != 0) {
+            switch (args[0].toLowerCase()) {
+                case "-marginautomata" -> {
+                    int iterations = -1;
+                    boolean keepAlpha = false;
+                    {
+                        String[] split = args[0].split(Pattern.quote("/"));
+                        if (split.length > 1) {
+                            String iterationsString = split[1];
+                            try {
+                                iterations = Integer.parseInt(iterationsString);
+                            } catch (NumberFormatException ex) {
+                                System.out.println("Invalid number of iterations:");
+                                ex.printStackTrace(System.out);
+                                return;
+                            }
+                            if (split.length > 2) {
+                                if (split[2].equalsIgnoreCase("keepAlpha")) {
+                                    keepAlpha = true;
+                                }
+                            }
                         }
                     }
+                    marginAutomata(file, iterations, keepAlpha);
+                }
+                case "-import" -> {
+                    if (args.length == 1) {
+                        System.out.println("Usage: -import <file>");
+                        return;
+                    }
+                    importModel(file);
+                }
+                case "-importcubemap" -> {
+                    if (args.length == 1) {
+                        System.out.println("Usage: -importcubemap <file>");
+                        return;
+                    }
+                    importCubemap(file);
+                }
+                case "-channels" -> {
+                    ChannelManipulator.main(new String[0]);
                 }
             }
-            marginAutomata(file, iterations, keepAlpha);
-            return;
         }
-        if (args.length != 0 && args[0].toLowerCase().equals("-import")) {
-            if (args.length == 1) {
-                System.out.println("Usage: -import <file>");
-                return;
-            }
-            importModel(file);
-            return;
-        }
-        if (args.length != 0 && args[0].toLowerCase().equals("-importcubemap")) {
-            if (args.length == 1) {
-                System.out.println("Usage: -importcubemap <file>");
-                return;
-            }
-            importCubemap(file);
-            return;
-        }
-
+        
         boolean error = false;
 
         try {

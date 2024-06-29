@@ -153,6 +153,9 @@
                   <Dimension value="[128, 128]"/>
                 </Property>
               </Properties>
+              <Events>
+                <EventHandler event="mouseClicked" listener="java.awt.event.MouseListener" parameters="java.awt.event.MouseEvent" handler="blueChannelLabelMouseClicked"/>
+              </Events>
             </Component>
             <Component class="javax.swing.JLabel" name="alphaChannelLabel">
               <Properties>
@@ -164,6 +167,9 @@
                   <Dimension value="[128, 128]"/>
                 </Property>
               </Properties>
+              <Events>
+                <EventHandler event="mouseClicked" listener="java.awt.event.MouseListener" parameters="java.awt.event.MouseEvent" handler="alphaChannelLabelMouseClicked"/>
+              </Events>
             </Component>
             <Component class="javax.swing.JLabel" name="greenChannelLabel">
               <Properties>
@@ -175,6 +181,9 @@
                   <Dimension value="[128, 128]"/>
                 </Property>
               </Properties>
+              <Events>
+                <EventHandler event="mouseClicked" listener="java.awt.event.MouseListener" parameters="java.awt.event.MouseEvent" handler="greenChannelLabelMouseClicked"/>
+              </Events>
             </Component>
             <Component class="javax.swing.JLabel" name="redChannelLabel">
               <Properties>
@@ -186,6 +195,9 @@
                   <Dimension value="[128, 128]"/>
                 </Property>
               </Properties>
+              <Events>
+                <EventHandler event="mouseClicked" listener="java.awt.event.MouseListener" parameters="java.awt.event.MouseEvent" handler="redChannelLabelMouseClicked"/>
+              </Events>
             </Component>
           </SubComponents>
         </Container>
@@ -501,6 +513,9 @@
               <Properties>
                 <Property name="text" type="java.lang.String" value="Save"/>
               </Properties>
+              <Events>
+                <EventHandler event="actionPerformed" listener="java.awt.event.ActionListener" parameters="java.awt.event.ActionEvent" handler="saveButtonActionPerformed"/>
+              </Events>
             </Component>
           </SubComponents>
         </Container>

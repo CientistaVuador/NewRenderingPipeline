@@ -28,6 +28,7 @@ package cientistavuador.newrenderingpipeline.popups;
 
 import com.formdev.flatlaf.FlatDarkLaf;
 import java.awt.Color;
+import java.awt.Desktop;
 import java.awt.Graphics2D;
 import java.awt.Image;
 import java.awt.Toolkit;
@@ -35,7 +36,11 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import javax.imageio.ImageIO;
 import javax.swing.ImageIcon;
 import javax.swing.JComboBox;
@@ -65,10 +70,10 @@ public class ChannelManipulator extends javax.swing.JFrame {
     }
 
     private void updateChannels() {
-        this.redChannelLabel.setIcon(new ImageIcon(this.redChannel.getScaledInstance(128, 128, Image.SCALE_FAST)));
-        this.greenChannelLabel.setIcon(new ImageIcon(this.greenChannel.getScaledInstance(128, 128, Image.SCALE_FAST)));
-        this.blueChannelLabel.setIcon(new ImageIcon(this.blueChannel.getScaledInstance(128, 128, Image.SCALE_FAST)));
-        this.alphaChannelLabel.setIcon(new ImageIcon(this.alphaChannel.getScaledInstance(128, 128, Image.SCALE_FAST)));
+        this.redChannelLabel.setIcon(new ImageIcon(this.redChannel.getScaledInstance(128, 128, Image.SCALE_SMOOTH)));
+        this.greenChannelLabel.setIcon(new ImageIcon(this.greenChannel.getScaledInstance(128, 128, Image.SCALE_SMOOTH)));
+        this.blueChannelLabel.setIcon(new ImageIcon(this.blueChannel.getScaledInstance(128, 128, Image.SCALE_SMOOTH)));
+        this.alphaChannelLabel.setIcon(new ImageIcon(this.alphaChannel.getScaledInstance(128, 128, Image.SCALE_SMOOTH)));
     }
 
     private void initializeChannels() {
@@ -155,18 +160,38 @@ public class ChannelManipulator extends javax.swing.JFrame {
         blueChannelLabel.setToolTipText("");
         blueChannelLabel.setMaximumSize(new java.awt.Dimension(128, 128));
         blueChannelLabel.setMinimumSize(new java.awt.Dimension(128, 128));
+        blueChannelLabel.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseClicked(java.awt.event.MouseEvent evt) {
+                blueChannelLabelMouseClicked(evt);
+            }
+        });
 
         alphaChannelLabel.setToolTipText("");
         alphaChannelLabel.setMaximumSize(new java.awt.Dimension(128, 128));
         alphaChannelLabel.setMinimumSize(new java.awt.Dimension(128, 128));
+        alphaChannelLabel.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseClicked(java.awt.event.MouseEvent evt) {
+                alphaChannelLabelMouseClicked(evt);
+            }
+        });
 
         greenChannelLabel.setToolTipText("");
         greenChannelLabel.setMaximumSize(new java.awt.Dimension(128, 128));
         greenChannelLabel.setMinimumSize(new java.awt.Dimension(128, 128));
+        greenChannelLabel.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseClicked(java.awt.event.MouseEvent evt) {
+                greenChannelLabelMouseClicked(evt);
+            }
+        });
 
         redChannelLabel.setToolTipText("");
         redChannelLabel.setMaximumSize(new java.awt.Dimension(128, 128));
         redChannelLabel.setMinimumSize(new java.awt.Dimension(128, 128));
+        redChannelLabel.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseClicked(java.awt.event.MouseEvent evt) {
+                redChannelLabelMouseClicked(evt);
+            }
+        });
 
         javax.swing.GroupLayout jPanel1Layout = new javax.swing.GroupLayout(jPanel1);
         jPanel1.setLayout(jPanel1Layout);
@@ -310,6 +335,11 @@ public class ChannelManipulator extends javax.swing.JFrame {
         alphaSave.setSelectedIndex(3);
 
         saveButton.setText("Save");
+        saveButton.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                saveButtonActionPerformed(evt);
+            }
+        });
 
         javax.swing.GroupLayout jPanel3Layout = new javax.swing.GroupLayout(jPanel3);
         jPanel3.setLayout(jPanel3Layout);
@@ -611,6 +641,139 @@ public class ChannelManipulator extends javax.swing.JFrame {
         
         updateChannels();
     }//GEN-LAST:event_calculateNormalButtonActionPerformed
+
+    private int getSaveComponent(JComboBox<String> comboBox) {
+        switch (comboBox.getSelectedItem().toString().toLowerCase()) {
+            case "red" -> {
+                return 0;
+            }
+            case "green" -> {
+                return 1;
+            }
+            case "blue" -> {
+                return 2;
+            }
+            case "alpha" -> {
+                return 3;
+            }
+            case "one" -> {
+                return 4;
+            }
+            case "zero" -> {
+                return 5;
+            }
+        }
+        return -1;
+    }
+    
+    private void saveButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_saveButtonActionPerformed
+        final CompletableFuture<BufferedImage> futureImage = new CompletableFuture<>();
+        Thread th = new Thread(() -> {
+            try {
+                int redSaveIndex = getSaveComponent(this.redSave);
+                int greenSaveIndex = getSaveComponent(this.greenSave);
+                int blueSaveIndex = getSaveComponent(this.blueSave);
+                int alphaSaveIndex = getSaveComponent(this.alphaSave);
+                
+                BufferedImage img = new BufferedImage(this.width, this.height, BufferedImage.TYPE_INT_ARGB);
+                for (int y = 0; y < this.height; y++) {
+                    for (int x = 0; x < this.width; x++) {
+                        int[] components = {
+                            this.redChannel.getRGB(x, y) & 0xFF,
+                            this.greenChannel.getRGB(x, y) & 0xFF,
+                            this.blueChannel.getRGB(x, y) & 0xFF,
+                            this.alphaChannel.getRGB(x, y) & 0xFF,
+                            255,
+                            0
+                        };
+                        
+                        int r = components[redSaveIndex];
+                        int g = components[greenSaveIndex];
+                        int b = components[blueSaveIndex];
+                        int a = components[alphaSaveIndex];
+                        
+                        int argb = (a << 24) | (r << 16) | (g << 8) | (b << 0);
+                        
+                        img.setRGB(x, y, argb);
+                    }
+                }
+                
+                futureImage.complete(img);
+            } catch (Throwable t) {
+                futureImage.completeExceptionally(t);
+            }
+        }, "save image");
+        th.start();
+        
+        JFileChooser chooser = new JFileChooser(new File("").getAbsoluteFile());
+        chooser.setDialogType(JFileChooser.SAVE_DIALOG);
+        chooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
+        chooser.setMultiSelectionEnabled(false);
+        chooser.setFileFilter(new FileNameExtensionFilter("PNG", "png"));
+        int code = chooser.showSaveDialog(this);
+        if (code == JFileChooser.APPROVE_OPTION) {
+            File imageFile = chooser.getSelectedFile();
+            if (imageFile != null) {
+                if (!imageFile.getPath().toLowerCase().endsWith(".png")) {
+                    imageFile = new File(imageFile.getPath()+".png");
+                }
+                
+                if (imageFile.exists()) {
+                    try {
+                        Desktop.getDesktop().moveToTrash(imageFile);
+                    } catch (UnsupportedOperationException ex) {
+                        imageFile.delete();
+                    }
+                }
+                
+                BufferedImage resultImage;
+                try {
+                    resultImage = futureImage.get();
+                } catch (InterruptedException | ExecutionException ex) {
+                    throw new RuntimeException(ex);
+                }
+                
+                try {
+                    ImageIO.write(resultImage, "PNG", imageFile);
+                } catch (IOException ex) {
+                    throw new UncheckedIOException(ex);
+                }
+            }
+        }
+    }//GEN-LAST:event_saveButtonActionPerformed
+
+    private void openImage(BufferedImage img) {
+        if (!Desktop.isDesktopSupported() || !Desktop.getDesktop().isSupported(Desktop.Action.OPEN)) {
+            return;
+        }
+        
+        try {
+            File e = File.createTempFile(UUID.randomUUID().toString(), ".png");
+            e.deleteOnExit();
+            
+            ImageIO.write(img, "PNG", e);
+            
+            Desktop.getDesktop().open(e);
+        } catch (IOException ex) {
+            throw new UncheckedIOException(ex);
+        }
+    }
+    
+    private void redChannelLabelMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_redChannelLabelMouseClicked
+        openImage(this.redChannel);
+    }//GEN-LAST:event_redChannelLabelMouseClicked
+
+    private void greenChannelLabelMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_greenChannelLabelMouseClicked
+        openImage(this.greenChannel);
+    }//GEN-LAST:event_greenChannelLabelMouseClicked
+
+    private void blueChannelLabelMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_blueChannelLabelMouseClicked
+        openImage(this.blueChannel);
+    }//GEN-LAST:event_blueChannelLabelMouseClicked
+
+    private void alphaChannelLabelMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_alphaChannelLabelMouseClicked
+        openImage(this.alphaChannel);
+    }//GEN-LAST:event_alphaChannelLabelMouseClicked
 
     private int grayRGB(int color) {
         return (255 << 24) | (color << 16) | (color << 8) | (color << 0);
