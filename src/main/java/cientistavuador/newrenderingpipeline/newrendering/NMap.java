@@ -274,7 +274,7 @@ public class NMap {
             objectsGeometries.add(objectGeometries);
         }
         transformedVertices = Arrays.copyOf(transformedVertices, transformedVerticesIndex);
-
+        
         LightmapUVs.GeneratorOutput output = MeshUtils.generateLightmapUVs(
                 transformedVertices, NMesh.VERTEX_SIZE, NMesh.OFFSET_POSITION_XYZ,
                 this.lightmapMargin, this.lightmapPixelToWorldRatio, 1f, 1f, 1f
@@ -297,7 +297,7 @@ public class NMap {
             transformedVertices[i + NMesh.OFFSET_LIGHTMAP_TEXTURE_XY + 0] = uvs[((i / NMesh.VERTEX_SIZE) * 2) + 0];
             transformedVertices[i + NMesh.OFFSET_LIGHTMAP_TEXTURE_XY + 1] = uvs[((i / NMesh.VERTEX_SIZE) * 2) + 1];
         }
-
+        
         List<N3DObject> resultObjects = new ArrayList<>();
 
         int objectCounter = 0;

@@ -55,13 +55,11 @@ public class NTexturesStore {
         Properties properties = new Properties();
         
         properties.setProperty("name", textures.getName());
-        properties.setProperty("width", Integer.toString(textures.getWidth()));
-        properties.setProperty("height", Integer.toString(textures.getHeight()));
         properties.setProperty("blendingMode", textures.getBlendingMode().name());
         properties.setProperty("heightMapSupported", Boolean.toString(textures.isHeightMapSupported()));
         properties.setProperty("sha256", textures.getSha256());
         
-        properties.storeToXML(out, null, StandardCharsets.US_ASCII);
+        properties.storeToXML(out, null, StandardCharsets.UTF_8);
         
         out.closeEntry();
     }
@@ -122,8 +120,6 @@ public class NTexturesStore {
     
     private static class TextureProperties {
         String name = "unnamed";
-        int width = 0;
-        int height = 0;
         NBlendingMode blendingMode = NBlendingMode.OPAQUE;
         boolean heightMapSupported = false;
         String sha256 = "empty";
@@ -141,8 +137,6 @@ public class NTexturesStore {
         properties.loadFromXML(new ByteArrayInputStream(propertiesFile));
         
         textureProperties.name = properties.getProperty("name");
-        textureProperties.width = Integer.parseInt(properties.getProperty("width"));
-        textureProperties.height = Integer.parseInt(properties.getProperty("height"));
         textureProperties.blendingMode = NBlendingMode.valueOf(properties.getProperty("blendingMode"));
         textureProperties.heightMapSupported = Boolean.parseBoolean(properties.getProperty("heightMapSupported"));
         textureProperties.sha256 = properties.getProperty("sha256");
@@ -150,9 +144,9 @@ public class NTexturesStore {
         return textureProperties;
     }
     
-    private static byte[] readImage(String image, Map<String, byte[]> files) {
+    private static NTexturesImporter.LoadedImage readImage(String image, Map<String, byte[]> files) {
         byte[] imageData = files.get(image);
-        return NTexturesImporter.loadImage(imageData).pixelData;
+        return NTexturesImporter.loadImage(imageData);
     }
     
     public static NTextures readTextures(InputStream input) throws IOException {
@@ -165,14 +159,14 @@ public class NTexturesStore {
         }
         
         TextureProperties properties = readProperties(files);
-        byte[] rgba = readImage("r_g_b_a.png", files);
-        byte[] hrmnx = readImage("ht_rg_mt_nx.png", files);
-        byte[] eregebny = readImage("er_eg_eb_ny.png", files);
+        NTexturesImporter.LoadedImage rgba = readImage("r_g_b_a.png", files);
+        NTexturesImporter.LoadedImage hrmnx = readImage("ht_rg_mt_nx.png", files);
+        NTexturesImporter.LoadedImage eregebny = readImage("er_eg_eb_ny.png", files);
         
         return new NTextures(
                 properties.name,
-                properties.width, properties.height,
-                rgba, hrmnx, eregebny,
+                rgba.width, rgba.height,
+                rgba.pixelData, hrmnx.pixelData, eregebny.pixelData,
                 properties.blendingMode,
                 properties.heightMapSupported,
                 properties.sha256
