@@ -27,9 +27,12 @@
 package cientistavuador.newrenderingpipeline.natives;
 
 import cientistavuador.newrenderingpipeline.Platform;
+import com.jme3.bullet.objects.PhysicsRigidBody;
+import com.jme3.system.NativeLibraryLoader;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -37,6 +40,7 @@ import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
+import java.util.logging.Level;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -47,6 +51,22 @@ import java.util.zip.ZipInputStream;
 public class Natives {
 
     public static final String TEMP_FOLDER_NAME = "natives-1ac84d0b-8897-414b-8939-eb8d71c1ba7e";
+
+    static {
+        try {
+            Path path = Natives.extract().toAbsolutePath();
+
+            org.lwjgl.system.Configuration.LIBRARY_PATH.set(path.toString());
+            PhysicsRigidBody.logger2.setLevel(Level.WARNING);
+            NativeLibraryLoader.loadLibbulletjme(true, path.toFile(), "Release", "Sp");
+        } catch (IOException ex) {
+            throw new UncheckedIOException(ex);
+        }
+    }
+
+    public static void init() {
+        
+    }
 
     public static Path extract() throws IOException {
         byte[] nativesZipData;
@@ -90,9 +110,9 @@ public class Natives {
                 if (e.isDirectory()) {
                     continue;
                 }
-                
+
                 String filename = e.getName();
-                
+
                 if (!filename.endsWith(".txt")) {
                     if (Platform.isWindows() && !filename.endsWith(".dll")) {
                         continue;
@@ -106,7 +126,7 @@ public class Natives {
                         continue;
                     }
                 }
-                
+
                 Path path = directory.resolve(filename);
                 byte[] data = nativesZipRead.readAllBytes();
 

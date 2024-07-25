@@ -565,6 +565,10 @@ public class N3DObjectRenderer {
             Camera camera,
             List<ToRender> toRender
     ) {
+        NTextures.NULL_TEXTURE.r_g_b_a();
+        NTextures.NULL_TEXTURE.ht_rg_mt_nx();
+        NTextures.NULL_TEXTURE.er_eg_eb_ny();
+        
         for (ToRender t : toRender) {
             NTextures textures = t.geometry.getMaterial().getTextures();
 

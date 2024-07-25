@@ -266,11 +266,11 @@ public class NCubemap {
             glBindTexture(GL_TEXTURE_CUBE_MAP, cubemapTexture);
 
             int internalFormat = GL_R11F_G11F_B10F;
-            
+
             /*
             it looks like the bptc compressor on amd cards does
             not work correctly
-            */
+             */
             String vendor = glGetString(GL_VENDOR);
             if (vendor != null && vendor.toLowerCase().contains("nvidia")) {
                 if (Main.isSupported(4, 2)) {

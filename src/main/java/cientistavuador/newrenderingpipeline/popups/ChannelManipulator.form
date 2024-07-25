@@ -370,23 +370,30 @@
           <Layout>
             <DimensionLayout dim="0">
               <Group type="103" groupAlignment="0" attributes="0">
-                  <Group type="102" alignment="0" attributes="0">
+                  <Group type="102" attributes="0">
                       <EmptySpace max="-2" attributes="0"/>
-                      <Group type="103" groupAlignment="0" max="-2" attributes="0">
-                          <Component id="redSave" alignment="0" max="32767" attributes="0"/>
-                          <Component id="jLabel10" alignment="0" min="-2" max="-2" attributes="0"/>
-                          <Component id="greenSave" alignment="0" max="32767" attributes="0"/>
-                          <Component id="jLabel11" alignment="0" min="-2" max="-2" attributes="0"/>
-                          <Component id="blueSave" alignment="0" max="32767" attributes="0"/>
-                          <Component id="jLabel12" alignment="0" min="-2" max="-2" attributes="0"/>
-                          <Component id="alphaSave" alignment="0" max="32767" attributes="0"/>
-                          <Component id="jLabel9" alignment="0" max="32767" attributes="0"/>
+                      <Group type="103" groupAlignment="0" attributes="0">
+                          <Group type="102" alignment="1" attributes="0">
+                              <EmptySpace min="0" pref="0" max="32767" attributes="0"/>
+                              <Component id="saveButton" min="-2" max="-2" attributes="0"/>
+                          </Group>
+                          <Group type="102" attributes="0">
+                              <Group type="103" groupAlignment="0" attributes="0">
+                                  <Group type="103" groupAlignment="0" max="-2" attributes="0">
+                                      <Component id="redSave" alignment="0" max="32767" attributes="0"/>
+                                      <Component id="jLabel10" alignment="0" min="-2" max="-2" attributes="0"/>
+                                      <Component id="greenSave" alignment="0" max="32767" attributes="0"/>
+                                      <Component id="jLabel11" alignment="0" min="-2" max="-2" attributes="0"/>
+                                      <Component id="blueSave" alignment="0" max="32767" attributes="0"/>
+                                      <Component id="jLabel12" alignment="0" min="-2" max="-2" attributes="0"/>
+                                      <Component id="alphaSave" alignment="0" max="32767" attributes="0"/>
+                                      <Component id="jLabel9" alignment="0" max="32767" attributes="0"/>
+                                  </Group>
+                                  <Component id="saveDXT5" min="-2" max="-2" attributes="0"/>
+                              </Group>
+                              <EmptySpace min="0" pref="212" max="32767" attributes="0"/>
+                          </Group>
                       </Group>
-                      <EmptySpace pref="266" max="32767" attributes="0"/>
-                  </Group>
-                  <Group type="102" alignment="1" attributes="0">
-                      <EmptySpace max="32767" attributes="0"/>
-                      <Component id="saveButton" min="-2" max="-2" attributes="0"/>
                       <EmptySpace max="-2" attributes="0"/>
                   </Group>
               </Group>
@@ -400,7 +407,7 @@
                       <Component id="redSave" min="-2" max="-2" attributes="0"/>
                       <EmptySpace min="-2" pref="18" max="-2" attributes="0"/>
                       <Component id="jLabel10" min="-2" max="-2" attributes="0"/>
-                      <EmptySpace max="-2" attributes="0"/>
+                      <EmptySpace min="-2" pref="10" max="-2" attributes="0"/>
                       <Component id="greenSave" min="-2" max="-2" attributes="0"/>
                       <EmptySpace min="-2" pref="18" max="-2" attributes="0"/>
                       <Component id="jLabel11" min="-2" max="-2" attributes="0"/>
@@ -410,7 +417,9 @@
                       <Component id="jLabel12" min="-2" max="-2" attributes="0"/>
                       <EmptySpace max="-2" attributes="0"/>
                       <Component id="alphaSave" min="-2" max="-2" attributes="0"/>
-                      <EmptySpace pref="69" max="32767" attributes="0"/>
+                      <EmptySpace type="separate" max="-2" attributes="0"/>
+                      <Component id="saveDXT5" min="-2" max="-2" attributes="0"/>
+                      <EmptySpace pref="27" max="32767" attributes="0"/>
                       <Component id="saveButton" min="-2" max="-2" attributes="0"/>
                       <EmptySpace max="-2" attributes="0"/>
                   </Group>
@@ -421,13 +430,14 @@
             <Component class="javax.swing.JComboBox" name="redSave">
               <Properties>
                 <Property name="model" type="javax.swing.ComboBoxModel" editor="org.netbeans.modules.form.editors2.ComboBoxModelEditor">
-                  <StringArray count="6">
+                  <StringArray count="7">
                     <StringItem index="0" value="Red"/>
                     <StringItem index="1" value="Green"/>
                     <StringItem index="2" value="Blue"/>
                     <StringItem index="3" value="Alpha"/>
                     <StringItem index="4" value="One"/>
                     <StringItem index="5" value="Zero"/>
+                    <StringItem index="6" value="Half"/>
                   </StringArray>
                 </Property>
               </Properties>
@@ -448,13 +458,14 @@
             <Component class="javax.swing.JComboBox" name="greenSave">
               <Properties>
                 <Property name="model" type="javax.swing.ComboBoxModel" editor="org.netbeans.modules.form.editors2.ComboBoxModelEditor">
-                  <StringArray count="6">
+                  <StringArray count="7">
                     <StringItem index="0" value="Red"/>
                     <StringItem index="1" value="Green"/>
                     <StringItem index="2" value="Blue"/>
                     <StringItem index="3" value="Alpha"/>
                     <StringItem index="4" value="One"/>
                     <StringItem index="5" value="Zero"/>
+                    <StringItem index="6" value="Half"/>
                   </StringArray>
                 </Property>
                 <Property name="selectedIndex" type="int" value="1"/>
@@ -471,13 +482,14 @@
             <Component class="javax.swing.JComboBox" name="blueSave">
               <Properties>
                 <Property name="model" type="javax.swing.ComboBoxModel" editor="org.netbeans.modules.form.editors2.ComboBoxModelEditor">
-                  <StringArray count="6">
+                  <StringArray count="7">
                     <StringItem index="0" value="Red"/>
                     <StringItem index="1" value="Green"/>
                     <StringItem index="2" value="Blue"/>
                     <StringItem index="3" value="Alpha"/>
                     <StringItem index="4" value="One"/>
                     <StringItem index="5" value="Zero"/>
+                    <StringItem index="6" value="Half"/>
                   </StringArray>
                 </Property>
                 <Property name="selectedIndex" type="int" value="2"/>
@@ -494,13 +506,14 @@
             <Component class="javax.swing.JComboBox" name="alphaSave">
               <Properties>
                 <Property name="model" type="javax.swing.ComboBoxModel" editor="org.netbeans.modules.form.editors2.ComboBoxModelEditor">
-                  <StringArray count="6">
+                  <StringArray count="7">
                     <StringItem index="0" value="Red"/>
                     <StringItem index="1" value="Green"/>
                     <StringItem index="2" value="Blue"/>
                     <StringItem index="3" value="Alpha"/>
                     <StringItem index="4" value="One"/>
                     <StringItem index="5" value="Zero"/>
+                    <StringItem index="6" value="Half"/>
                   </StringArray>
                 </Property>
                 <Property name="selectedIndex" type="int" value="3"/>
@@ -516,6 +529,11 @@
               <Events>
                 <EventHandler event="actionPerformed" listener="java.awt.event.ActionListener" parameters="java.awt.event.ActionEvent" handler="saveButtonActionPerformed"/>
               </Events>
+            </Component>
+            <Component class="javax.swing.JCheckBox" name="saveDXT5">
+              <Properties>
+                <Property name="text" type="java.lang.String" value="Save as DDS ZST File"/>
+              </Properties>
             </Component>
           </SubComponents>
         </Container>

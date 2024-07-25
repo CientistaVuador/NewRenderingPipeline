@@ -970,7 +970,7 @@ public class N3DModelStore {
                 }
             });
         }
-
+        
         try {
             service.shutdown();
             boolean result = service.awaitTermination(2, TimeUnit.HOURS);

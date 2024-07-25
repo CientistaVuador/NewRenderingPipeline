@@ -435,7 +435,7 @@ public class N3DModel {
         return verticesCount;
     }
     
-    public void loadEverything() {
+    public void load() {
         for (NTextures t:this.textures) {
             t.r_g_b_a();
             t.er_eg_eb_ny();

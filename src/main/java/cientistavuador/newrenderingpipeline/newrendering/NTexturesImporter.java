@@ -26,6 +26,11 @@
  */
 package cientistavuador.newrenderingpipeline.newrendering;
 
+import cientistavuador.newrenderingpipeline.util.CryptoUtils;
+import cientistavuador.newrenderingpipeline.util.DXT5TextureStore;
+import cientistavuador.newrenderingpipeline.util.ImageUtils;
+import cientistavuador.newrenderingpipeline.util.PixelUtils;
+import cientistavuador.newrenderingpipeline.util.PixelUtils.PixelStructure;
 import cientistavuador.newrenderingpipeline.util.postprocess.MarginAutomata;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -277,7 +282,26 @@ public class NTexturesImporter {
         }
         return map[index] & 0xFF;
     }
-
+    
+    public static boolean isHeightMapSupported(byte[] ht_rg_mt_nx, int width, int height) {
+        ImageUtils.validate(ht_rg_mt_nx, width, height, 4);
+        
+        PixelStructure st = PixelUtils.getPixelStructure(width, height, 4, false);
+        boolean heightMapSupported = false;
+        detectHeightMap:
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                int pixelHeight = ht_rg_mt_nx[PixelUtils.getPixelComponentIndex(st, x, y, 0)] & 0xFF;
+                if (pixelHeight != 255) {
+                    heightMapSupported = true;
+                    break detectHeightMap;
+                }
+            }
+        }
+        
+        return heightMapSupported;
+    }
+    
     public static NTextures load(
             String name,
             int width, int height,
@@ -325,8 +349,6 @@ public class NTexturesImporter {
         byte[] hrmnx = new byte[pixels * 4];
         byte[] eregebny = new byte[pixels * 4];
 
-        boolean heightMapSupported = false;
-
         for (int p = 0; p < pixels; p++) {
             int r = fetch(diffuseMap, (p * 4) + 0, 255);
             int g = fetch(diffuseMap, (p * 4) + 1, 255);
@@ -345,10 +367,6 @@ public class NTexturesImporter {
             int er = fetch(emissiveMap, (p * 4) + 0, 0);
             int eg = fetch(emissiveMap, (p * 4) + 1, 0);
             int eb = fetch(emissiveMap, (p * 4) + 2, 0);
-
-            if (hei != 255) {
-                heightMapSupported = true;
-            }
 
             float ambientOcclusion = ((ao / 255f) * (1f - MINIMUM_AMBIENT_OCCLUSION)) + MINIMUM_AMBIENT_OCCLUSION;
 
@@ -458,14 +476,14 @@ public class NTexturesImporter {
                     }
                 }
             }
-            
+
             Thread[] threads = new Thread[4];
             Throwable[] exceptions = new Throwable[threads.length];
             for (int i = 0; i < threads.length; i++) {
                 final int index = i;
                 threads[i] = new Thread(() -> {
                     MarginAutomata.generateMargin(new IO(index), -1);
-                }, "NTexturesIO-"+i+"-"+name);
+                }, "NTexturesIO-" + i + "-" + name);
                 threads[i].setUncaughtExceptionHandler((t, ex) -> {
                     exceptions[index] = ex;
                 });
@@ -485,15 +503,47 @@ public class NTexturesImporter {
             }
         }
         
-        return new NTextures(
+        return load(
                 name,
-                width, height,
+                mode,
+                width,
+                height,
                 rgba,
                 hrmnx,
-                eregebny,
-                mode,
+                eregebny
+        );
+    }
+
+    public static NTextures load(
+            String name,
+            NBlendingMode blendingMode,
+            int width,
+            int height,
+            byte[] r_g_b_a,
+            byte[] ht_rg_mt_nx,
+            byte[] er_eg_eb_ny
+    ) {
+        ImageUtils.validate(r_g_b_a, width, height, 4);
+        ImageUtils.validate(ht_rg_mt_nx, width, height, 4);
+        ImageUtils.validate(er_eg_eb_ny, width, height, 4);
+        
+        boolean heightMapSupported = isHeightMapSupported(ht_rg_mt_nx, width, height);
+        
+        ByteBuffer shaData = ByteBuffer.allocate(
+                Integer.SIZE + Integer.SIZE + r_g_b_a.length + ht_rg_mt_nx.length + er_eg_eb_ny.length
+        );
+        shaData.putInt(width).putInt(height).put(r_g_b_a).put(ht_rg_mt_nx).put(er_eg_eb_ny).flip();
+        
+        String uid = CryptoUtils.sha256(shaData);
+        
+        return new NTextures(
+                name,
+                uid,
+                blendingMode,
                 heightMapSupported,
-                null
+                DXT5TextureStore.createDXT5Texture(r_g_b_a, width, height),
+                DXT5TextureStore.createDXT5Texture(ht_rg_mt_nx, width, height),
+                DXT5TextureStore.createDXT5Texture(er_eg_eb_ny, width, height)
         );
     }
 

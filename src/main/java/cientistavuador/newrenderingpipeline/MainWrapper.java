@@ -72,7 +72,17 @@ public class MainWrapper {
         Locale.setDefault(Locale.US);
 
         System.out.println(UUID.randomUUID().toString());
-
+        
+        long n = 0L;
+        for (int i = 0; i < Long.SIZE; i++) {
+            long a = 0x00;
+            if (Math.random() > 0.5) {
+                a = 0x01;
+            }
+            n = n | (a << i);
+        }
+        System.out.println(n);
+        
         System.out.println("  /$$$$$$  /$$        /$$$$$$  /$$");
         System.out.println(" /$$__  $$| $$       /$$__  $$| $$");
         System.out.println("| $$  \\ $$| $$      | $$  \\ $$| $$");
@@ -87,15 +97,7 @@ public class MainWrapper {
         String osName = System.getProperty("os.name");
         System.out.println("Running on " + osName + " - " + ByteOrder.nativeOrder().toString() + " - " + Platform.get());
 
-        try {
-            Path path = Natives.extract().toAbsolutePath();
-
-            org.lwjgl.system.Configuration.LIBRARY_PATH.set(path.toString());
-            PhysicsRigidBody.logger2.setLevel(Level.WARNING);
-            NativeLibraryLoader.loadLibbulletjme(true, path.toFile(), "Release", "Sp");
-        } catch (IOException ex) {
-            throw new UncheckedIOException(ex);
-        }
+        Natives.init();
     }
 
     public static void marginAutomata(String file, int iterations, boolean keepAlpha) {

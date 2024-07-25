@@ -28,6 +28,7 @@ package cientistavuador.newrenderingpipeline.util.bakedlighting;
 
 import cientistavuador.newrenderingpipeline.util.ColorUtils;
 import cientistavuador.newrenderingpipeline.util.MeshUtils;
+import cientistavuador.newrenderingpipeline.util.PixelUtils;
 import cientistavuador.newrenderingpipeline.util.RasterUtils;
 import cientistavuador.newrenderingpipeline.util.postprocess.GaussianBlur;
 import cientistavuador.newrenderingpipeline.util.postprocess.MarginAutomata;
@@ -579,10 +580,10 @@ public class Lightmapper {
                     int sampleState = FILLED;
 
                     if (ignoreEnabled) {
-                        if (!((x % 2 == 0 && y % 2 == 0) || (x % 2 != 0 && y % 2 != 0))) {
+                        if (!PixelUtils.dither50(x, y)) {
                             sampleState |= IGNORE_SHADOW;
                         }
-                        if (!((y % 2 == 0) && ((((y / 2) % 2 == 0 && x % 2 == 0)) || (((y / 2) % 2 != 0 && x % 2 != 0))))) {
+                        if (!PixelUtils.dither25(x, y)) {
                             sampleState |= IGNORE_AMBIENT;
                         }
                     }

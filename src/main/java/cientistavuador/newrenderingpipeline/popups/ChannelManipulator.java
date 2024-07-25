@@ -26,6 +26,10 @@
  */
 package cientistavuador.newrenderingpipeline.popups;
 
+import cientistavuador.newrenderingpipeline.natives.Natives;
+import cientistavuador.newrenderingpipeline.util.TextureCompressor;
+import cientistavuador.newrenderingpipeline.util.DXT5TextureStore;
+import cientistavuador.newrenderingpipeline.util.DXT5TextureStore.DXT5Texture;
 import com.formdev.flatlaf.FlatDarkLaf;
 import java.awt.Color;
 import java.awt.Desktop;
@@ -33,11 +37,12 @@ import java.awt.Graphics2D;
 import java.awt.Image;
 import java.awt.Toolkit;
 import java.awt.image.BufferedImage;
-import java.io.ByteArrayInputStream;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.file.Files;
+import java.util.Locale;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -45,6 +50,7 @@ import javax.imageio.ImageIO;
 import javax.swing.ImageIcon;
 import javax.swing.JComboBox;
 import javax.swing.JFileChooser;
+import javax.swing.filechooser.FileFilter;
 import javax.swing.filechooser.FileNameExtensionFilter;
 
 /**
@@ -122,6 +128,7 @@ public class ChannelManipulator extends javax.swing.JFrame {
         jLabel12 = new javax.swing.JLabel();
         alphaSave = new javax.swing.JComboBox<>();
         saveButton = new javax.swing.JButton();
+        saveDXT5 = new javax.swing.JCheckBox();
         jPanel4 = new javax.swing.JPanel();
         jLabel13 = new javax.swing.JLabel();
         normalMapX = new javax.swing.JComboBox<>();
@@ -315,23 +322,23 @@ public class ChannelManipulator extends javax.swing.JFrame {
 
         tabs.addTab("Load", jPanel2);
 
-        redSave.setModel(new javax.swing.DefaultComboBoxModel<>(new String[] { "Red", "Green", "Blue", "Alpha", "One", "Zero" }));
+        redSave.setModel(new javax.swing.DefaultComboBoxModel<>(new String[] { "Red", "Green", "Blue", "Alpha", "One", "Zero", "Half" }));
 
         jLabel9.setText("Red Channel:");
 
         jLabel10.setText("Green Channel:");
 
-        greenSave.setModel(new javax.swing.DefaultComboBoxModel<>(new String[] { "Red", "Green", "Blue", "Alpha", "One", "Zero" }));
+        greenSave.setModel(new javax.swing.DefaultComboBoxModel<>(new String[] { "Red", "Green", "Blue", "Alpha", "One", "Zero", "Half" }));
         greenSave.setSelectedIndex(1);
 
         jLabel11.setText("Blue Channel:");
 
-        blueSave.setModel(new javax.swing.DefaultComboBoxModel<>(new String[] { "Red", "Green", "Blue", "Alpha", "One", "Zero" }));
+        blueSave.setModel(new javax.swing.DefaultComboBoxModel<>(new String[] { "Red", "Green", "Blue", "Alpha", "One", "Zero", "Half" }));
         blueSave.setSelectedIndex(2);
 
         jLabel12.setText("Alpha Channel:");
 
-        alphaSave.setModel(new javax.swing.DefaultComboBoxModel<>(new String[] { "Red", "Green", "Blue", "Alpha", "One", "Zero" }));
+        alphaSave.setModel(new javax.swing.DefaultComboBoxModel<>(new String[] { "Red", "Green", "Blue", "Alpha", "One", "Zero", "Half" }));
         alphaSave.setSelectedIndex(3);
 
         saveButton.setText("Save");
@@ -341,25 +348,31 @@ public class ChannelManipulator extends javax.swing.JFrame {
             }
         });
 
+        saveDXT5.setText("Save as DDS ZST File");
+
         javax.swing.GroupLayout jPanel3Layout = new javax.swing.GroupLayout(jPanel3);
         jPanel3.setLayout(jPanel3Layout);
         jPanel3Layout.setHorizontalGroup(
             jPanel3Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(jPanel3Layout.createSequentialGroup()
                 .addContainerGap()
-                .addGroup(jPanel3Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
-                    .addComponent(redSave, 0, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                    .addComponent(jLabel10)
-                    .addComponent(greenSave, 0, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                    .addComponent(jLabel11)
-                    .addComponent(blueSave, 0, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                    .addComponent(jLabel12)
-                    .addComponent(alphaSave, 0, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                    .addComponent(jLabel9, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
-                .addContainerGap(266, Short.MAX_VALUE))
-            .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, jPanel3Layout.createSequentialGroup()
-                .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                .addComponent(saveButton)
+                .addGroup(jPanel3Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                    .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, jPanel3Layout.createSequentialGroup()
+                        .addGap(0, 0, Short.MAX_VALUE)
+                        .addComponent(saveButton))
+                    .addGroup(jPanel3Layout.createSequentialGroup()
+                        .addGroup(jPanel3Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                            .addGroup(jPanel3Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
+                                .addComponent(redSave, 0, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                                .addComponent(jLabel10)
+                                .addComponent(greenSave, 0, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                                .addComponent(jLabel11)
+                                .addComponent(blueSave, 0, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                                .addComponent(jLabel12)
+                                .addComponent(alphaSave, 0, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                                .addComponent(jLabel9, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
+                            .addComponent(saveDXT5))
+                        .addGap(0, 212, Short.MAX_VALUE)))
                 .addContainerGap())
         );
         jPanel3Layout.setVerticalGroup(
@@ -371,7 +384,7 @@ public class ChannelManipulator extends javax.swing.JFrame {
                 .addComponent(redSave, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
                 .addGap(18, 18, 18)
                 .addComponent(jLabel10)
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                .addGap(10, 10, 10)
                 .addComponent(greenSave, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
                 .addGap(18, 18, 18)
                 .addComponent(jLabel11)
@@ -381,7 +394,9 @@ public class ChannelManipulator extends javax.swing.JFrame {
                 .addComponent(jLabel12)
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                 .addComponent(alphaSave, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, 69, Short.MAX_VALUE)
+                .addGap(18, 18, 18)
+                .addComponent(saveDXT5)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, 27, Short.MAX_VALUE)
                 .addComponent(saveButton)
                 .addContainerGap())
         );
@@ -539,7 +554,51 @@ public class ChannelManipulator extends javax.swing.JFrame {
         chooser.setDialogType(JFileChooser.OPEN_DIALOG);
         chooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
         chooser.setMultiSelectionEnabled(false);
-        chooser.setFileFilter(new FileNameExtensionFilter("Images", "png", "jpg", "jpeg"));
+        chooser.setFileFilter(new FileFilter() {
+            final String[] extensions = {
+                "png",
+                "jpg",
+                "jpeg",
+                DXT5TextureStore.EXTENSION
+            };
+            
+            @Override
+            public boolean accept(File f) {
+                if (f == null) {
+                    return false;
+                }
+                
+                if (f.isDirectory()) {
+                    return true;
+                }
+                
+                String lowerCase = f.getName().toLowerCase();
+                
+                boolean accept = false;
+                for (String ext:this.extensions) {
+                    if (lowerCase.endsWith("." + ext)) {
+                        accept = true;
+                        break;
+                    }
+                }
+                
+                return accept;
+            }
+
+            @Override
+            public String getDescription() {
+                StringBuilder b = new StringBuilder();
+                b.append("Images (");
+                for (int i = 0; i < this.extensions.length; i++) {
+                    b.append(this.extensions[i]);
+                    if (i != (this.extensions.length - 1)) {
+                        b.append(", ");
+                    }
+                }
+                b.append(")");
+                return b.toString();
+            }
+        });
         int code = chooser.showOpenDialog(this);
         if (code == JFileChooser.APPROVE_OPTION) {
             File imageFile = chooser.getSelectedFile();
@@ -626,85 +685,62 @@ public class ChannelManipulator extends javax.swing.JFrame {
         BufferedImage normalX = getCalculateNormalChannel(this.normalMapX);
         BufferedImage normalY = getCalculateNormalChannel(this.normalMapY);
         BufferedImage outNormalZ = getCalculateNormalChannel(this.normalMapZ);
-        
+
         for (int y = 0; y < this.height; y++) {
             for (int x = 0; x < this.width; x++) {
                 float nX = (((normalX.getRGB(x, y) & 0xFF) / 255f) * 2f) - 1f;
                 float nY = (((normalY.getRGB(x, y) & 0xFF) / 255f) * 2f) - 1f;
                 float nZ = (float) Math.sqrt(Math.abs(1.0 - (nX * nX) - (nY * nY)));
-                
-                int nZInt = Math.min(Math.max((int)(((nZ + 1f) * 0.5f) * 255f), 0), 255);
-                
+
+                int nZInt = Math.min(Math.max((int) (((nZ + 1f) * 0.5f) * 255f), 0), 255);
+
                 outNormalZ.setRGB(x, y, grayRGB(nZInt));
             }
         }
-        
+
         updateChannels();
     }//GEN-LAST:event_calculateNormalButtonActionPerformed
 
-    private int getSaveComponent(JComboBox<String> comboBox) {
-        switch (comboBox.getSelectedItem().toString().toLowerCase()) {
-            case "red" -> {
-                return 0;
-            }
-            case "green" -> {
-                return 1;
-            }
-            case "blue" -> {
-                return 2;
-            }
-            case "alpha" -> {
-                return 3;
-            }
-            case "one" -> {
-                return 4;
-            }
-            case "zero" -> {
-                return 5;
-            }
-        }
-        return -1;
-    }
-    
-    private void saveButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_saveButtonActionPerformed
+    private void saveImage() {
         final CompletableFuture<BufferedImage> futureImage = new CompletableFuture<>();
         Thread th = new Thread(() -> {
             try {
-                int redSaveIndex = getSaveComponent(this.redSave);
-                int greenSaveIndex = getSaveComponent(this.greenSave);
-                int blueSaveIndex = getSaveComponent(this.blueSave);
-                int alphaSaveIndex = getSaveComponent(this.alphaSave);
-                
+                int redSaveIndex = this.redSave.getSelectedIndex();
+                int greenSaveIndex = this.greenSave.getSelectedIndex();
+                int blueSaveIndex = this.blueSave.getSelectedIndex();
+                int alphaSaveIndex = this.alphaSave.getSelectedIndex();
+
                 BufferedImage img = new BufferedImage(this.width, this.height, BufferedImage.TYPE_INT_ARGB);
-                for (int y = 0; y < this.height; y++) {
-                    for (int x = 0; x < this.width; x++) {
+                for (int y = 0; y < img.getHeight(); y++) {
+                    for (int x = 0; x < img.getWidth(); x++) {
                         int[] components = {
                             this.redChannel.getRGB(x, y) & 0xFF,
                             this.greenChannel.getRGB(x, y) & 0xFF,
                             this.blueChannel.getRGB(x, y) & 0xFF,
                             this.alphaChannel.getRGB(x, y) & 0xFF,
                             255,
-                            0
+                            0,
+                            127
                         };
-                        
+
                         int r = components[redSaveIndex];
                         int g = components[greenSaveIndex];
                         int b = components[blueSaveIndex];
                         int a = components[alphaSaveIndex];
-                        
+
                         int argb = (a << 24) | (r << 16) | (g << 8) | (b << 0);
-                        
+
                         img.setRGB(x, y, argb);
                     }
                 }
-                
+
                 futureImage.complete(img);
             } catch (Throwable t) {
                 futureImage.completeExceptionally(t);
             }
         }, "save image");
         th.start();
-        
+
         JFileChooser chooser = new JFileChooser(new File("").getAbsoluteFile());
         chooser.setDialogType(JFileChooser.SAVE_DIALOG);
         chooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
@@ -715,9 +751,9 @@ public class ChannelManipulator extends javax.swing.JFrame {
             File imageFile = chooser.getSelectedFile();
             if (imageFile != null) {
                 if (!imageFile.getPath().toLowerCase().endsWith(".png")) {
-                    imageFile = new File(imageFile.getPath()+".png");
+                    imageFile = new File(imageFile.getPath() + ".png");
                 }
-                
+
                 if (imageFile.exists()) {
                     try {
                         Desktop.getDesktop().moveToTrash(imageFile);
@@ -725,14 +761,14 @@ public class ChannelManipulator extends javax.swing.JFrame {
                         imageFile.delete();
                     }
                 }
-                
+
                 BufferedImage resultImage;
                 try {
                     resultImage = futureImage.get();
                 } catch (InterruptedException | ExecutionException ex) {
                     throw new RuntimeException(ex);
                 }
-                
+
                 try {
                     ImageIO.write(resultImage, "PNG", imageFile);
                 } catch (IOException ex) {
@@ -740,25 +776,134 @@ public class ChannelManipulator extends javax.swing.JFrame {
                 }
             }
         }
+    }
+    
+    private void saveDXT5() {
+        final CompletableFuture<DXT5Texture> futureImage = new CompletableFuture<>();
+        Thread th = new Thread(() -> {
+            try {
+                int redSaveIndex = this.redSave.getSelectedIndex();
+                int greenSaveIndex = this.greenSave.getSelectedIndex();
+                int blueSaveIndex = this.blueSave.getSelectedIndex();
+                int alphaSaveIndex = this.alphaSave.getSelectedIndex();
+                
+                int w = this.width;
+                int h = this.height;
+                
+                byte[] imageData = new byte[w * h * 4];
+                for (int y = 0; y < h; y++) {
+                    for (int x = 0; x < w; x++) {
+                        int[] components = {
+                            this.redChannel.getRGB(x, y) & 0xFF,
+                            this.greenChannel.getRGB(x, y) & 0xFF,
+                            this.blueChannel.getRGB(x, y) & 0xFF,
+                            this.alphaChannel.getRGB(x, y) & 0xFF,
+                            255,
+                            0,
+                            127
+                        };
+
+                        int r = components[redSaveIndex];
+                        int g = components[greenSaveIndex];
+                        int b = components[blueSaveIndex];
+                        int a = components[alphaSaveIndex];
+                        
+                        imageData[0 + (x * 4) + (((h - 1) - y) * w * 4)] = (byte) r;
+                        imageData[1 + (x * 4) + (((h - 1) - y) * w * 4)] = (byte) g;
+                        imageData[2 + (x * 4) + (((h - 1) - y) * w * 4)] = (byte) b;
+                        imageData[3 + (x * 4) + (((h - 1) - y) * w * 4)] = (byte) a;
+                    }
+                }
+
+                futureImage.complete(DXT5TextureStore.createDXT5Texture(imageData, w, h));
+            } catch (Throwable t) {
+                futureImage.completeExceptionally(t);
+            }
+        }, "save dxt5");
+        th.start();
+
+        JFileChooser chooser = new JFileChooser(new File("").getAbsoluteFile());
+        chooser.setDialogType(JFileChooser.SAVE_DIALOG);
+        chooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
+        chooser.setMultiSelectionEnabled(false);
+        chooser.setFileFilter(new FileFilter() {
+            @Override
+            public boolean accept(File f) {
+                if (f == null) {
+                    return false;
+                }
+                
+                if (f.isDirectory()) {
+                    return true;
+                }
+                
+                return f.getName().toLowerCase().endsWith("." + DXT5TextureStore.EXTENSION);
+            }
+            
+            @Override
+            public String getDescription() {
+                return "DirectDraw Surface DXT5 Compressed with ZStandard";
+            }
+        });
+        int code = chooser.showSaveDialog(this);
+        if (code == JFileChooser.APPROVE_OPTION) {
+            File imageFile = chooser.getSelectedFile();
+            if (imageFile != null) {
+                if (!imageFile.getPath().toLowerCase().endsWith("." + DXT5TextureStore.EXTENSION)) {
+                    imageFile = new File(imageFile.getPath() + "." + DXT5TextureStore.EXTENSION);
+                }
+
+                if (imageFile.exists()) {
+                    try {
+                        Desktop.getDesktop().moveToTrash(imageFile);
+                    } catch (UnsupportedOperationException ex) {
+                        imageFile.delete();
+                    }
+                }
+
+                DXT5Texture resultImage;
+                try {
+                    resultImage = futureImage.get();
+                } catch (InterruptedException | ExecutionException ex) {
+                    throw new RuntimeException(ex);
+                }
+                
+                try {
+                    try (FileOutputStream outFile = new FileOutputStream(imageFile)) {
+                        DXT5TextureStore.writeDXT5Texture(resultImage, outFile);
+                    }
+                } catch (IOException ex) {
+                    throw new UncheckedIOException(ex);
+                }
+            }
+        }
+    }
+    
+    private void saveButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_saveButtonActionPerformed
+        if (!this.saveDXT5.isSelected()) {
+            saveImage();
+        } else {
+            saveDXT5();
+        }
     }//GEN-LAST:event_saveButtonActionPerformed
 
     private void openImage(BufferedImage img) {
         if (!Desktop.isDesktopSupported() || !Desktop.getDesktop().isSupported(Desktop.Action.OPEN)) {
             return;
         }
-        
+
         try {
             File e = File.createTempFile(UUID.randomUUID().toString(), ".png");
             e.deleteOnExit();
-            
+
             ImageIO.write(img, "PNG", e);
-            
+
             Desktop.getDesktop().open(e);
         } catch (IOException ex) {
             throw new UncheckedIOException(ex);
         }
     }
-    
+
     private void redChannelLabelMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_redChannelLabelMouseClicked
         openImage(this.redChannel);
     }//GEN-LAST:event_redChannelLabelMouseClicked
@@ -799,8 +944,36 @@ public class ChannelManipulator extends javax.swing.JFrame {
 
     private void loadFileImage(File e) {
         try {
-            BufferedImage imageRead = ImageIO.read(new ByteArrayInputStream(Files.readAllBytes(e.toPath())));
-
+            BufferedImage imageRead;
+            if (e.getName().endsWith(DXT5TextureStore.EXTENSION)) {
+                DXT5Texture texture;
+                try (FileInputStream input = new FileInputStream(e);) {
+                    texture = DXT5TextureStore.readDXT5Texture(input);
+                }
+                
+                byte[] decompressed;
+                try {
+                    decompressed = texture.decompress();
+                } finally {
+                    texture.free();
+                }
+                
+                imageRead = new BufferedImage(texture.width(), texture.height(), BufferedImage.TYPE_INT_ARGB);
+                for (int y = 0; y < imageRead.getHeight(); y++) {
+                    for (int x = 0; x < imageRead.getWidth(); x++) {
+                        int index = (x * 4) + ((imageRead.getHeight() - 1 - y) * imageRead.getWidth() * 4);
+                        int r = decompressed[0 + index] & 0xFF;
+                        int g = decompressed[1 + index] & 0xFF;
+                        int b = decompressed[2 + index] & 0xFF;
+                        int a = decompressed[3 + index] & 0xFF;
+                        int argb = (a << 24) | (r << 16) | (g << 8) | (b << 0);
+                        imageRead.setRGB(x, y, argb);
+                    }
+                }
+            } else {
+                imageRead = ImageIO.read(e);
+            }
+            
             {
                 int imageWidth = imageRead.getWidth();
                 int imageHeight = imageRead.getHeight();
@@ -859,8 +1032,11 @@ public class ChannelManipulator extends javax.swing.JFrame {
      * @param args the command line arguments
      */
     public static void main(String args[]) {
+        Locale.setDefault(Locale.US);
         FlatDarkLaf.setup();
-
+        Natives.init();
+        TextureCompressor.init();
+        
         /* Create and display the form */
         java.awt.EventQueue.invokeLater(new Runnable() {
             public void run() {
@@ -914,6 +1090,7 @@ public class ChannelManipulator extends javax.swing.JFrame {
     private javax.swing.JComboBox<String> resizeFiltering;
     private javax.swing.JPanel resizePanel;
     private javax.swing.JButton saveButton;
+    private javax.swing.JCheckBox saveDXT5;
     private javax.swing.JTabbedPane tabs;
     private javax.swing.JSpinner widthSpinner;
     // End of variables declaration//GEN-END:variables

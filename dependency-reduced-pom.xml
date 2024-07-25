@@ -85,8 +85,8 @@
     <exec.mainClass>cientistavuador.newrenderingpipeline.MainWrapper</exec.mainClass>
     <maven.compiler.source>17</maven.compiler.source>
     <joml-primitives.version>1.10.0</joml-primitives.version>
-    <joml.version>1.10.5</joml.version>
-    <lwjgl.version>3.3.3</lwjgl.version>
+    <joml.version>1.10.7</joml.version>
+    <lwjgl.version>3.3.4</lwjgl.version>
     <maven.compiler.target>17</maven.compiler.target>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
   </properties>

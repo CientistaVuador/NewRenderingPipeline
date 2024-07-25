@@ -26,7 +26,8 @@
  */
 package cientistavuador.newrenderingpipeline.newrendering;
 
-import java.awt.image.BufferedImage;
+import cientistavuador.newrenderingpipeline.util.DXT5TextureStore;
+import cientistavuador.newrenderingpipeline.util.DXT5TextureStore.DXT5Texture;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -38,7 +39,6 @@ import java.util.Properties;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
-import javax.imageio.ImageIO;
 
 /**
  *
@@ -57,32 +57,18 @@ public class NTexturesStore {
         properties.setProperty("name", textures.getName());
         properties.setProperty("blendingMode", textures.getBlendingMode().name());
         properties.setProperty("heightMapSupported", Boolean.toString(textures.isHeightMapSupported()));
-        properties.setProperty("sha256", textures.getSha256());
+        properties.setProperty("uid", textures.getUid());
         
         properties.storeToXML(out, null, StandardCharsets.UTF_8);
         
         out.closeEntry();
     }
     
-    private static void writeImage(String name, ZipOutputStream out, byte[] data, int width, int height) throws IOException {
-        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                int index = (x * 4) + (((height - 1) - y) * width * 4);
-                
-                int r = data[index + 0] & 0xFF;
-                int g = data[index + 1] & 0xFF;
-                int b = data[index + 2] & 0xFF;
-                int a = data[index + 3] & 0xFF;
-                
-                image.setRGB(x, y, (a << 24) | (r << 16) | (g << 8) | (b << 0));
-            }
-        }
-        
+    private static void writeTexture(String name, ZipOutputStream out, DXT5Texture texture) throws IOException {
         ZipEntry entry = new ZipEntry(name);
         out.putNextEntry(entry);
         
-        ImageIO.write(image, "PNG", out);
+        DXT5TextureStore.writeDXT5Texture(texture, out);
         
         out.closeEntry();
     }
@@ -93,13 +79,11 @@ public class NTexturesStore {
         out.putNextEntry(new ZipEntry(MAGIC_FILE_IDENTIFIER));
         out.closeEntry();
         
-        int w = textures.getWidth();
-        int h = textures.getHeight();
-        
         writeProperties(out, textures);
-        writeImage("r_g_b_a.png", out, textures.getRedGreenBlueAlpha(), w, h);
-        writeImage("ht_rg_mt_nx.png", out, textures.getHeightRoughnessMetallicNormalX(), w, h);
-        writeImage("er_eg_eb_ny.png", out, textures.getEmissiveRedGreenBlueNormalY(), w, h);
+        
+        writeTexture("r_g_b_a."+DXT5TextureStore.EXTENSION, out, textures.texture_r_g_b_a());
+        writeTexture("ht_rg_mt_nx."+DXT5TextureStore.EXTENSION, out, textures.texture_ht_rg_mt_nx());
+        writeTexture("er_eg_eb_ny."+DXT5TextureStore.EXTENSION, out, textures.texture_er_eg_eb_ny());
         
         out.finish();
     }
@@ -120,9 +104,9 @@ public class NTexturesStore {
     
     private static class TextureProperties {
         String name = "unnamed";
-        NBlendingMode blendingMode = NBlendingMode.OPAQUE;
+        NBlendingMode blendingMode = null;
         boolean heightMapSupported = false;
-        String sha256 = "empty";
+        String uid = null;
     }
     
     private static TextureProperties readProperties(Map<String, byte[]> files) throws IOException {
@@ -137,16 +121,25 @@ public class NTexturesStore {
         properties.loadFromXML(new ByteArrayInputStream(propertiesFile));
         
         textureProperties.name = properties.getProperty("name");
-        textureProperties.blendingMode = NBlendingMode.valueOf(properties.getProperty("blendingMode"));
-        textureProperties.heightMapSupported = Boolean.parseBoolean(properties.getProperty("heightMapSupported"));
-        textureProperties.sha256 = properties.getProperty("sha256");
+        
+        String blendingModeString = properties.getProperty("blendingMode");
+        if (blendingModeString != null) {
+            textureProperties.blendingMode = NBlendingMode.valueOf(blendingModeString);
+        }
+        
+        String heightMapSupportedString = properties.getProperty("heightMapSupported");
+        if (heightMapSupportedString != null) {
+            textureProperties.heightMapSupported = Boolean.parseBoolean(heightMapSupportedString);
+        }
+        
+        textureProperties.uid = properties.getProperty("uid");
         
         return textureProperties;
     }
     
-    private static NTexturesImporter.LoadedImage readImage(String image, Map<String, byte[]> files) {
-        byte[] imageData = files.get(image);
-        return NTexturesImporter.loadImage(imageData);
+    private static DXT5Texture readTexture(String image, Map<String, byte[]> files) throws IOException {
+        byte[] textureData = files.get(image);
+        return DXT5TextureStore.readDXT5Texture(new ByteArrayInputStream(textureData));
     }
     
     public static NTextures readTextures(InputStream input) throws IOException {
@@ -159,17 +152,17 @@ public class NTexturesStore {
         }
         
         TextureProperties properties = readProperties(files);
-        NTexturesImporter.LoadedImage rgba = readImage("r_g_b_a.png", files);
-        NTexturesImporter.LoadedImage hrmnx = readImage("ht_rg_mt_nx.png", files);
-        NTexturesImporter.LoadedImage eregebny = readImage("er_eg_eb_ny.png", files);
+        
+        DXT5Texture rgba = readTexture("r_g_b_a."+DXT5TextureStore.EXTENSION, files);
+        DXT5Texture hrmnx = readTexture("ht_rg_mt_nx."+DXT5TextureStore.EXTENSION, files);
+        DXT5Texture eregebny = readTexture("er_eg_eb_ny."+DXT5TextureStore.EXTENSION, files);
         
         return new NTextures(
                 properties.name,
-                rgba.width, rgba.height,
-                rgba.pixelData, hrmnx.pixelData, eregebny.pixelData,
+                properties.uid,
                 properties.blendingMode,
                 properties.heightMapSupported,
-                properties.sha256
+                rgba, hrmnx, eregebny
         );
     }
     

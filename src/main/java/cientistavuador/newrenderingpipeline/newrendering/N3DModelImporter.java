@@ -617,13 +617,13 @@ public class N3DModelImporter {
 
                 NTextures textures = material.getTextures();
 
-                String sha256 = textures.getSha256();
-                NTextures alreadyLoaded = loadedTextures.get(sha256);
+                String uid = textures.getUid();
+                NTextures alreadyLoaded = loadedTextures.get(uid);
 
                 if (alreadyLoaded != null) {
                     material.setTextures(alreadyLoaded);
                 } else {
-                    loadedTextures.put(sha256, textures);
+                    loadedTextures.put(uid, textures);
                 }
 
                 this.loadedMaterials.put(index, material);

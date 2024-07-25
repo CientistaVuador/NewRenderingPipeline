@@ -28,9 +28,9 @@ package cientistavuador.newrenderingpipeline;
 
 import cientistavuador.newrenderingpipeline.camera.FreeCamera;
 import cientistavuador.newrenderingpipeline.debug.AabRender;
+import cientistavuador.newrenderingpipeline.debug.DebugCounter;
 import cientistavuador.newrenderingpipeline.debug.LineRender;
 import cientistavuador.newrenderingpipeline.newrendering.N3DModel;
-import cientistavuador.newrenderingpipeline.newrendering.N3DModelImporter;
 import cientistavuador.newrenderingpipeline.newrendering.N3DModelStore;
 import cientistavuador.newrenderingpipeline.newrendering.N3DObject;
 import cientistavuador.newrenderingpipeline.newrendering.N3DObjectRenderer;
@@ -129,22 +129,23 @@ public class Game {
     private final PlayerController playerController = new PlayerController();
 
     {
+        
         try {
             this.skybox = NCubemapStore.readCubemap("cientistavuador/newrenderingpipeline/resources/cubemaps/generic_cubemap2.cbm");
-
+            
             List<N3DObject> mapObjects = new ArrayList<>();
             {
                 N3DModel nrpModel = N3DModelStore.readModel("cientistavuador/newrenderingpipeline/resources/models/nrp.n3dm");
                 N3DObject nrp = new N3DObject("nrp", nrpModel);
                 mapObjects.add(nrp);
             }
-
+            
             {
                 N3DModel triceratopsModel = N3DModelStore.readModel("cientistavuador/newrenderingpipeline/resources/models/triceratops.n3dm");
 
                 this.triceratops = new N3DObject("triceratops", triceratopsModel);
                 this.triceratops.getPosition().set(-15f, 0.9f, 3f);
-                this.triceratops.setAnimator(new NAnimator(triceratopsModel, "Armature|Armature|Fall"));
+                this.triceratops.setAnimator(new NAnimator(triceratopsModel, triceratopsModel.getAnimation("Armature|Armature|Fall")));
             }
 
             {
@@ -258,19 +259,35 @@ public class Game {
     }
 
     public void start() {
+        System.out.println("running!");
+        
         this.camera.setUBO(CameraUBO.create(UBOBindingPoints.PLAYER_CAMERA));
         
+        DebugCounter e = new DebugCounter();
+        
+        e.markStart("Load Models");
         for (int i = 0; i < this.map.getNumberOfObjects(); i++) {
-            this.map.getObject(i).getN3DModel().loadEverything();
+            this.map.getObject(i).getN3DModel().load();
         }
+        this.plasticBall.getN3DModel().load();
+        this.triceratops.getN3DModel().load();
+        e.markEnd("Load Models");
         
+        e.markStart("Load Skybox");
         this.skybox.cubemap();
+        e.markEnd("Load Skybox");
 
+        e.markStart("Load Lightmaps");
         this.map.getLightmaps().lightmaps();
+        e.markEnd("Load Lightmaps");
         
+        e.markStart("Load Cubemaps");
         for (int i = 0; i < this.cubemaps.getNumberOfCubemaps(); i++) {
             this.cubemaps.getCubemap(i).cubemap();
         }
+        e.markEnd("Load Cubemaps");
+        
+        e.print();
     }
 
     private final Vector3f plasticBallRotation = new Vector3f(0f, 0f, 1f);

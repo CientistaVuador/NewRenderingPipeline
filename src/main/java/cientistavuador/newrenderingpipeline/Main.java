@@ -38,6 +38,7 @@ import cientistavuador.newrenderingpipeline.text.GLFonts;
 import cientistavuador.newrenderingpipeline.texture.Textures;
 import cientistavuador.newrenderingpipeline.ubo.UBOBindingPoints;
 import cientistavuador.newrenderingpipeline.util.ALSourceUtil;
+import cientistavuador.newrenderingpipeline.util.TextureCompressor;
 import cientistavuador.newrenderingpipeline.util.Aab;
 import cientistavuador.newrenderingpipeline.util.ConvexPolygonRenderer;
 import cientistavuador.newrenderingpipeline.util.Cursors;
@@ -494,6 +495,7 @@ public class Main {
         
         Main.checkGLError();
         
+        TextureCompressor.init();
         GLFonts.init();
         Textures.init();
         Geometries.init();

@@ -782,9 +782,9 @@ public class NMap {
 
             byte[] textureData;
             if (emissive) {
-                textureData = textures.getEmissiveRedGreenBlueNormalY();
+                textureData = textures.data_er_eg_eb_ny();
             } else {
-                textureData = textures.getRedGreenBlueAlpha();
+                textureData = textures.data_r_g_b_a();
             }
 
             float r = ((textureData[pixelIndex + 0] & 0xFF) / 255f);

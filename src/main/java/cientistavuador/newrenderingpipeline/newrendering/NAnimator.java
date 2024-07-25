@@ -77,9 +77,16 @@ public class NAnimator {
     
     private boolean looping = true;
 
-    public NAnimator(N3DModel model, String animation) {
+    public NAnimator(N3DModel model, NAnimation animation) {
+        if (model == null) {
+            throw new NullPointerException("Model is null.");
+        }
+        if (animation == null) {
+            throw new NullPointerException("Animation is null.");
+        }
+        
         this.model = model;
-        this.animation = model.getAnimation(animation);
+        this.animation = animation;
 
         this.boneAnimations = new NBoneAnimation[this.animation.getNumberOfBoneAnimations()];
         for (int i = 0; i < this.boneAnimations.length; i++) {
