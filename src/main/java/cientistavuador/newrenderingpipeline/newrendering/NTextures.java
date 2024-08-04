@@ -60,7 +60,7 @@ public class NTextures {
     public static final String ERROR_ER_EG_EB_NY_DATA = "KLUv/aDwVQUALAIAkoQMFMBrDv/D/I9YrqzKzPdv1ZBak0Skd3f/N80iDQm2rJ+rwYy14xGjKdE/A6MknFHJWgEFANr+Z+YLICSQOFccsFsHRAAAAAEA/f+TTyBFAAAAAQDtVTkAAg==";
     
     public static final NTextures NULL_TEXTURE;
-
+    
     static {
         try {
             DXT5Texture r_g_b_a = DXT5TextureStore.readDXT5Texture(new ByteArrayInputStream(Base64.getDecoder().decode(ERROR_R_G_B_A_DATA)));

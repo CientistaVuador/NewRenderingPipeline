@@ -28,11 +28,8 @@ package cientistavuador.newrenderingpipeline.newrendering;
 
 import cientistavuador.newrenderingpipeline.Main;
 import cientistavuador.newrenderingpipeline.camera.PerspectiveCamera;
-import java.nio.FloatBuffer;
 import java.util.List;
 import static org.lwjgl.opengl.GL33C.*;
-import static org.lwjgl.system.MemoryUtil.memAllocFloat;
-import static org.lwjgl.system.MemoryUtil.memFree;
 
 /**
  *
@@ -40,13 +37,15 @@ import static org.lwjgl.system.MemoryUtil.memFree;
  */
 public class NCubemapRenderer {
 
-    public static final int SUPER_RESOLUTION_MULTIPLIER = 4;
-
     public static NCubemap render(
-            String name, NCubemapInfo info, int size,
+            String name, NCubemapInfo info, int size, int ssaaScale,
             List<NLight> lights, NCubemaps cubemaps
     ) {
-        int fboSize = size * SUPER_RESOLUTION_MULTIPLIER;
+        if (ssaaScale < 1) {
+            throw new IllegalArgumentException("SSAA Scale must be larger or equal to 1; " + ssaaScale);
+        }
+
+        int fboSize = size * ssaaScale;
 
         int fbo = glGenFramebuffers();
         glBindFramebuffer(GL_FRAMEBUFFER, fbo);
@@ -83,65 +82,72 @@ public class NCubemapRenderer {
         camera.setDimensions(1f, 1f);
         camera.setFov(90f);
 
-        FloatBuffer sides = memAllocFloat(fboSize * fboSize * 3 * NCubemap.SIDES);
-        float[] cubemap = new float[size * size * 3 * NCubemap.SIDES];
-        try {
-            glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-            glViewport(0, 0, fboSize, fboSize);
-            for (int i = 0; i < NCubemap.SIDES; i++) {
-                float pitch = cameraRotations[(i * 3) + 0];
-                float yaw = cameraRotations[(i * 3) + 1];
-                float roll = cameraRotations[(i * 3) + 2];
-                camera.setRotation(pitch, yaw, roll);
-                sides.position(fboSize * fboSize * 3 * i);
+        float[][] sides = new float[NCubemap.SIDES][];
 
-                if (i != 0) {
-                    for (int j = 0; j < objects.length; j++) {
-                        N3DObjectRenderer.queueRender(objects[j]);
-                    }
+        glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+        glViewport(0, 0, fboSize, fboSize);
+        for (int i = 0; i < NCubemap.SIDES; i++) {
+            float pitch = cameraRotations[(i * 3) + 0];
+            float yaw = cameraRotations[(i * 3) + 1];
+            float roll = cameraRotations[(i * 3) + 2];
+            camera.setRotation(pitch, yaw, roll);
+
+            if (i != 0) {
+                for (int j = 0; j < objects.length; j++) {
+                    N3DObjectRenderer.queueRender(objects[j]);
                 }
-
-                glClear(GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
-                N3DObjectRenderer.render(camera, lights, cubemaps);
-                glReadPixels(0, 0, fboSize, fboSize, GL_RGB, GL_FLOAT, sides);
             }
-            glBindFramebuffer(GL_FRAMEBUFFER, 0);
-            glViewport(0, 0, Main.WIDTH, Main.HEIGHT);
 
-            glDeleteRenderbuffers(rboColor);
-            glDeleteRenderbuffers(rboDepthStencil);
-            glDeleteFramebuffers(fbo);
+            float[] ssaaSide = new float[fboSize * fboSize * 3];
 
-            for (int y = 0; y < size * NCubemap.SIDES; y++) {
+            glClear(GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
+            N3DObjectRenderer.render(camera, lights, cubemaps);
+            glReadPixels(0, 0, fboSize, fboSize, GL_RGB, GL_FLOAT, ssaaSide);
+
+            float[] side = new float[size * size * 3];
+            for (int y = 0; y < size; y++) {
                 for (int x = 0; x < size; x++) {
                     float r = 0f;
                     float g = 0f;
                     float b = 0f;
-                    for (int yOffset = 0; yOffset < SUPER_RESOLUTION_MULTIPLIER; yOffset++) {
-                        for (int xOffset = 0; xOffset < SUPER_RESOLUTION_MULTIPLIER; xOffset++) {
-                            int trueX = (x * SUPER_RESOLUTION_MULTIPLIER) + xOffset;
-                            int trueY = (y * SUPER_RESOLUTION_MULTIPLIER) + yOffset;
+                    for (int yOffset = 0; yOffset < ssaaScale; yOffset++) {
+                        for (int xOffset = 0; xOffset < ssaaScale; xOffset++) {
+                            int trueX = (x * ssaaScale) + xOffset;
+                            int trueY = (y * ssaaScale) + yOffset;
 
-                            r += sides.get(0 + (trueX * 3) + (trueY * fboSize * 3));
-                            g += sides.get(1 + (trueX * 3) + (trueY * fboSize * 3));
-                            b += sides.get(2 + (trueX * 3) + (trueY * fboSize * 3));
+                            r += ssaaSide[0 + (trueX * 3) + (trueY * fboSize * 3)];
+                            g += ssaaSide[1 + (trueX * 3) + (trueY * fboSize * 3)];
+                            b += ssaaSide[2 + (trueX * 3) + (trueY * fboSize * 3)];
                         }
                     }
-                    float inv = 1f / (SUPER_RESOLUTION_MULTIPLIER * SUPER_RESOLUTION_MULTIPLIER);
+                    float inv = 1f / (ssaaScale * ssaaScale);
                     r *= inv;
                     g *= inv;
                     b *= inv;
-
-                    cubemap[0 + (x * 3) + (y * size * 3)] = r;
-                    cubemap[1 + (x * 3) + (y * size * 3)] = g;
-                    cubemap[2 + (x * 3) + (y * size * 3)] = b;
+                    
+                    side[0 + (x * 3) + (y * size * 3)] = r;
+                    side[1 + (x * 3) + (y * size * 3)] = g;
+                    side[2 + (x * 3) + (y * size * 3)] = b;
                 }
             }
-        } finally {
-            memFree(sides);
+            
+            sides[i] = side;
         }
-        
-        return new NCubemap(name, info, null, null, size, cubemap);
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glViewport(0, 0, Main.WIDTH, Main.HEIGHT);
+
+        glDeleteRenderbuffers(rboColor);
+        glDeleteRenderbuffers(rboDepthStencil);
+        glDeleteFramebuffers(fbo);
+
+        return NCubemapImporter.create(name, null, info, size, sides);
+    }
+    
+    public static NCubemap render(
+            String name, NCubemapInfo info, int size,
+            List<NLight> lights, NCubemaps cubemaps
+    ) {
+        return render(name, info, size, 4, lights, cubemaps);
     }
 
     private NCubemapRenderer() {

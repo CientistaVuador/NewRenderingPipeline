@@ -39,25 +39,17 @@ public class E8Image {
 
     public static final int MAX_EXPONENT = 255;
     public static final int BIAS = 127;
-    public static final float BASE = (float) Math.pow(65535.0, 1.0 / (MAX_EXPONENT - BIAS));
-    public static final float INVERSE_LOG_BASE = (float) (1.0 / Math.log(BASE));
+    public static final double BASE = Math.pow(65535.0, 1.0 / (MAX_EXPONENT - BIAS));
+    public static final double INVERSE_LOG_BASE = 1.0 / Math.log(BASE);
     
     public static final float MAX_VALUE = (float) Math.pow(BASE, MAX_EXPONENT - BIAS);
-    public static final float MIN_VALUE = (float) (Math.pow(BASE, 0 - BIAS) * (1f / 255f));
-
+    public static final float MIN_VALUE = (float) (Math.pow(BASE, 0 - BIAS) * (1.0 / 255.0));
+    
     private static final float[] LOOKUP_TABLE = new float[MAX_EXPONENT + 1];
-
+    
     static {
         for (int exp = 0; exp < LOOKUP_TABLE.length; exp++) {
             LOOKUP_TABLE[exp] = (float) Math.pow(BASE, exp - BIAS);
-        }
-    }
-    
-    private static final float[] INVERSE_LOOKUP_TABLE = new float[LOOKUP_TABLE.length];
-    
-    static {
-        for (int exp = 0; exp < INVERSE_LOOKUP_TABLE.length; exp++) {
-            INVERSE_LOOKUP_TABLE[exp] = 1f / LOOKUP_TABLE[exp];
         }
     }
     
@@ -72,12 +64,12 @@ public class E8Image {
             if (!Float.isFinite(r) || !Float.isFinite(g) || !Float.isFinite(b)) {
                 break encode;
             }
-            r = Math.max(r, 0f);
-            g = Math.max(g, 0f);
-            b = Math.max(b, 0f);
-
+            r = Math.min(Math.max(r, 0f), MAX_VALUE);
+            g = Math.min(Math.max(g, 0f), MAX_VALUE);
+            b = Math.min(Math.max(b, 0f), MAX_VALUE);
+            
             float intensity = Math.max(r, Math.max(g, b));
-            if (intensity == 0f) {
+            if (intensity < MIN_VALUE) {
                 mR = 0;
                 mG = 0;
                 mB = 0;
@@ -88,12 +80,12 @@ public class E8Image {
             exp = (int) Math.ceil((Math.log(intensity) * INVERSE_LOG_BASE) + BIAS);
             exp = Math.min(Math.max(exp, 0), MAX_EXPONENT);
             
-            float refinedInverseIntensity = INVERSE_LOOKUP_TABLE[exp];
+            intensity = LOOKUP_TABLE[exp];
             
-            r *= refinedInverseIntensity;
-            g *= refinedInverseIntensity;
-            b *= refinedInverseIntensity;
-
+            r /= intensity;
+            g /= intensity;
+            b /= intensity;
+            
             mR = Math.min(Math.max(Math.round(r * 255f), 0), 255);
             mG = Math.min(Math.max(Math.round(g * 255f), 0), 255);
             mB = Math.min(Math.max(Math.round(b * 255f), 0), 255);

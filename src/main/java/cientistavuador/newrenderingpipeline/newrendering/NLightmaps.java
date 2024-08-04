@@ -28,12 +28,16 @@ package cientistavuador.newrenderingpipeline.newrendering;
 
 import cientistavuador.newrenderingpipeline.Main;
 import cientistavuador.newrenderingpipeline.util.CryptoUtils;
+import cientistavuador.newrenderingpipeline.util.DXT5TextureStore;
+import cientistavuador.newrenderingpipeline.util.DXT5TextureStore.DXT5Texture;
 import cientistavuador.newrenderingpipeline.util.ImageUtils;
 import cientistavuador.newrenderingpipeline.util.ObjectCleaner;
 import cientistavuador.newrenderingpipeline.util.E8Image;
 import cientistavuador.newrenderingpipeline.util.StringUtils;
 import cientistavuador.newrenderingpipeline.util.bakedlighting.LightmapAmbientCube;
 import cientistavuador.newrenderingpipeline.util.bakedlighting.LightmapAmbientCubeBVH;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -45,7 +49,9 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import org.joml.Vector3f;
 import org.joml.Vector4f;
+import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.ARBTextureCompressionBPTC;
+import org.lwjgl.opengl.EXTTextureCompressionS3TC;
 import org.lwjgl.opengl.EXTTextureFilterAnisotropic;
 import org.lwjgl.opengl.GL;
 import static org.lwjgl.opengl.GL33C.*;
@@ -461,13 +467,26 @@ public class NLightmaps {
         int maxLod = (int) Math.abs(
                 Math.log(this.margin) / Math.log(2.0)
         );
-
+        
         glActiveTexture(GL_TEXTURE0);
-
+        
         int lightmap = glGenTextures();
         glBindTexture(GL_TEXTURE_2D_ARRAY, lightmap);
-        glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, internalFormat, this.width, this.height, this.names.length, 0, GL_RGB, GL_FLOAT, this.lightmaps);
-
+        //glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, internalFormat, this.width, this.height, this.names.length, 0, GL_RGB, GL_FLOAT, this.lightmaps);
+        
+        E8Image image = new E8Image(this.lightmaps, this.width, this.height);
+        DXT5Texture tex = DXT5TextureStore.createDXT5Texture(image.getData(), image.getWidth(), image.getHeight());
+        glCompressedTexImage3D(
+                GL_TEXTURE_2D_ARRAY,
+                0,
+                EXTTextureCompressionS3TC.GL_COMPRESSED_RGBA_S3TC_DXT5_EXT,
+                this.width,
+                this.height,
+                1,
+                0,
+                tex.mipSlice(0)
+        );
+        
         glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 

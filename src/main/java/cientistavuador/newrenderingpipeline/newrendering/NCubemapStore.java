@@ -26,8 +26,8 @@
  */
 package cientistavuador.newrenderingpipeline.newrendering;
 
-import cientistavuador.newrenderingpipeline.util.ImageUtils;
-import cientistavuador.newrenderingpipeline.util.E8Image;
+import cientistavuador.newrenderingpipeline.util.DXT5TextureStore;
+import cientistavuador.newrenderingpipeline.util.DXT5TextureStore.DXT5Texture;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -39,7 +39,6 @@ import java.util.Properties;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
-import javax.imageio.ImageIO;
 import org.joml.Quaternionf;
 import org.joml.Vector3d;
 import org.joml.Vector3f;
@@ -61,24 +60,18 @@ public class NCubemapStore {
         Properties properties = new Properties();
         
         properties.setProperty("name", cubemap.getName());
-        properties.setProperty("sha256", cubemap.getSha256());
+        properties.setProperty("uid", cubemap.getUid());
         properties.setProperty("colorR", Float.toString(cubemap.getCubemapColor().x()));
         properties.setProperty("colorG", Float.toString(cubemap.getCubemapColor().y()));
         properties.setProperty("colorB", Float.toString(cubemap.getCubemapColor().z()));
         
-        final String cubemapFile = "cubemap.png";
-        
-        E8Image cubemapImage = new E8Image(
-                cubemap.getCubemap(),
-                cubemap.getSize(),
-                cubemap.getSize() * NCubemap.SIDES
-        );
-        
-        zipOut.putNextEntry(new ZipEntry(cubemapFile));
-        ImageIO.write(cubemapImage.toBufferedImage(), "PNG", zipOut);
-        zipOut.closeEntry();
-        
-        properties.setProperty("cubemapFile", cubemapFile);
+        for (int i = 0; i < cubemap.getNumberOfSides(); i++) {
+            DXT5Texture side = cubemap.getSideTexture(i);
+            
+            zipOut.putNextEntry(new ZipEntry(i+"."+DXT5TextureStore.EXTENSION));
+            DXT5TextureStore.writeDXT5Texture(side, zipOut);
+            zipOut.closeEntry();
+        }
         
         NCubemapInfo info = cubemap.getCubemapInfo();
         
@@ -158,29 +151,19 @@ public class NCubemapStore {
                 )
         );
         
-        String cubemapFile = properties.getProperty("cubemapFile");
+        DXT5Texture[] cubemapSides = new DXT5Texture[NCubemap.SIDES];
+        for (int i = 0; i < cubemapSides.length; i++) {
+            cubemapSides[i] = DXT5TextureStore.readDXT5Texture(new ByteArrayInputStream(fs.get(i+"."+DXT5TextureStore.EXTENSION)));
+        }
         
-        ImageUtils.Image cubemapImage = ImageUtils.load(fs.get(cubemapFile), 4);
-        
-        E8Image resultCubemapImage = new E8Image(
-                cubemapImage.getData(),
-                cubemapImage.getWidth(), cubemapImage.getHeight()
-        );
-        
-        NCubemap cubemap = new NCubemap(
+        return new NCubemap(
                 properties.getProperty("name"),
-                info,
-                properties.getProperty("sha256"),
-                new Vector3f(
-                        Float.parseFloat(properties.getProperty("colorR")),
-                        Float.parseFloat(properties.getProperty("colorG")),
-                        Float.parseFloat(properties.getProperty("colorB"))
-                ),
-                resultCubemapImage.getWidth(),
-                resultCubemapImage.toFloatArray()
+                properties.getProperty("uid"),
+                Float.parseFloat(properties.getProperty("colorR")),
+                Float.parseFloat(properties.getProperty("colorG")),
+                Float.parseFloat(properties.getProperty("colorB")),
+                info, cubemapSides
         );
-        
-        return cubemap;
     }
     
     private NCubemapStore() {

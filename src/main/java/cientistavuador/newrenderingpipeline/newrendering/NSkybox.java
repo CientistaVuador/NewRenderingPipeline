@@ -27,7 +27,9 @@
 package cientistavuador.newrenderingpipeline.newrendering;
 
 import cientistavuador.newrenderingpipeline.util.BetterUniformSetter;
+import cientistavuador.newrenderingpipeline.util.E8Image;
 import cientistavuador.newrenderingpipeline.util.ProgramCompiler;
+import java.util.HashMap;
 import static org.lwjgl.opengl.GL33C.*;
 
 /**
@@ -137,9 +139,13 @@ public class NSkybox {
                 return pow(rgb, vec3(1.0/2.2));
             }
             
+            vec4 RGBEToRGBA(vec4 rgbe) {
+                return vec4(rgbe.rgb * pow(RGBE_BASE, (rgbe.a * RGBE_MAX_EXPONENT) - RGBE_BIAS), 1.0);
+            }
+            
             void main() {
                 vec3 direction = normalize(sampleDirection);
-                vec4 color = texture(skybox, direction);
+                vec4 color = RGBEToRGBA(texture(skybox, direction));
                 if (!hdrOutput) {
                     color.rgb = gammaCorrection(ACESFilm(color.rgb));
                 }
@@ -147,7 +153,15 @@ public class NSkybox {
             }
             """;
     
-    public static final BetterUniformSetter SKYBOX_PROGRAM = new BetterUniformSetter(ProgramCompiler.compile(VERTEX_SHADER, FRAGMENT_SHADER));
+    public static final BetterUniformSetter SKYBOX_PROGRAM = new BetterUniformSetter(ProgramCompiler.compile(
+            VERTEX_SHADER,
+            FRAGMENT_SHADER,
+            new HashMap<>() {{
+                put("RGBE_BASE", Double.toString(E8Image.BASE));
+                put("RGBE_MAX_EXPONENT", Integer.toString(E8Image.MAX_EXPONENT));
+                put("RGBE_BIAS", Integer.toString(E8Image.BIAS));
+            }}
+    ));
     
     public static final String UNIFORM_PROJECTION = "projection";
     public static final String UNIFORM_VIEW = "view";

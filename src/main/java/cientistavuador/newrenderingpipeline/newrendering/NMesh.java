@@ -279,7 +279,7 @@ public class NMesh {
         if (this.wrappedVao.vao != 0) {
             return;
         }
-
+        
         long meshId = NMesh.meshIds.getAndIncrement();
 
         int vao = glGenVertexArrays();

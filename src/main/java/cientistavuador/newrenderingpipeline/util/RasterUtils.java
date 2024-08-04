@@ -35,8 +35,6 @@ import org.joml.Vector3fc;
  */
 public class RasterUtils {
     
-    public static final float DEGENERATE_AREA = 0.00001f;
-    
     public static void barycentricWeights(Vector3fc p, Vector3fc a, Vector3fc b, Vector3fc c, Vector3f outWeights) {
         barycentricWeights(
                 p.x(), p.y(), p.z(),

@@ -62,8 +62,8 @@ public class DXT5TextureStore {
         public static final int DXT5_TYPE = 0x35_54_58_44;
 
         public static final int MAGIC_NUMBER_OFFSET = 0x00;
-        public static final int WIDTH_OFFSET = 0x0C;
-        public static final int HEIGHT_OFFSET = 0x10;
+        public static final int WIDTH_OFFSET = 0x10;
+        public static final int HEIGHT_OFFSET = 0x0C;
         public static final int MIPS_OFFSET = 0x1C;
         public static final int TYPE_OFFSET = 0x54;
 

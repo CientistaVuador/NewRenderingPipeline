@@ -50,12 +50,17 @@ import cientistavuador.newrenderingpipeline.text.GLFontRenderer;
 import cientistavuador.newrenderingpipeline.text.GLFontSpecifications;
 import cientistavuador.newrenderingpipeline.ubo.CameraUBO;
 import cientistavuador.newrenderingpipeline.ubo.UBOBindingPoints;
+import cientistavuador.newrenderingpipeline.util.DXT5TextureStore;
+import cientistavuador.newrenderingpipeline.util.DXT5TextureStore.DXT5Texture;
+import cientistavuador.newrenderingpipeline.util.E8Image;
 import cientistavuador.newrenderingpipeline.util.StringUtils;
 import cientistavuador.newrenderingpipeline.util.bakedlighting.AmbientCubeDebug;
 import cientistavuador.newrenderingpipeline.util.bakedlighting.Lightmapper;
 import cientistavuador.newrenderingpipeline.util.bakedlighting.Scene;
 import com.jme3.bullet.PhysicsSpace;
 import com.jme3.bullet.objects.PhysicsRigidBody;
+import java.awt.image.BufferedImage;
+import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -63,6 +68,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import javax.imageio.ImageIO;
 import org.joml.Vector3f;
 import static org.lwjgl.glfw.GLFW.*;
 
@@ -131,7 +137,7 @@ public class Game {
     {
         
         try {
-            this.skybox = NCubemapStore.readCubemap("cientistavuador/newrenderingpipeline/resources/cubemaps/generic_cubemap2.cbm");
+            this.skybox = NCubemapStore.readCubemap("cientistavuador/newrenderingpipeline/resources/cubemaps/skybox.cbm");
             
             List<N3DObject> mapObjects = new ArrayList<>();
             {

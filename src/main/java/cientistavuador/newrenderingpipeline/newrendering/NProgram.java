@@ -28,6 +28,7 @@ package cientistavuador.newrenderingpipeline.newrendering;
 
 import cientistavuador.newrenderingpipeline.util.bakedlighting.AmbientCube;
 import cientistavuador.newrenderingpipeline.util.BetterUniformSetter;
+import cientistavuador.newrenderingpipeline.util.E8Image;
 import cientistavuador.newrenderingpipeline.util.ProgramCompiler;
 import java.util.Map;
 import org.joml.Matrix4fc;
@@ -526,16 +527,20 @@ public class NProgram {
                 return ambient;
             }
             
+            vec4 RGBEToRGBA(vec4 rgbe) {
+                return vec4(rgbe.rgb * pow(RGBE_BASE, (rgbe.a * RGBE_MAX_EXPONENT) - RGBE_BIAS), 1.0);
+            }
+            
             vec4 sampleCubemap(int index, vec3 direction) {
                 switch (index) {
                     case 0:
-                        return texture(reflectionCubemap_0, direction);
+                        return RGBEToRGBA(texture(reflectionCubemap_0, direction));
                     case 1:
-                        return texture(reflectionCubemap_1, direction);
+                        return RGBEToRGBA(texture(reflectionCubemap_1, direction));
                     case 2:
-                        return texture(reflectionCubemap_2, direction);
+                        return RGBEToRGBA(texture(reflectionCubemap_2, direction));
                     case 3:
-                        return texture(reflectionCubemap_3, direction);
+                        return RGBEToRGBA(texture(reflectionCubemap_3, direction));
                 }
                 return vec4(0.0, 0.0, 0.0, 1.0);
             }
@@ -670,7 +675,7 @@ public class NProgram {
                     if (i < MAX_AMOUNT_OF_LIGHTMAPS) {
                         intensity = lightmapIntensity[i];
                     }
-                    finalColor.rgb += texture(lightmaps, vec3(inVertex.worldLightmapTexture, float(i))).rgb * intensity * diffuseColor * lightmapAo;
+                    finalColor.rgb += RGBEToRGBA(texture(lightmaps, vec3(inVertex.worldLightmapTexture, float(i)))).rgb * intensity * diffuseColor * lightmapAo;
                 }
                 
                 for (int i = 0; i < MAX_AMOUNT_OF_LIGHTS; i++) {
@@ -738,7 +743,10 @@ public class NProgram {
         new ProgramCompiler.ShaderConstant("DIFFUSE_STRENGTH", DIFFUSE_STRENGTH),
         new ProgramCompiler.ShaderConstant("SPECULAR_STRENGTH", SPECULAR_STRENGTH),
         new ProgramCompiler.ShaderConstant("MAX_AMOUNT_OF_CUBEMAPS", MAX_AMOUNT_OF_CUBEMAPS),
-        new ProgramCompiler.ShaderConstant("NUMBER_OF_AMBIENT_CUBE_SIDES", AmbientCube.SIDES)
+        new ProgramCompiler.ShaderConstant("NUMBER_OF_AMBIENT_CUBE_SIDES", AmbientCube.SIDES),
+        new ProgramCompiler.ShaderConstant("RGBE_BASE", E8Image.BASE),
+        new ProgramCompiler.ShaderConstant("RGBE_MAX_EXPONENT", E8Image.MAX_EXPONENT),
+        new ProgramCompiler.ShaderConstant("RGBE_BIAS", E8Image.BIAS)
     };
 
     static {
