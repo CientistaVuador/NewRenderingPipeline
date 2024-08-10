@@ -99,39 +99,39 @@ public class E8Image {
     
     public static final E8Image NULL_IMAGE = new E8Image(new float[0], 0, 0);
     
-    private final byte[] data;
+    private final byte[] rgbe;
     private final int width;
     private final int height;
 
-    public E8Image(byte[] data, int width, int height) {
-        Objects.requireNonNull(data, "data is null");
+    public E8Image(byte[] rgbe, int width, int height) {
+        Objects.requireNonNull(rgbe, "data is null");
 
         int pixels = width * height;
-        if (data.length / 4 != pixels) {
-            throw new IllegalArgumentException("Invalid amount of pixels! required " + pixels + ", found " + (data.length / 4));
+        if (rgbe.length / 4 != pixels) {
+            throw new IllegalArgumentException("Invalid amount of pixels! required " + pixels + ", found " + (rgbe.length / 4));
         }
 
-        this.data = data;
+        this.rgbe = rgbe;
         this.width = width;
         this.height = height;
     }
 
-    public E8Image(float[] data, int width, int height) {
-        Objects.requireNonNull(data, "data is null");
+    public E8Image(float[] rgb, int width, int height) {
+        Objects.requireNonNull(rgb, "data is null");
 
         int pixels = width * height;
-        if (data.length / 3 != pixels) {
-            throw new IllegalArgumentException("Invalid amount of pixels! required " + pixels + ", found " + (data.length / 4));
+        if (rgb.length / 3 != pixels) {
+            throw new IllegalArgumentException("Invalid amount of pixels! required " + pixels + ", found " + (rgb.length / 4));
         }
 
-        this.data = new byte[width * height * 4];
+        this.rgbe = new byte[width * height * 4];
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
-                float r = data[0 + (x * 3) + (y * width * 3)];
-                float g = data[1 + (x * 3) + (y * width * 3)];
-                float b = data[2 + (x * 3) + (y * width * 3)];
+                float r = rgb[0 + (x * 3) + (y * width * 3)];
+                float g = rgb[1 + (x * 3) + (y * width * 3)];
+                float b = rgb[2 + (x * 3) + (y * width * 3)];
 
-                encodeTo(r, g, b, (x * 4) + (y * width * 4), this.data);
+                encodeTo(r, g, b, (x * 4) + (y * width * 4), this.rgbe);
             }
         }
 
@@ -139,8 +139,8 @@ public class E8Image {
         this.height = height;
     }
 
-    public byte[] getData() {
-        return data;
+    public byte[] getRGBE() {
+        return rgbe;
     }
 
     public int getWidth() {
@@ -154,10 +154,10 @@ public class E8Image {
     public void read(int x, int y, Vector3f outColor) {
         int index = (x * 4) + (y * this.width * 4);
 
-        int mR = this.data[0 + index] & 0xFF;
-        int mG = this.data[1 + index] & 0xFF;
-        int mB = this.data[2 + index] & 0xFF;
-        int exp = this.data[3 + index] & 0xFF;
+        int mR = this.rgbe[0 + index] & 0xFF;
+        int mG = this.rgbe[1 + index] & 0xFF;
+        int mB = this.rgbe[2 + index] & 0xFF;
+        int exp = this.rgbe[3 + index] & 0xFF;
         
         outColor.set(mR, mG, mB)
                 .div(255f)
@@ -166,10 +166,9 @@ public class E8Image {
     }
 
     public void write(int x, int y, Vector3fc inColor) {
-        encodeTo(
-                inColor.x(), inColor.y(), inColor.z(),
+        encodeTo(inColor.x(), inColor.y(), inColor.z(),
                 (x * 4) + (y * this.width * 4),
-                this.data
+                this.rgbe
         );
     }
 
@@ -195,10 +194,10 @@ public class E8Image {
         BufferedImage resultImage = new BufferedImage(this.width, this.height, BufferedImage.TYPE_INT_ARGB);
         for (int y = 0; y < resultImage.getHeight(); y++) {
             for (int x = 0; x < resultImage.getWidth(); x++) {
-                int r = data[0 + (x * 4) + (y * resultImage.getWidth() * 4)] & 0xFF;
-                int g = data[1 + (x * 4) + (y * resultImage.getWidth() * 4)] & 0xFF;
-                int b = data[2 + (x * 4) + (y * resultImage.getWidth() * 4)] & 0xFF;
-                int e = data[3 + (x * 4) + (y * resultImage.getWidth() * 4)] & 0xFF;
+                int r = rgbe[0 + (x * 4) + (y * resultImage.getWidth() * 4)] & 0xFF;
+                int g = rgbe[1 + (x * 4) + (y * resultImage.getWidth() * 4)] & 0xFF;
+                int b = rgbe[2 + (x * 4) + (y * resultImage.getWidth() * 4)] & 0xFF;
+                int e = rgbe[3 + (x * 4) + (y * resultImage.getWidth() * 4)] & 0xFF;
 
                 int argb = (e << 24) | (r << 16) | (g << 8) | (b << 0);
 

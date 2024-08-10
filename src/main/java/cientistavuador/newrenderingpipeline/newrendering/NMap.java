@@ -614,7 +614,7 @@ public class NMap {
             float g = 0f;
             float b = 0f;
             for (int j = 0; j < numberOfRays; j++) {
-                AmbientCube.randomSideDirection(i, direction);
+                AmbientCube.randomSideDirection180(i, direction);
 
                 List<NRayResult> rayResults = testRay(
                         pX, pY, pZ,

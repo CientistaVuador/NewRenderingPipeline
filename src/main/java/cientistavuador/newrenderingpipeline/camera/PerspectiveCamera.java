@@ -221,6 +221,17 @@ public class PerspectiveCamera implements Camera {
         setPosition(position.x(), position.y(), position.z());
     }
 
+    public void setPitchYaw(float pitch, float yaw) {
+        this.rotation.setComponent(0, pitch);
+        this.rotation.setComponent(1, yaw);
+        updateView();
+    }
+    
+    public void setRoll(float roll) {
+        this.rotation.setComponent(2, roll);
+        updateView();
+    }
+    
     public void setRotation(float pitch, float yaw, float roll) {
         this.rotation.set(pitch, yaw, roll);
         updateView();
@@ -229,7 +240,7 @@ public class PerspectiveCamera implements Camera {
     public void setRotation(Vector3fc rotation) {
         setRotation(rotation.x(), rotation.y(), rotation.z());
     }
-
+    
     @Override
     public float getNearPlane() {
         return nearPlane;

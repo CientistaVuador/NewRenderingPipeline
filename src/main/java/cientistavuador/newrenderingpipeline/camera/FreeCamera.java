@@ -120,12 +120,11 @@ public class FreeCamera extends PerspectiveCamera {
             
             float pitch = getRotation().x() + (float) (y * sensitivity);
             float yaw = getRotation().y() + (float) (x * -sensitivity);
-            float roll = getRotation().z();
             
             pitch = Math.min(Math.max(pitch, -89f), 89f);
             yaw = yaw % 360f;
             
-            setRotation(pitch, yaw, roll);
+            setPitchYaw(pitch, yaw);
         }
         lastX = mx;
         lastY = my;

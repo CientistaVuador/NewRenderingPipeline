@@ -509,7 +509,7 @@ public class N3DObjectRenderer {
         if (!opaqueList.isEmpty() || !testedList.isEmpty()) {
             glDisable(GL_BLEND);
             if (!opaqueList.isEmpty()) {
-                renderVariant(NProgram.VARIANT_ALPHA_BLENDING, camera, opaqueList);
+                renderVariant(NProgram.VARIANT_OPAQUE, camera, opaqueList);
             }
             if (!testedList.isEmpty()) {
                 renderVariant(NProgram.VARIANT_ALPHA_TESTING, camera, testedList);
@@ -524,7 +524,6 @@ public class N3DObjectRenderer {
         if (!blendList.isEmpty()) {
             renderVariant(NProgram.VARIANT_ALPHA_BLENDING, camera, blendList);
         }
-
     }
 
     private static void renderSkybox(

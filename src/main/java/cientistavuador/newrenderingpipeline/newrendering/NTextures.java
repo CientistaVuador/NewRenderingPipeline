@@ -242,7 +242,7 @@ public class NTextures {
                 compressed = true;
             }
         }
-
+        
         if (compressed) {
             for (int i = 0; i < textureData.mips(); i++) {
                 glCompressedTexImage2D(

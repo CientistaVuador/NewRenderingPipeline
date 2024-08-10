@@ -33,11 +33,10 @@ import cientistavuador.newrenderingpipeline.util.DXT5TextureStore.DXT5Texture;
 import cientistavuador.newrenderingpipeline.util.ImageUtils;
 import cientistavuador.newrenderingpipeline.util.ObjectCleaner;
 import cientistavuador.newrenderingpipeline.util.E8Image;
+import cientistavuador.newrenderingpipeline.util.RGBA8Image;
 import cientistavuador.newrenderingpipeline.util.StringUtils;
 import cientistavuador.newrenderingpipeline.util.bakedlighting.LightmapAmbientCube;
 import cientistavuador.newrenderingpipeline.util.bakedlighting.LightmapAmbientCubeBVH;
-import java.io.FileOutputStream;
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -49,7 +48,6 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import org.joml.Vector3f;
 import org.joml.Vector4f;
-import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.ARBTextureCompressionBPTC;
 import org.lwjgl.opengl.EXTTextureCompressionS3TC;
 import org.lwjgl.opengl.EXTTextureFilterAnisotropic;
@@ -63,7 +61,7 @@ import org.lwjgl.opengl.KHRDebug;
  * @author Cien
  */
 public class NLightmaps {
-
+    
     private static final AtomicLong textureIds = new AtomicLong();
 
     public static final NLightmaps NULL_LIGHTMAPS = new NLightmaps(
@@ -75,7 +73,7 @@ public class NLightmaps {
             null,
             null
     );
-
+    
     private final String name;
     private final String[] names;
     private final int margin;
@@ -104,7 +102,22 @@ public class NLightmaps {
     }
 
     private final WrappedLightmap lightmapTexture = new WrappedLightmap();
-
+    
+    public NLightmaps(
+            String name,
+            String uid,
+            
+            String[] lightmapNames, 
+            DXT5Texture[] lightmaps,
+            E8Image[] cpuLightmaps,
+            E8Image[] cpuEmissive,
+            RGBA8Image cpuColor,
+            
+            LightmapAmbientCubeBVH ambientCubes
+    ) {
+        throw new RuntimeException("prototype");
+    }
+    
     public NLightmaps(
             String name, String[] names, int margin,
             int width, int height,
@@ -256,13 +269,13 @@ public class NLightmaps {
 
         if (sha256 == null) {
             ByteBuffer buffer = ByteBuffer.allocate(
-                    (this.lightmaps.length * 4) + this.cpuLightmaps.getData().length + this.colorMap.length
+                    (this.lightmaps.length * 4) + this.cpuLightmaps.getRGBE().length + this.colorMap.length
             );
 
             for (float f : this.lightmaps) {
                 buffer.putFloat(f);
             }
-            buffer.put(this.cpuLightmaps.getData());
+            buffer.put(this.cpuLightmaps.getRGBE());
             buffer.put(this.colorMap);
 
             buffer.flip();
@@ -475,7 +488,7 @@ public class NLightmaps {
         //glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, internalFormat, this.width, this.height, this.names.length, 0, GL_RGB, GL_FLOAT, this.lightmaps);
         
         E8Image image = new E8Image(this.lightmaps, this.width, this.height);
-        DXT5Texture tex = DXT5TextureStore.createDXT5Texture(image.getData(), image.getWidth(), image.getHeight());
+        DXT5Texture tex = DXT5TextureStore.createDXT5Texture(image.getRGBE(), image.getWidth(), image.getHeight());
         glCompressedTexImage3D(
                 GL_TEXTURE_2D_ARRAY,
                 0,

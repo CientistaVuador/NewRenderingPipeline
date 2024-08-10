@@ -27,13 +27,18 @@
 package cientistavuador.newrenderingpipeline.util;
 
 import cientistavuador.newrenderingpipeline.Platform;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.UUID;
+import org.lwjgl.stb.STBDXT;
+import static org.lwjgl.stb.STBDXT.stb_compress_dxt_block;
+import org.lwjgl.system.MemoryStack;
 
 /**
  *
@@ -260,8 +265,49 @@ public class TextureCompressor {
         return value + padding;
     }
 
-    public static int DXT5OrBCH6Size(int width, int height) {
+    public static int DXT5Size(int width, int height) {
         return paddingSize4(width) * paddingSize4(height);
+    }
+
+    public static byte[] compressDXT5BlockFallback(byte[] data, int width, int height, int x, int y) {
+        if (data.length != (width * height * 4)) {
+            throw new IllegalArgumentException("Invalid amount of bytes, required " + (width * height * 4) + ", found " + data.length);
+        }
+        PixelUtils.PixelStructure st = PixelUtils.getPixelStructure(width, height, 4, true);
+        byte[] outputArray;
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            ByteBuffer pixels = stack.malloc(4 * 4 * 4);
+            for (int yOffset = 0; yOffset < 4; yOffset++) {
+                for (int xOffset = 0; xOffset < 4; xOffset++) {
+                    for (int i = 0; i < 4; i++) {
+                        pixels.put(data[PixelUtils.getPixelComponentIndex(st, x + xOffset, y + yOffset, i)]);
+                    }
+                }
+            }
+            pixels.flip();
+            ByteBuffer output = stack.malloc(16);
+            stb_compress_dxt_block(output, pixels, true, STBDXT.STB_DXT_HIGHQUAL);
+            outputArray = new byte[output.capacity()];
+            output.get(outputArray);
+        }
+        return outputArray;
+    }
+    
+    public static byte[] compressDXT5Fallback(byte[] data, int width, int height) {
+        if (data.length != (width * height * 4)) {
+            throw new IllegalArgumentException("Invalid amount of bytes, required " + (width * height * 4) + ", found " + data.length);
+        }
+        ByteArrayOutputStream out = new ByteArrayOutputStream(65535);
+        for (int blockY = 0; blockY < height; blockY += 4) {
+            for (int blockX = 0; blockX < width; blockX += 4) {
+                try {
+                    out.write(compressDXT5BlockFallback(data, width, height, blockX, blockY));
+                } catch (IOException ex) {
+                    throw new UncheckedIOException(ex);
+                }
+            }
+        }
+        return out.toByteArray();
     }
     
     private TextureCompressor() {

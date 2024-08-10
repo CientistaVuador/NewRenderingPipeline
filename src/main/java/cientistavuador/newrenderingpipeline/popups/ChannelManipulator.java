@@ -26,10 +26,12 @@
  */
 package cientistavuador.newrenderingpipeline.popups;
 
+import cientistavuador.newrenderingpipeline.MainTasks;
 import cientistavuador.newrenderingpipeline.natives.Natives;
 import cientistavuador.newrenderingpipeline.util.TextureCompressor;
 import cientistavuador.newrenderingpipeline.util.DXT5TextureStore;
 import cientistavuador.newrenderingpipeline.util.DXT5TextureStore.DXT5Texture;
+import cientistavuador.newrenderingpipeline.util.M8Image;
 import com.formdev.flatlaf.FlatDarkLaf;
 import java.awt.Color;
 import java.awt.Desktop;
@@ -52,6 +54,7 @@ import javax.swing.JComboBox;
 import javax.swing.JFileChooser;
 import javax.swing.filechooser.FileFilter;
 import javax.swing.filechooser.FileNameExtensionFilter;
+import static org.lwjgl.glfw.GLFW.*;
 
 /**
  *
@@ -145,6 +148,9 @@ public class ChannelManipulator extends javax.swing.JFrame {
         resizeButton = new javax.swing.JButton();
         jLabel18 = new javax.swing.JLabel();
         resizeFiltering = new javax.swing.JComboBox<>();
+        jPanel5 = new javax.swing.JPanel();
+        convertToRGBM = new javax.swing.JButton();
+        convertToRGB = new javax.swing.JButton();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
         setTitle("Channel Manipulator");
@@ -244,7 +250,7 @@ public class ChannelManipulator extends javax.swing.JFrame {
                 .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                     .addComponent(blueChannelLabel, javax.swing.GroupLayout.PREFERRED_SIZE, 128, javax.swing.GroupLayout.PREFERRED_SIZE)
                     .addComponent(alphaChannelLabel, javax.swing.GroupLayout.PREFERRED_SIZE, 128, javax.swing.GroupLayout.PREFERRED_SIZE))
-                .addContainerGap(16, Short.MAX_VALUE))
+                .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
         );
 
         tabs.addTab("Colors", jPanel1);
@@ -290,7 +296,7 @@ public class ChannelManipulator extends javax.swing.JFrame {
                     .addComponent(jLabel6, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
                     .addComponent(jLabel7, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
                     .addComponent(jLabel8, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
-                .addContainerGap(261, Short.MAX_VALUE))
+                .addContainerGap(344, Short.MAX_VALUE))
             .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, jPanel2Layout.createSequentialGroup()
                 .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
                 .addComponent(loadButton)
@@ -315,7 +321,7 @@ public class ChannelManipulator extends javax.swing.JFrame {
                 .addComponent(jLabel8)
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                 .addComponent(alphaLoad, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, 69, Short.MAX_VALUE)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, 89, Short.MAX_VALUE)
                 .addComponent(loadButton)
                 .addContainerGap())
         );
@@ -372,7 +378,7 @@ public class ChannelManipulator extends javax.swing.JFrame {
                                 .addComponent(alphaSave, 0, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
                                 .addComponent(jLabel9, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
                             .addComponent(saveDXT5))
-                        .addGap(0, 212, Short.MAX_VALUE)))
+                        .addGap(0, 295, Short.MAX_VALUE)))
                 .addContainerGap())
         );
         jPanel3Layout.setVerticalGroup(
@@ -396,7 +402,7 @@ public class ChannelManipulator extends javax.swing.JFrame {
                 .addComponent(alphaSave, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
                 .addGap(18, 18, 18)
                 .addComponent(saveDXT5)
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, 27, Short.MAX_VALUE)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, 47, Short.MAX_VALUE)
                 .addComponent(saveButton)
                 .addContainerGap())
         );
@@ -439,7 +445,7 @@ public class ChannelManipulator extends javax.swing.JFrame {
                     .addComponent(normalMapZ, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
                 .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
             .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, jPanel4Layout.createSequentialGroup()
-                .addContainerGap(268, Short.MAX_VALUE)
+                .addContainerGap(351, Short.MAX_VALUE)
                 .addComponent(calculateNormalButton)
                 .addContainerGap())
         );
@@ -458,7 +464,7 @@ public class ChannelManipulator extends javax.swing.JFrame {
                 .addComponent(jLabel15)
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                 .addComponent(normalMapZ, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, 131, Short.MAX_VALUE)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, 151, Short.MAX_VALUE)
                 .addComponent(calculateNormalButton)
                 .addContainerGap())
         );
@@ -502,7 +508,7 @@ public class ChannelManipulator extends javax.swing.JFrame {
                             .addComponent(heightSpinner)
                             .addComponent(jLabel18)
                             .addComponent(resizeFiltering, 0, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
-                        .addGap(0, 241, Short.MAX_VALUE)))
+                        .addGap(0, 324, Short.MAX_VALUE)))
                 .addContainerGap())
         );
         resizePanelLayout.setVerticalGroup(
@@ -520,12 +526,48 @@ public class ChannelManipulator extends javax.swing.JFrame {
                 .addComponent(jLabel18)
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                 .addComponent(resizeFiltering, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, 131, Short.MAX_VALUE)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, 151, Short.MAX_VALUE)
                 .addComponent(resizeButton)
                 .addContainerGap())
         );
 
         tabs.addTab("Resize", resizePanel);
+
+        convertToRGBM.setText("Convert RGB to RGBM");
+        convertToRGBM.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                convertToRGBMActionPerformed(evt);
+            }
+        });
+
+        convertToRGB.setText("Convert RGBM to RGB");
+        convertToRGB.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                convertToRGBActionPerformed(evt);
+            }
+        });
+
+        javax.swing.GroupLayout jPanel5Layout = new javax.swing.GroupLayout(jPanel5);
+        jPanel5.setLayout(jPanel5Layout);
+        jPanel5Layout.setHorizontalGroup(
+            jPanel5Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+            .addGroup(jPanel5Layout.createSequentialGroup()
+                .addGroup(jPanel5Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                    .addComponent(convertToRGBM)
+                    .addComponent(convertToRGB))
+                .addGap(0, 289, Short.MAX_VALUE))
+        );
+        jPanel5Layout.setVerticalGroup(
+            jPanel5Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+            .addGroup(jPanel5Layout.createSequentialGroup()
+                .addGap(17, 17, 17)
+                .addComponent(convertToRGBM)
+                .addGap(18, 18, 18)
+                .addComponent(convertToRGB)
+                .addContainerGap(273, Short.MAX_VALUE))
+        );
+
+        tabs.addTab("RGB <-> RGBM", jPanel5);
 
         javax.swing.GroupLayout layout = new javax.swing.GroupLayout(getContentPane());
         getContentPane().setLayout(layout);
@@ -533,7 +575,7 @@ public class ChannelManipulator extends javax.swing.JFrame {
             layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(layout.createSequentialGroup()
                 .addContainerGap()
-                .addComponent(tabs)
+                .addComponent(tabs, javax.swing.GroupLayout.DEFAULT_SIZE, 436, Short.MAX_VALUE)
                 .addContainerGap())
         );
         layout.setVerticalGroup(
@@ -561,27 +603,27 @@ public class ChannelManipulator extends javax.swing.JFrame {
                 "jpeg",
                 DXT5TextureStore.EXTENSION
             };
-            
+
             @Override
             public boolean accept(File f) {
                 if (f == null) {
                     return false;
                 }
-                
+
                 if (f.isDirectory()) {
                     return true;
                 }
-                
+
                 String lowerCase = f.getName().toLowerCase();
-                
+
                 boolean accept = false;
-                for (String ext:this.extensions) {
+                for (String ext : this.extensions) {
                     if (lowerCase.endsWith("." + ext)) {
                         accept = true;
                         break;
                     }
                 }
-                
+
                 return accept;
             }
 
@@ -777,7 +819,7 @@ public class ChannelManipulator extends javax.swing.JFrame {
             }
         }
     }
-    
+
     private void saveDXT5() {
         final CompletableFuture<DXT5Texture> futureImage = new CompletableFuture<>();
         Thread th = new Thread(() -> {
@@ -786,10 +828,10 @@ public class ChannelManipulator extends javax.swing.JFrame {
                 int greenSaveIndex = this.greenSave.getSelectedIndex();
                 int blueSaveIndex = this.blueSave.getSelectedIndex();
                 int alphaSaveIndex = this.alphaSave.getSelectedIndex();
-                
+
                 int w = this.width;
                 int h = this.height;
-                
+
                 byte[] imageData = new byte[w * h * 4];
                 for (int y = 0; y < h; y++) {
                     for (int x = 0; x < w; x++) {
@@ -807,7 +849,7 @@ public class ChannelManipulator extends javax.swing.JFrame {
                         int g = components[greenSaveIndex];
                         int b = components[blueSaveIndex];
                         int a = components[alphaSaveIndex];
-                        
+
                         imageData[0 + (x * 4) + (((h - 1) - y) * w * 4)] = (byte) r;
                         imageData[1 + (x * 4) + (((h - 1) - y) * w * 4)] = (byte) g;
                         imageData[2 + (x * 4) + (((h - 1) - y) * w * 4)] = (byte) b;
@@ -832,14 +874,14 @@ public class ChannelManipulator extends javax.swing.JFrame {
                 if (f == null) {
                     return false;
                 }
-                
+
                 if (f.isDirectory()) {
                     return true;
                 }
-                
+
                 return f.getName().toLowerCase().endsWith("." + DXT5TextureStore.EXTENSION);
             }
-            
+
             @Override
             public String getDescription() {
                 return "DirectDraw Surface DXT5 Compressed with ZStandard";
@@ -867,7 +909,7 @@ public class ChannelManipulator extends javax.swing.JFrame {
                 } catch (InterruptedException | ExecutionException ex) {
                     throw new RuntimeException(ex);
                 }
-                
+
                 try {
                     try (FileOutputStream outFile = new FileOutputStream(imageFile)) {
                         DXT5TextureStore.writeDXT5Texture(resultImage, outFile);
@@ -878,7 +920,7 @@ public class ChannelManipulator extends javax.swing.JFrame {
             }
         }
     }
-    
+
     private void saveButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_saveButtonActionPerformed
         if (!this.saveDXT5.isSelected()) {
             saveImage();
@@ -920,6 +962,66 @@ public class ChannelManipulator extends javax.swing.JFrame {
         openImage(this.alphaChannel);
     }//GEN-LAST:event_alphaChannelLabelMouseClicked
 
+    private void convertToRGBMActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_convertToRGBMActionPerformed
+        byte[] rgb = new byte[this.width * this.height * 3];
+        
+        for (int y = 0; y < this.height; y++) {
+            for (int x = 0; x < this.width; x++) {
+                rgb[0 + (x * 3) + (y * this.width * 3)] = (byte) this.redChannel.getRGB(x, y);
+                rgb[1 + (x * 3) + (y * this.width * 3)] = (byte) this.greenChannel.getRGB(x, y);
+                rgb[2 + (x * 3) + (y * this.width * 3)] = (byte) this.blueChannel.getRGB(x, y);
+            }
+        }
+        
+        byte[] rgbm = M8Image.createFromRGB(rgb, 3, this.width, this.height).getRGBM();
+        
+        for (int y = 0; y < this.height; y++) {
+            for (int x = 0; x < this.width; x++) {
+                int r = rgbm[0 + (x * 4) + (y * this.width * 4)] & 0xFF;
+                int g = rgbm[1 + (x * 4) + (y * this.width * 4)] & 0xFF;
+                int b = rgbm[2 + (x * 4) + (y * this.width * 4)] & 0xFF;
+                int m = rgbm[3 + (x * 4) + (y * this.width * 4)] & 0xFF;
+                
+                this.redChannel.setRGB(x, y, grayRGB(r));
+                this.greenChannel.setRGB(x, y, grayRGB(g));
+                this.blueChannel.setRGB(x, y, grayRGB(b));
+                this.alphaChannel.setRGB(x, y, grayRGB(m));
+            }
+        }
+        
+        updateChannels();
+    }//GEN-LAST:event_convertToRGBMActionPerformed
+
+    private void convertToRGBActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_convertToRGBActionPerformed
+        byte[] rgbm = new byte[this.width * this.height * 4];
+        
+        for (int y = 0; y < this.height; y++) {
+            for (int x = 0; x < this.width; x++) {
+                rgbm[0 + (x * 4) + (y * this.width * 4)] = (byte) this.redChannel.getRGB(x, y);
+                rgbm[1 + (x * 4) + (y * this.width * 4)] = (byte) this.greenChannel.getRGB(x, y);
+                rgbm[2 + (x * 4) + (y * this.width * 4)] = (byte) this.blueChannel.getRGB(x, y);
+                rgbm[3 + (x * 4) + (y * this.width * 4)] = (byte) this.alphaChannel.getRGB(x, y);
+            }
+        }
+        
+        byte[] rgb = new M8Image(rgbm, this.width, this.height).toRGB(false);
+        
+        for (int y = 0; y < this.height; y++) {
+            for (int x = 0; x < this.width; x++) {
+                int r = rgb[0 + (x * 3) + (y * this.width * 3)] & 0xFF;
+                int g = rgb[1 + (x * 3) + (y * this.width * 3)] & 0xFF;
+                int b = rgb[2 + (x * 3) + (y * this.width * 3)] & 0xFF;
+                
+                this.redChannel.setRGB(x, y, grayRGB(r));
+                this.greenChannel.setRGB(x, y, grayRGB(g));
+                this.blueChannel.setRGB(x, y, grayRGB(b));
+                this.alphaChannel.setRGB(x, y, grayRGB(255));
+            }
+        }
+        
+        updateChannels();
+    }//GEN-LAST:event_convertToRGBActionPerformed
+
     private int grayRGB(int color) {
         return (255 << 24) | (color << 16) | (color << 8) | (color << 0);
     }
@@ -950,14 +1052,14 @@ public class ChannelManipulator extends javax.swing.JFrame {
                 try (FileInputStream input = new FileInputStream(e);) {
                     texture = DXT5TextureStore.readDXT5Texture(input);
                 }
-                
+
                 byte[] decompressed;
                 try {
                     decompressed = texture.decompress();
                 } finally {
                     texture.free();
                 }
-                
+
                 imageRead = new BufferedImage(texture.width(), texture.height(), BufferedImage.TYPE_INT_ARGB);
                 for (int y = 0; y < imageRead.getHeight(); y++) {
                     for (int x = 0; x < imageRead.getWidth(); x++) {
@@ -973,7 +1075,7 @@ public class ChannelManipulator extends javax.swing.JFrame {
             } else {
                 imageRead = ImageIO.read(e);
             }
-            
+
             {
                 int imageWidth = imageRead.getWidth();
                 int imageHeight = imageRead.getHeight();
@@ -1027,7 +1129,7 @@ public class ChannelManipulator extends javax.swing.JFrame {
             Toolkit.getDefaultToolkit().beep();
         }
     }
-
+    
     /**
      * @param args the command line arguments
      */
@@ -1036,6 +1138,11 @@ public class ChannelManipulator extends javax.swing.JFrame {
         FlatDarkLaf.setup();
         Natives.init();
         TextureCompressor.init();
+        MainTasks.init();
+        
+        if (!glfwInit()) {
+            throw new RuntimeException("Could not init glfw!");
+        }
         
         /* Create and display the form */
         java.awt.EventQueue.invokeLater(new Runnable() {
@@ -1043,6 +1150,15 @@ public class ChannelManipulator extends javax.swing.JFrame {
                 new ChannelManipulator().setVisible(true);
             }
         });
+        
+        while (true) {
+            MainTasks.runTasks();
+            try {
+                Thread.sleep(5);
+            } catch (InterruptedException ex) {
+                throw new RuntimeException(ex);
+            }
+        }
     }
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
@@ -1053,6 +1169,8 @@ public class ChannelManipulator extends javax.swing.JFrame {
     private javax.swing.JComboBox<String> blueLoad;
     private javax.swing.JComboBox<String> blueSave;
     private javax.swing.JButton calculateNormalButton;
+    private javax.swing.JButton convertToRGB;
+    private javax.swing.JButton convertToRGBM;
     private javax.swing.JLabel greenChannelLabel;
     private javax.swing.JComboBox<String> greenLoad;
     private javax.swing.JComboBox<String> greenSave;
@@ -1079,6 +1197,7 @@ public class ChannelManipulator extends javax.swing.JFrame {
     private javax.swing.JPanel jPanel2;
     private javax.swing.JPanel jPanel3;
     private javax.swing.JPanel jPanel4;
+    private javax.swing.JPanel jPanel5;
     private javax.swing.JButton loadButton;
     private javax.swing.JComboBox<String> normalMapX;
     private javax.swing.JComboBox<String> normalMapY;

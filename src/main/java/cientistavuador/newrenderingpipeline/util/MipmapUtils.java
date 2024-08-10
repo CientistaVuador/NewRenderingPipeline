@@ -55,14 +55,11 @@ public class MipmapUtils {
         return (int) Math.abs(Math.log(Math.max(width, height)) / Math.log(2.0)) + 1;
     }
     
-    public static Pair<PixelUtils.PixelStructure, byte[]> mipmap(
+    public static Pair<Pair<Integer, Integer>, byte[]> mipmap(
             byte[] data,
-            int width, int height,
-            boolean ditheredNearestAlpha
+            int width, int height
     ) {
-        if (data.length != (width * height * 4)) {
-            throw new IllegalArgumentException("Invalid array size! required "+(width * height * 4)+", found "+data.length+" bytes");
-        }
+        ImageUtils.validate(data, width, height, 4);
         
         int mipWidth = mipmapSize(width);
         int mipHeight = mipmapSize(height);
@@ -87,24 +84,14 @@ public class MipmapUtils {
                         red += data[PixelUtils.getPixelComponentIndex(inSt, totalX, totalY, 0)] & 0xFF;
                         green += data[PixelUtils.getPixelComponentIndex(inSt, totalX, totalY, 1)] & 0xFF;
                         blue += data[PixelUtils.getPixelComponentIndex(inSt, totalX, totalY, 2)] & 0xFF;
-                        
-                        if (ditheredNearestAlpha) {
-                            if (PixelUtils.dither25(totalX, totalY)) {
-                                alpha = data[PixelUtils.getPixelComponentIndex(inSt, totalX, totalY, 3)] & 0xFF;
-                            }
-                        } else {
-                            alpha += data[PixelUtils.getPixelComponentIndex(inSt, totalX, totalY, 3)] & 0xFF;
-                        }
+                        alpha += data[PixelUtils.getPixelComponentIndex(inSt, totalX, totalY, 3)] & 0xFF;
                     }
                 }
                 
                 red /= 4;
                 green /= 4;
                 blue /= 4;
-                
-                if (!ditheredNearestAlpha) {
-                    alpha /= 4;
-                }
+                alpha /= 4;
                 
                 outMipmap[PixelUtils.getPixelComponentIndex(outSt, x, y, 0)] = (byte) red;
                 outMipmap[PixelUtils.getPixelComponentIndex(outSt, x, y, 1)] = (byte) green;
@@ -113,7 +100,10 @@ public class MipmapUtils {
             }
         }
         
-        return new Pair<>(outSt, outMipmap);
+        return new Pair<>(
+                new Pair<>(outSt.width(), outSt.height()),
+                outMipmap
+        );
     }
     
     private MipmapUtils() {

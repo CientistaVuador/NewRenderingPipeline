@@ -26,18 +26,14 @@
  */
 package cientistavuador.newrenderingpipeline.util;
 
-import cientistavuador.newrenderingpipeline.util.PixelUtils.PixelStructure;
 import java.awt.image.BufferedImage;
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 import org.joml.Vector4f;
 import org.lwjgl.PointerBuffer;
-import static org.lwjgl.stb.STBDXT.*;
 import static org.lwjgl.stb.STBImage.*;
 import org.lwjgl.system.MemoryStack;
 import static org.lwjgl.system.MemoryUtil.*;
@@ -246,66 +242,7 @@ public class ImageUtils {
 
         return outImage;
     }
-
-    public static byte[] compressDXT5Block(byte[] data, int width, int height, int x, int y) {
-        if (data.length != (width * height * 4)) {
-            throw new IllegalArgumentException("Invalid amount of bytes, required " + (width * height * 4) + ", found " + data.length);
-        }
-
-        PixelStructure st = PixelUtils.getPixelStructure(width, height, 4, true);
-        byte[] outputArray;
-        try (MemoryStack stack = MemoryStack.stackPush()) {
-            ByteBuffer pixels = stack.malloc(4 * 4 * 4);
-
-            for (int yOffset = 0; yOffset < 4; yOffset++) {
-                for (int xOffset = 0; xOffset < 4; xOffset++) {
-                    for (int i = 0; i < 4; i++) {
-                        pixels.put(
-                                data[PixelUtils.getPixelComponentIndex(
-                                        st, x + xOffset, y + yOffset, i
-                                )]
-                        );
-                    }
-                }
-            }
-
-            pixels.flip();
-
-            ByteBuffer output = stack.malloc(16);
-            stb_compress_dxt_block(
-                    output,
-                    pixels,
-                    true,
-                    STB_DXT_HIGHQUAL
-            );
-
-            outputArray = new byte[output.capacity()];
-            output.get(outputArray);
-        }
-
-        return outputArray;
-    }
-
-    public static byte[] compressDXT5(byte[] data, int width, int height) {
-        if (data.length != (width * height * 4)) {
-            throw new IllegalArgumentException("Invalid amount of bytes, required " + (width * height * 4) + ", found " + data.length);
-        }
-
-        ByteArrayOutputStream out = new ByteArrayOutputStream(65535);
-
-        for (int blockY = 0; blockY < height; blockY += 4) {
-            for (int blockX = 0; blockX < width; blockX += 4) {
-                try {
-                    out.write(compressDXT5Block(data, width, height, blockX, blockY));
-                } catch (IOException ex) {
-                    throw new UncheckedIOException(ex);
-                }
-            }
-        }
-
-        return out.toByteArray();
-    }
-
+    
     public static void validate(int length, int width, int height, int components) {
         if (width < 0) {
             throw new IllegalArgumentException("Width is negative.");

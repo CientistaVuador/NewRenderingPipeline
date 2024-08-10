@@ -41,8 +41,10 @@ import cientistavuador.newrenderingpipeline.newrendering.NCubemapRenderer;
 import cientistavuador.newrenderingpipeline.newrendering.NCubemapStore;
 import cientistavuador.newrenderingpipeline.newrendering.NCubemaps;
 import cientistavuador.newrenderingpipeline.newrendering.NLight;
+import cientistavuador.newrenderingpipeline.newrendering.NLightmaps;
 import cientistavuador.newrenderingpipeline.newrendering.NLightmapsStore;
 import cientistavuador.newrenderingpipeline.newrendering.NMap;
+import cientistavuador.newrenderingpipeline.newrendering.NTextures;
 import cientistavuador.newrenderingpipeline.physics.PlayerController;
 import cientistavuador.newrenderingpipeline.popups.BakePopup;
 import cientistavuador.newrenderingpipeline.popups.ContinuePopup;
@@ -52,7 +54,7 @@ import cientistavuador.newrenderingpipeline.ubo.CameraUBO;
 import cientistavuador.newrenderingpipeline.ubo.UBOBindingPoints;
 import cientistavuador.newrenderingpipeline.util.DXT5TextureStore;
 import cientistavuador.newrenderingpipeline.util.DXT5TextureStore.DXT5Texture;
-import cientistavuador.newrenderingpipeline.util.E8Image;
+import cientistavuador.newrenderingpipeline.util.M8Image;
 import cientistavuador.newrenderingpipeline.util.StringUtils;
 import cientistavuador.newrenderingpipeline.util.bakedlighting.AmbientCubeDebug;
 import cientistavuador.newrenderingpipeline.util.bakedlighting.Lightmapper;
@@ -122,7 +124,7 @@ public class Game {
     private NMap map;
     private final N3DObject triceratops;
     private final N3DObject plasticBall;
-
+    
     private NMap nextMap;
 
     private final NLight.NSpotLight flashlight = new NLight.NSpotLight("flashlight");
@@ -155,7 +157,7 @@ public class Game {
             }
 
             {
-                N3DModel plasticBallModel = N3DModelStore.readModel("cientistavuador/newrenderingpipeline/resources/models/plastic_ball.n3dm");
+                N3DModel plasticBallModel = N3DModelStore.readModel("cientistavuador/newrenderingpipeline/resources/models/metal_ball.n3dm");
 
                 this.plasticBall = new N3DObject("plastic ball", plasticBallModel);
             }
@@ -165,7 +167,7 @@ public class Game {
 
             this.triceratops.setMap(this.map);
             this.plasticBall.setMap(this.map);
-
+            
             this.flashlight.setInnerConeAngle(10f);
             this.flashlight.setOuterConeAngle(40f);
             this.flashlight.setDiffuseSpecularAmbient(0f);
@@ -265,6 +267,10 @@ public class Game {
     }
 
     public void start() {
+        NTextures.NULL_TEXTURE.r_g_b_a();
+        NCubemap.NULL_CUBEMAP.cubemap();
+        NLightmaps.NULL_LIGHTMAPS.lightmaps();
+        
         System.out.println("running!");
         
         this.camera.setUBO(CameraUBO.create(UBOBindingPoints.PLAYER_CAMERA));
@@ -315,12 +321,12 @@ public class Game {
         if (this.playerController.getCharacterController().getPosition().y() < -10f) {
             this.playerController.getCharacterController().setPosition(0f, 0.1f, 0f);
         }
-
+        
         this.triceratops.getAnimator().update(Main.TPF);
 
         this.plasticBallRotation.rotateY((float) (Main.TPF * 0.5));
         this.plasticBall.getPosition().set(this.plasticBallRotation).mul(3f).add(15.29, 1.95, -9.52);
-
+        
         this.flashlight.getPosition().set(this.camera.getPosition());
         this.flashlight.getDirection().set(this.camera.getFront());
 

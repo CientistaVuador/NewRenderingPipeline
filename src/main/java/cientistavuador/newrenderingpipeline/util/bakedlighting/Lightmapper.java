@@ -903,7 +903,7 @@ public class Lightmapper {
 
                 for (int side = 0; side < AmbientCube.SIDES; side++) {
                     for (int j = 0; j < NUMBER_OF_AMBIENT_CUBE_OCCLUSION_RAYS_PER_SIDE; j++) {
-                        AmbientCube.randomSideDirection(side, rayDirection);
+                        AmbientCube.randomSideDirection180(side, rayDirection);
 
                         List<LocalRayResult> rays = this.opaqueBVH.testRay(
                                 rayPosition,
@@ -1758,7 +1758,7 @@ public class Lightmapper {
                     for (int side = 0; side < AmbientCube.SIDES; side++) {
                         sideColor.zero();
                         for (int k = 0; k < NUMBER_OF_AMBIENT_CUBE_RAYS_PER_SIDE; k++) {
-                            AmbientCube.randomSideDirection(side, rayDirection);
+                            AmbientCube.randomSideDirection180(side, rayDirection);
 
                             List<LocalRayResult> results = this.opaqueBVH.testRay(
                                     cube.getPosition(),

@@ -1030,7 +1030,7 @@ public class N3DModelStore {
     
     public static N3DModel readModel(InputStream input) throws IOException {
         Map<String, byte[]> fs = readVirtualFileSystem(input);
-
+        
         if (fs.get(MAGIC_FILE_IDENTIFIER) == null) {
             throw new IllegalArgumentException("Invalid n3dm file!");
         }
@@ -1048,7 +1048,7 @@ public class N3DModelStore {
 
         Element rootNode = modelXml.getDocumentElement();
         rootNode.normalize();
-
+        
         StoreModel storeModel = new StoreModel();
 
         storeModel.name = decodeString(rootNode.getAttribute("name"));
@@ -1219,9 +1219,9 @@ public class N3DModelStore {
                 break;
             }
         }
-
+        
         storeModel.rootNode = readSceneGraph(rootElement);
-
+        
         return buildN3DModel(fs, storeModel);
     }
 

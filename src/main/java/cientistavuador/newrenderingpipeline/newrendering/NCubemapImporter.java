@@ -87,7 +87,7 @@ public class NCubemapImporter {
             totalAverageB += averageB;
 
             E8Image e8Image = new E8Image(side, size, size);
-            sidesDXT5[i] = DXT5TextureStore.createDXT5Texture(e8Image.getData(), size, size);
+            sidesDXT5[i] = DXT5TextureStore.createDXT5Texture(e8Image.getRGBE(), size, size);
         }
 
         float inv = 1f / NCubemap.SIDES;

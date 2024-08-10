@@ -98,7 +98,63 @@ public class AmbientCube {
         }
     };
     
-    public static void randomSideDirection(int side, Vector3f outDirection) {
+    public static final Vector3fc[][] SIDE_CUBES = new Vector3fc[][] {
+        {
+            new Vector3f(0.5f, 0f, 0f),
+            new Vector3f(0.5f, 1f, 1f)
+        },
+        {
+            new Vector3f(-0.5f, 0f, 0f),
+            new Vector3f(0.5f, 1f, 1f)
+        },
+        {
+            new Vector3f(0f, 0.5f, 0f),
+            new Vector3f(1f, 0.5f, 1f)
+        },
+        {
+            new Vector3f(0f, -0.5f, 0f),
+            new Vector3f(1f, 0.5f, 1f)
+        },
+        {
+            new Vector3f(0f, 0f, 0.5f),
+            new Vector3f(1f, 1f, 0.5f)
+        },
+        {
+            new Vector3f(0f, 0f, -0.5f),
+            new Vector3f(1f, 1f, 0.5f)
+        }
+    };
+    
+    public static void randomSideDirection180(int side, Vector3f outDirection) {
+        Vector3fc offset = SIDE_CUBES[side][0];
+        Vector3fc halfExtents = SIDE_CUBES[side][1];
+        
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+        
+        float x;
+        float y;
+        float z;
+        float lengthSquared;
+        do {
+            x = (random.nextFloat() * 2f) - 1f;
+            y = (random.nextFloat() * 2f) - 1f;
+            z = (random.nextFloat() * 2f) - 1f;
+            
+            x *= halfExtents.x();
+            y *= halfExtents.y();
+            z *= halfExtents.z();
+            
+            x += offset.x();
+            y += offset.y();
+            z += offset.z();
+            
+            lengthSquared = (x * x) + (y * y) + (z * z);
+        } while (lengthSquared == 0f || lengthSquared > 1f);
+        
+        outDirection.set(x, y, z).normalize();
+    }
+    
+    public static void randomSideDirection90(int side, Vector3f outDirection) {
         Vector3fc[] quad = SIDE_QUADS[side];
         
         ThreadLocalRandom random = ThreadLocalRandom.current();

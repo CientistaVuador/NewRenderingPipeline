@@ -26,6 +26,7 @@
  */
 package cientistavuador.newrenderingpipeline.util;
 
+import cientistavuador.newrenderingpipeline.MainTasks;
 import java.awt.image.BufferedImage;
 import java.io.BufferedReader;
 import java.io.File;
@@ -39,7 +40,12 @@ import java.nio.ByteOrder;
 import java.nio.IntBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.CompletableFuture;
 import javax.imageio.ImageIO;
+import static org.lwjgl.glfw.GLFW.*;
+import org.lwjgl.opengl.EXTTextureCompressionS3TC;
+import org.lwjgl.opengl.GL;
+import static org.lwjgl.opengl.GL20C.*;
 import static org.lwjgl.stb.STBImage.*;
 import org.lwjgl.system.MemoryStack;
 import static org.lwjgl.system.MemoryUtil.*;
@@ -133,7 +139,7 @@ public class DXT5TextureStore {
             for (int i = 0; i < this.mips; i++) {
                 this.mipsWidth[i] = MipmapUtils.mipmapSize(this.width, i);
                 this.mipsHeight[i] = MipmapUtils.mipmapSize(this.height, i);
-                this.mipsSize[i] = TextureCompressor.DXT5OrBCH6Size(
+                this.mipsSize[i] = TextureCompressor.DXT5Size(
                         this.mipsWidth[i],
                         this.mipsHeight[i]
                 );
@@ -198,6 +204,86 @@ public class DXT5TextureStore {
         public ByteBuffer mipSlice(int level) {
             return buffer().slice(mipOffset(level), mipSize(level));
         }
+        
+        private byte[] decompressFallback() {
+            final long window = MainTasks.run(() -> {
+                glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+                glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
+                glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+                glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_ANY_PROFILE);
+                glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_FALSE);
+
+                long windowPointer = glfwCreateWindow(1, 1, "dummy window", NULL, NULL);
+
+                if (windowPointer == NULL) {
+                    throw new RuntimeException("Window is null.");
+                }
+
+                return windowPointer;
+            }).join();
+
+            try {
+                final CompletableFuture<byte[]> futureData = new CompletableFuture<>();
+                Thread t = new Thread(() -> {
+                    glfwMakeContextCurrent(window);
+                    GL.createCapabilities();
+
+                    int texture = glGenTextures();
+                    try {
+                        if (!GL.getCapabilities().GL_EXT_texture_compression_s3tc) {
+                            throw new UnsupportedOperationException("DXT5 Decompression is not supported by the current driver.");
+                        }
+                        
+                        glActiveTexture(GL_TEXTURE0);
+                        glBindTexture(GL_TEXTURE_2D, texture);
+
+                        for (int i = 0; i < this.mips(); i++) {
+                            glCompressedTexImage2D(
+                                    GL_TEXTURE_2D,
+                                    i,
+                                    EXTTextureCompressionS3TC.GL_COMPRESSED_RGBA_S3TC_DXT5_EXT,
+                                    this.mipWidth(i),
+                                    this.mipHeight(i),
+                                    0,
+                                    this.mipSlice(i)
+                            );
+                        }
+
+                        ByteBuffer textureBuffer = memAlloc(this.width() * this.height() * 4);
+                        try {
+                            glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, textureBuffer);
+
+                            int error = glGetError();
+                            if (error != 0) {
+                                throw new RuntimeException("OpenGL Error " + error);
+                            }
+
+                            byte[] textureData = new byte[textureBuffer.capacity()];
+                            textureBuffer.get(textureData).flip();
+
+                            futureData.complete(textureData);
+                        } finally {
+                            memFree(textureBuffer);
+                        }
+                    } finally {
+                        glDeleteTextures(texture);
+                    }
+                    
+                    GL.setCapabilities(null);
+                    glfwMakeContextCurrent(0);
+                });
+                t.setUncaughtExceptionHandler((th, ex) -> futureData.completeExceptionally(ex));
+                t.start();
+
+                byte[] resultData = futureData.join();
+                this.decompressed = new WeakReference<>(resultData);
+                return resultData;
+            } finally {
+                MainTasks.run(() -> {
+                    glfwDestroyWindow(window);
+                }).join();
+            }
+        }
 
         public byte[] decompress() {
             if (this.decompressed != null) {
@@ -210,7 +296,7 @@ public class DXT5TextureStore {
             }
 
             if (!TextureCompressor.isAnySupported()) {
-                throw new IllegalArgumentException("Texture Decompression not supported!");
+                return decompressFallback();
             }
 
             try {
@@ -308,12 +394,75 @@ public class DXT5TextureStore {
 
     }
 
-    public static DXT5Texture createDXT5Texture(byte[] data, int width, int height) {
-        if (!TextureCompressor.isAnySupported()) {
-            throw new IllegalArgumentException("Texture Compression not supported!");
+    private static DXT5Texture createDXT5TextureFallback(byte[] data, int width, int height) {
+        int mips = MipmapUtils.numberOfMipmaps(width, height);
+
+        int totalDXT5Size = 0;
+        for (int i = 0; i < mips; i++) {
+            totalDXT5Size += TextureCompressor.DXT5Size(
+                    MipmapUtils.mipmapSize(width, i), MipmapUtils.mipmapSize(height, i)
+            );
         }
 
-        ImageUtils.validate(data, width, height, 4);
+        ByteBuffer dxt5Data = memAlloc(128 + totalDXT5Size).order(ByteOrder.LITTLE_ENDIAN);
+        try {
+            dxt5Data.put(new byte[]{
+                0x44, 0x44, 0x53, 0x20, 0x7C, 0x00, 0x00, 0x00,
+                0x07, 0x10, 0x0A, 0x00, 0x00, 0x02, 0x00, 0x00,
+                0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x0A, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x03, 0x00, 0x20, 0x00, 0x00, 0x00,
+                0x04, 0x00, 0x00, 0x00, 0x44, 0x58, 0x54, 0x35,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x08, 0x10, 0x40, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+            });
+
+            dxt5Data
+                    .putInt(DXT5Texture.WIDTH_OFFSET, width)
+                    .putInt(DXT5Texture.HEIGHT_OFFSET, height)
+                    .putInt(DXT5Texture.MIPS_OFFSET, mips);
+
+            dxt5Data.position(128);
+
+            int currentWidth = width;
+            int currentHeight = height;
+            byte[] currentMip = data;
+
+            for (int i = 0; i < mips; i++) {
+                byte[] compressed = TextureCompressor.compressDXT5Fallback(currentMip, currentWidth, currentHeight);
+                dxt5Data.put(compressed);
+
+                Pair<Pair<Integer, Integer>, byte[]> pair = MipmapUtils.mipmap(currentMip, currentWidth, currentHeight);
+
+                currentWidth = pair.getA().getA();
+                currentHeight = pair.getA().getB();
+                currentMip = pair.getB();
+            }
+
+            dxt5Data.flip();
+
+            return new DXT5Texture(dxt5Data);
+        } catch (Throwable t) {
+            memFree(dxt5Data);
+            throw t;
+        }
+    }
+
+    public static DXT5Texture createDXT5Texture(byte[] rgba, int width, int height) {
+        ImageUtils.validate(rgba, width, height, 4);
+
+        if (!TextureCompressor.isAnySupported()) {
+            return createDXT5TextureFallback(rgba, width, height);
+        }
+
         int amountOfMips = MipmapUtils.numberOfMipmaps(width, height);
 
         try {
@@ -328,7 +477,7 @@ public class DXT5TextureStore {
             StringBuilder log = new StringBuilder();
 
             {
-                BufferedImage img = ImageUtils.toBufferedImage(ImageUtils.asImage(data, width, height, 4));
+                BufferedImage img = ImageUtils.toBufferedImage(ImageUtils.asImage(rgba, width, height, 4));
                 ImageIO.write(img, "PNG", inputFile);
             }
 

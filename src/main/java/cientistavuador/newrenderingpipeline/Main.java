@@ -91,6 +91,8 @@ public class Main {
     public static final boolean COMPATIBLE_MODE;
     
     static {
+        MainTasks.init();
+        
         if (!glfwInit()) {
             throw new IllegalStateException("Could not initialize GLFW!");
         }
@@ -133,7 +135,7 @@ public class Main {
             glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 1);
             glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
             glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_ANY_PROFILE);
-            glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_FALSE);
+            glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_FALSE);
             dummyWindow = glfwCreateWindow(1, 1, "dummy window", NULL, NULL);
             if (dummyWindow == NULL) {
                 throw new RuntimeException("OpenGL is not supported.");
@@ -143,7 +145,7 @@ public class Main {
         }
 
         COMPATIBLE_MODE = compatible;
-
+        
         glfwMakeContextCurrent(dummyWindow);
         GL.createCapabilities();
 
@@ -240,10 +242,10 @@ public class Main {
             getMin(max);
         }
     };
-    public static final ConcurrentLinkedQueue<Runnable> MAIN_TASKS = new ConcurrentLinkedQueue<>();
+    public static final ConcurrentLinkedQueue<Runnable> MAIN_TASKS = MainTasks.MAIN_TASKS;
     public static final Vector3f DEFAULT_CLEAR_COLOR = new Vector3f(0.2f, 0.4f, 0.6f);
     public static final String WINDOW_ICON = "cientistavuador/newrenderingpipeline/resources/image/window_icon.png";
-    public static final Thread MAIN_THREAD = Thread.currentThread();
+    public static final Thread MAIN_THREAD = MainTasks.MAIN_THREAD;
     private static final int[] savedWindowStatus = new int[4];
     private static GLDebugMessageCallback DEBUG_CALLBACK = null;
     
@@ -687,15 +689,12 @@ public class Main {
                 WINDOW_WIDTH = windowWidth.get();
                 WINDOW_HEIGHT = windowHeight.get();
             }
-
+            
             glfwPollEvents();
             glViewport(0, 0, Main.WIDTH, Main.HEIGHT);
             glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
             
-            Runnable r;
-            while ((r = MAIN_TASKS.poll()) != null) {
-                r.run();
-            }
+            MainTasks.runTasks();
             
             ALSourceUtil.update();
             Game.get().loop();

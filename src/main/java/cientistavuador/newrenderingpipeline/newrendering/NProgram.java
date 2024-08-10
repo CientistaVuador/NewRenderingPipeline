@@ -269,6 +269,7 @@ public class NProgram {
             NMaterial.DEFAULT_PARALLAX_MIN_LAYERS, NMaterial.DEFAULT_PARALLAX_MAX_LAYERS
     );
 
+    public static final BetterUniformSetter VARIANT_OPAQUE;
     public static final BetterUniformSetter VARIANT_ALPHA_TESTING;
     public static final BetterUniformSetter VARIANT_ALPHA_BLENDING;
 
@@ -336,14 +337,6 @@ public class NProgram {
     private static final String FRAGMENT_SHADER
             = 
             """
-            #if defined(VARIANT_ALPHA_TESTING)
-            #define IS_ALPHA_TESTING
-            #endif
-            
-            #if defined(VARIANT_ALPHA_BLENDING)
-            #define IS_ALPHA_BLENDING
-            #endif
-            
             uniform bool reflectionsDebug;
             uniform bool hdrOutput;
             
@@ -531,6 +524,20 @@ public class NProgram {
                 return vec4(rgbe.rgb * pow(RGBE_BASE, (rgbe.a * RGBE_MAX_EXPONENT) - RGBE_BIAS), 1.0);
             }
             
+            vec4 sampleCubemapLod(int index, vec3 direction, float lod) {
+                switch (index) {
+                    case 0:
+                        return RGBEToRGBA(textureLod(reflectionCubemap_0, direction, lod));
+                    case 1:
+                        return RGBEToRGBA(textureLod(reflectionCubemap_1, direction, lod));
+                    case 2:
+                        return RGBEToRGBA(textureLod(reflectionCubemap_2, direction, lod));
+                    case 3:
+                        return RGBEToRGBA(textureLod(reflectionCubemap_3, direction, lod));
+                }
+                return vec4(0.0, 0.0, 0.0, 1.0);
+            }
+            
             vec4 sampleCubemap(int index, vec3 direction) {
                 switch (index) {
                     case 0:
@@ -545,6 +552,46 @@ public class NProgram {
                 return vec4(0.0, 0.0, 0.0, 1.0);
             }
             
+            float sampleCubemapMiplevels(int index) {
+                float mipLevels = 0.0;
+                ivec2 cubemapSize = ivec2(0);
+                switch (index) {
+                    case 0:
+                        #ifdef SUPPORTED_430
+                        mipLevels = float(textureQueryLevels(reflectionCubemap_0));
+                        #else
+                        cubemapSize = textureSize(reflectionCubemap_0, 0);
+                        mipLevels = 1.0 + floor(log2(max(float(cubemapSize.x), float(cubemapSize.y))));
+                        #endif
+                        return mipLevels;
+                    case 1:
+                        #ifdef SUPPORTED_430
+                        mipLevels = float(textureQueryLevels(reflectionCubemap_1));
+                        #else
+                        cubemapSize = textureSize(reflectionCubemap_1, 0);
+                        mipLevels = 1.0 + floor(log2(max(float(cubemapSize.x), float(cubemapSize.y))));
+                        #endif
+                        return mipLevels;
+                    case 2:
+                        #ifdef SUPPORTED_430
+                        mipLevels = float(textureQueryLevels(reflectionCubemap_2));
+                        #else
+                        cubemapSize = textureSize(reflectionCubemap_2, 0);
+                        mipLevels = 1.0 + floor(log2(max(float(cubemapSize.x), float(cubemapSize.y))));
+                        #endif
+                        return mipLevels;
+                    case 3:
+                        #ifdef SUPPORTED_430
+                        mipLevels = float(textureQueryLevels(reflectionCubemap_3));
+                        #else
+                        cubemapSize = textureSize(reflectionCubemap_3, 0);
+                        mipLevels = 1.0 + floor(log2(max(float(cubemapSize.x), float(cubemapSize.y))));
+                        #endif
+                        return mipLevels;
+                }
+                return 0.0;
+            }
+            
             vec3 computeReflection(
                 vec3 fragPosition,
                 vec3 fragDirection,
@@ -553,7 +600,8 @@ public class NProgram {
                 float roughness,
                 float metallic
             ) {
-                float reflectionIntensity = (1.0 - pow(roughness, 1.0/15.0));
+                float metallicRoughness = pow(roughness, 1.0/2.41);
+                float dielectricIntensity = (1.0 - pow(roughness, 1.0/15.0));
                 
                 vec3 totalReflection = vec3(0.0);
                 int count = 0;
@@ -585,12 +633,10 @@ public class NProgram {
                     vec3 intersectionPosition = fragPosition + (reflectedDirection * distance);
                     reflectedDirection = normalize(intersectionPosition - parallaxCubemap.position);
                     
-                    vec3 reflectedColor = sampleCubemap(i, reflectedDirection).rgb * parallaxCubemap.intensity;
+                    vec3 metallicColor = sampleCubemapLod(i, reflectedDirection, sampleCubemapMiplevels(i) * metallicRoughness).rgb * metallicColor * parallaxCubemap.intensity;
+                    vec3 dielectricColor = sampleCubemap(i, reflectedDirection).rgb * dielectricIntensity * parallaxCubemap.intensity;
                     
-                    vec3 metallicReflection = reflectedColor * metallicColor;
-                    vec3 nonmetallicReflection = reflectedColor * reflectionIntensity;
-                    
-                    vec3 reflection = material.reflectionColor * mix(nonmetallicReflection, metallicReflection, metallic);
+                    vec3 reflection = material.reflectionColor * mix(dielectricColor, metallicColor, metallic);
                     
                     totalReflection += reflection;
                     count++;
@@ -627,9 +673,14 @@ public class NProgram {
                 }
                 
                 vec4 rgba = texture(r_g_b_a, textureUv);
+                #if defined(VARIANT_OPAQUE)
+                rgba.a = (rgba.a <= 0.04045 ? rgba.a / 12.92 : pow((rgba.a + 0.055) / 1.055, 2.4));
+                rgba.rgb *= rgba.a;
+                rgba.a = 1.0;
+                #endif
                 
                 finalColor.a = rgba.a * material.diffuseColor.a;
-                #ifdef IS_ALPHA_TESTING
+                #if defined(VARIANT_ALPHA_TESTING)
                 if (finalColor.a < 0.5) {
                     discard;
                 }
@@ -712,11 +763,11 @@ public class NProgram {
                     finalColor.rgb = mix(finalColor.rgb, fresnelOutline.color, fresnel);
                 }
             
-                #ifdef IS_ALPHA_TESTING
+                #if defined(VARIANT_ALPHA_TESTING) || defined(VARIANT_OPAQUE)
                 outputFragColor = vec4(finalColor.rgb, 1.0);
                 #endif
                 
-                #ifdef IS_ALPHA_BLENDING
+                #if defined(VARIANT_ALPHA_BLENDING)
                 outputFragColor = finalColor;
                 #endif
             }
@@ -753,12 +804,14 @@ public class NProgram {
         Map<String, Integer> programs = ProgramCompiler.compile(
                 VERTEX_SHADER, FRAGMENT_SHADER,
                 new String[]{
+                    "OPAQUE",
                     "ALPHA_TESTING",
-                    "ALPHA_BLENDING",
+                    "ALPHA_BLENDING"
                 },
                 CONSTANTS
         );
 
+        VARIANT_OPAQUE = new BetterUniformSetter(programs.get("OPAQUE"));
         VARIANT_ALPHA_TESTING = new BetterUniformSetter(programs.get("ALPHA_TESTING"));
         VARIANT_ALPHA_BLENDING = new BetterUniformSetter(programs.get("ALPHA_BLENDING"));
     }
