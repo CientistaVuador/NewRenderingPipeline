@@ -29,6 +29,7 @@ package cientistavuador.newrenderingpipeline.newrendering;
 import cientistavuador.newrenderingpipeline.util.CryptoUtils;
 import cientistavuador.newrenderingpipeline.util.DXT5TextureStore;
 import cientistavuador.newrenderingpipeline.util.ImageUtils;
+import cientistavuador.newrenderingpipeline.util.M8Image;
 import cientistavuador.newrenderingpipeline.util.PixelUtils;
 import cientistavuador.newrenderingpipeline.util.PixelUtils.PixelStructure;
 import cientistavuador.newrenderingpipeline.util.postprocess.MarginAutomata;
@@ -535,6 +536,11 @@ public class NTexturesImporter {
         shaData.putInt(width).putInt(height).put(r_g_b_a).put(ht_rg_mt_nx).put(er_eg_eb_ny).flip();
         
         String uid = CryptoUtils.sha256(shaData);
+        
+        if (NBlendingMode.OPAQUE.equals(blendingMode)) {
+            r_g_b_a = r_g_b_a.clone();
+            M8Image.rgbaToM8(r_g_b_a, width, height);
+        }
         
         return new NTextures(
                 name,

@@ -41,8 +41,10 @@ import static org.lwjgl.opengl.GL33C.*;
  */
 public class NProgram {
 
-    public static final float DIFFUSE_STRENGTH = 0.95f;
-    public static final float SPECULAR_STRENGTH = 0.05f;
+    public static final float DIELECTRIC_DIFFUSE_STRENGTH = 0.95f;
+    public static final float DIELECTRIC_SPECULAR_STRENGTH = 0.05f;
+    public static final float METALLIC_DIFFUSE_STRENGTH = 0.00f;
+    public static final float METALLIC_SPECULAR_STRENGTH = 1.00f;
 
     public static final float LIGHT_ATTENUATION = 0.75f;
     
@@ -601,7 +603,7 @@ public class NProgram {
                 float metallic
             ) {
                 float metallicRoughness = pow(roughness, 1.0/2.41);
-                float dielectricIntensity = (1.0 - pow(roughness, 1.0/15.0));
+                float dielectricIntensity = (0.10 + pow(1.0 - max(dot(fragDirection, normal), 0.0), 5.0) * 0.90) * (1.0 - pow(roughness, 1.0 / 4.0));
                 
                 vec3 totalReflection = vec3(0.0);
                 int count = 0;
@@ -711,8 +713,8 @@ public class NProgram {
                 
                 float metallicStrength = (reflectionsEnabled ? metallic : 0.0);
                 
-                float diffuseStrength = mix(DIFFUSE_STRENGTH, 1.0 - DIFFUSE_STRENGTH, metallicStrength);
-                float specularStrength = mix(SPECULAR_STRENGTH, 1.0 - SPECULAR_STRENGTH, metallicStrength);
+                float diffuseStrength = mix(DIELECTRIC_DIFFUSE_STRENGTH, METALLIC_DIFFUSE_STRENGTH, metallicStrength);
+                float specularStrength = mix(DIELECTRIC_SPECULAR_STRENGTH, METALLIC_SPECULAR_STRENGTH, metallicStrength);
                 
                 specularColor = mix(specularColor, diffuseColor, metallicStrength);
                 
@@ -791,8 +793,10 @@ public class NProgram {
         new ProgramCompiler.ShaderConstant("LIGHT_ATTENUATION", LIGHT_ATTENUATION),
         new ProgramCompiler.ShaderConstant("MAX_AMOUNT_OF_BONES", NMesh.MAX_AMOUNT_OF_BONES),
         new ProgramCompiler.ShaderConstant("MAX_AMOUNT_OF_BONE_WEIGHTS", NMesh.MAX_AMOUNT_OF_BONE_WEIGHTS),
-        new ProgramCompiler.ShaderConstant("DIFFUSE_STRENGTH", DIFFUSE_STRENGTH),
-        new ProgramCompiler.ShaderConstant("SPECULAR_STRENGTH", SPECULAR_STRENGTH),
+        new ProgramCompiler.ShaderConstant("DIELECTRIC_DIFFUSE_STRENGTH", DIELECTRIC_DIFFUSE_STRENGTH),
+        new ProgramCompiler.ShaderConstant("DIELECTRIC_SPECULAR_STRENGTH", DIELECTRIC_SPECULAR_STRENGTH),
+        new ProgramCompiler.ShaderConstant("METALLIC_DIFFUSE_STRENGTH", METALLIC_DIFFUSE_STRENGTH),
+        new ProgramCompiler.ShaderConstant("METALLIC_SPECULAR_STRENGTH", METALLIC_SPECULAR_STRENGTH),
         new ProgramCompiler.ShaderConstant("MAX_AMOUNT_OF_CUBEMAPS", MAX_AMOUNT_OF_CUBEMAPS),
         new ProgramCompiler.ShaderConstant("NUMBER_OF_AMBIENT_CUBE_SIDES", AmbientCube.SIDES),
         new ProgramCompiler.ShaderConstant("RGBE_BASE", E8Image.BASE),

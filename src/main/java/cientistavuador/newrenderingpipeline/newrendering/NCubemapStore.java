@@ -60,7 +60,7 @@ public class NCubemapStore {
         Properties properties = new Properties();
         
         properties.setProperty("name", cubemap.getName());
-        properties.setProperty("uid", cubemap.getUid());
+        properties.setProperty("uid", cubemap.getUID());
         properties.setProperty("colorR", Float.toString(cubemap.getCubemapColor().x()));
         properties.setProperty("colorG", Float.toString(cubemap.getCubemapColor().y()));
         properties.setProperty("colorB", Float.toString(cubemap.getCubemapColor().z()));

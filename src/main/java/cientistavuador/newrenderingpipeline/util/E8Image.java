@@ -115,7 +115,15 @@ public class E8Image {
         this.width = width;
         this.height = height;
     }
-
+    
+    public E8Image(int width, int height) {
+        this(new byte[width * height * 4], width, height);
+    }
+    
+    public E8Image(RGBA8Image image) {
+        this(image.getRGBA(), image.getWidth(), image.getHeight());
+    }
+    
     public E8Image(float[] rgb, int width, int height) {
         Objects.requireNonNull(rgb, "data is null");
 
@@ -138,7 +146,7 @@ public class E8Image {
         this.width = width;
         this.height = height;
     }
-
+    
     public byte[] getRGBE() {
         return rgbe;
     }
@@ -164,14 +172,14 @@ public class E8Image {
                 .mul(LOOKUP_TABLE[exp])
                 ;
     }
-
+    
     public void write(int x, int y, Vector3fc inColor) {
         encodeTo(inColor.x(), inColor.y(), inColor.z(),
                 (x * 4) + (y * this.width * 4),
                 this.rgbe
         );
     }
-
+    
     public float[] toFloatArray() {
         Vector3f color = new Vector3f();
 
@@ -189,23 +197,9 @@ public class E8Image {
 
         return array;
     }
-
+    
     public BufferedImage toBufferedImage() {
-        BufferedImage resultImage = new BufferedImage(this.width, this.height, BufferedImage.TYPE_INT_ARGB);
-        for (int y = 0; y < resultImage.getHeight(); y++) {
-            for (int x = 0; x < resultImage.getWidth(); x++) {
-                int r = rgbe[0 + (x * 4) + (y * resultImage.getWidth() * 4)] & 0xFF;
-                int g = rgbe[1 + (x * 4) + (y * resultImage.getWidth() * 4)] & 0xFF;
-                int b = rgbe[2 + (x * 4) + (y * resultImage.getWidth() * 4)] & 0xFF;
-                int e = rgbe[3 + (x * 4) + (y * resultImage.getWidth() * 4)] & 0xFF;
-
-                int argb = (e << 24) | (r << 16) | (g << 8) | (b << 0);
-
-                resultImage.setRGB(x, (resultImage.getHeight() - 1) - y, argb);
-            }
-        }
-
-        return resultImage;
+        return RGBA8Image.toBufferedImage(this.rgbe, this.width, this.height);
     }
-
+    
 }

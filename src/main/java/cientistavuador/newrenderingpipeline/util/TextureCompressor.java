@@ -137,66 +137,6 @@ public class TextureCompressor {
         }
     }
     
-    public static final String AMD_COMPRESSONATOR_ENV = "COMPRESSONATOR_ROOT";
-    public static final String AMD_COMPRESSONATOR_EXE_PATH;
-    
-    static {
-        String executableName = "compressonatorcli";
-        
-        if (Platform.isWindows()) {
-            executableName += ".exe";
-        }
-
-        int runningFrom = -1;
-        
-        String compressonatorPath = null;
-        
-        String systemCompressonatorString = System.getenv(AMD_COMPRESSONATOR_ENV);
-        if (systemCompressonatorString != null) {
-            Path systemCompressonator = Paths.get(systemCompressonatorString, executableName);
-            
-            if (Files.exists(systemCompressonator)) {
-                compressonatorPath = systemCompressonator.toAbsolutePath().toString();
-                runningFrom = 0;
-            }
-            
-            Path alternativeSystemCompressonator = Paths.get(systemCompressonatorString, "bin", "CLI", executableName);
-            if (Files.exists(alternativeSystemCompressonator)) {
-                compressonatorPath = alternativeSystemCompressonator.toAbsolutePath().toString();
-                runningFrom = 0;
-            }
-        }
-
-        Path localCompressonator = Paths.get("compressonator", executableName);
-        if (Files.exists(localCompressonator)) {
-            compressonatorPath = localCompressonator.toAbsolutePath().toString();
-            runningFrom = 1;
-        }
-        
-        AMD_COMPRESSONATOR_EXE_PATH = compressonatorPath;
-        
-        if (runningFrom == -1) {
-            System.out.println("*");
-            System.out.println("Warning: AMD Compressonator CLI (" + executableName + ") not found.");
-            System.out.println("Download V4.5.52 from https://github.com/GPUOpen-Tools/compressonator/releases");
-            System.out.println("To install place into " + Paths.get("compressonator").toAbsolutePath().toString());
-            System.out.println("OR");
-            System.out.println("Set " + AMD_COMPRESSONATOR_ENV);
-            System.out.println("The local executable has priority.");
-            System.out.println("*");
-        } else {
-            switch (runningFrom) {
-                case 0 -> {
-                    System.out.println("Running AMD Compressonator from system.");
-                }
-                case 1 -> {
-                    System.out.println("Running AMD Compressonator locally.");
-                }
-            }
-            System.out.println(AMD_COMPRESSONATOR_EXE_PATH);
-        }
-    }
-
     public static void init() {
 
     }
@@ -222,29 +162,6 @@ public class TextureCompressor {
         } catch (IOException ex) {
             throw new UncheckedIOException(ex);
         }
-    }
-    
-    public static boolean isAMDCompressonatorSupported() {
-        return AMD_COMPRESSONATOR_EXE_PATH != null;
-    }
-    
-    private static void validateAMDCompressonatorSupported() {
-        if (!isAMDCompressonatorSupported()) {
-            throw new UnsupportedOperationException("AMD Compressonator not supported.");
-        }
-    }
-    
-    public static Process callAMDCompressonator(File workDir, String args) {
-        validateAMDCompressonatorSupported();
-        try {
-            return Runtime.getRuntime().exec(AMD_COMPRESSONATOR_EXE_PATH + " " + args, null, workDir);
-        } catch (IOException ex) {
-            throw new UncheckedIOException(ex);
-        }
-    }
-    
-    public static boolean isAnySupported() {
-        return isNVIDIATextureToolsSupported() || isAMDCompressonatorSupported();
     }
     
     public static Path createTempCompressorFolder() throws IOException {

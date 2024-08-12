@@ -166,16 +166,16 @@ public class Lightmapper {
 
         private final int size;
         private final String[] names;
-        private final float[] lightmaps;
-        private final float[] lightmapsEmissive;
+        private final float[][] lightmaps;
+        private final float[][] lightmapsEmissive;
         private final float[] color;
         private final LightmapAmbientCubeBVH ambientCubes;
 
         public LightmapperOutput(
                 int size,
                 String[] names,
-                float[] lightmaps,
-                float[] lightmapsEmissive,
+                float[][] lightmaps,
+                float[][] lightmapsEmissive,
                 float[] color,
                 LightmapAmbientCubeBVH ambientCubes
         ) {
@@ -195,11 +195,11 @@ public class Lightmapper {
             return names;
         }
 
-        public float[] getLightmaps() {
+        public float[][] getLightmaps() {
             return lightmaps;
         }
-
-        public float[] getLightmapsEmissive() {
+        
+        public float[][] getLightmapsEmissive() {
             return lightmapsEmissive;
         }
 
@@ -352,7 +352,7 @@ public class Lightmapper {
         }
     }
 
-    public static volatile int NUMBER_OF_THREADS = Runtime.getRuntime().availableProcessors() * 2;
+    public static volatile int NUMBER_OF_THREADS = Runtime.getRuntime().availableProcessors();
     public static final int IGNORE_TRIGGER_SIZE = 32;
 
     private static final int EMPTY = 0;
@@ -382,8 +382,8 @@ public class Lightmapper {
 
     //total lightmaps
     private final String[] lightmapsNames;
-    private final Float3ImageBuffer totalLightmaps;
-    private final Float3ImageBuffer totalLightmapsEmissive;
+    private final float[][] totalLightmaps;
+    private final float[][] totalLightmapsEmissive;
 
     //barycentric buffers
     private final Float3Buffer weights;
@@ -472,9 +472,9 @@ public class Lightmapper {
         for (int i = 0; i < this.lightGroups.length; i++) {
             this.lightmapsNames[i] = this.lightGroups[i].groupName;
         }
-        this.totalLightmaps = new Float3ImageBuffer(this.lightmapSize, this.lightmapSize * this.lightmapsNames.length);
-        this.totalLightmapsEmissive = new Float3ImageBuffer(this.lightmapSize, this.lightmapSize * this.lightmapsNames.length);
-
+        this.totalLightmaps = new float[this.lightmapsNames.length][];
+        this.totalLightmapsEmissive = new float[this.lightmapsNames.length][];
+        
         this.weights = new Float3Buffer(lightmapSize, this.scene.getSamplingMode().numSamples());
         this.triangles = new IntegerBuffer(lightmapSize, this.scene.getSamplingMode().numSamples());
         this.sampleStates = new IntegerBuffer(lightmapSize, this.scene.getSamplingMode().numSamples());
@@ -1826,26 +1826,17 @@ public class Lightmapper {
     }
 
     private void outputLightmap() {
-        setStatus(getGroupName() + " - Finishing Lightmap", this.lightmapSize);
-
-        Vector3f lightmapColor = new Vector3f();
-        Vector3f lightmapEmissiveColor = new Vector3f();
-
-        for (int y = (this.lightmapSize * this.groupIndex); y < (this.lightmapSize * (this.groupIndex + 1)); y++) {
-            for (int x = 0; x < this.lightmapSize; x++) {
-                this.lightmap.read(lightmapColor, x, y - (this.lightmapSize * this.groupIndex));
-                this.lightmapEmissive.read(lightmapEmissiveColor, x, y - (this.lightmapSize * this.groupIndex));
-
-                this.totalLightmaps.write(lightmapColor, x, y);
-                this.totalLightmapsEmissive.write(lightmapEmissiveColor, x, y);
-            }
-            addProgress(1);
-        }
+        setStatus(getGroupName() + " - Finishing Lightmap", 1);
+        
+        this.totalLightmaps[this.groupIndex] = this.lightmap.getData();
+        this.totalLightmapsEmissive[this.groupIndex] = this.lightmapEmissive.getData();
 
         this.lightmap = null;
         this.lightmapEmissive = null;
+        
+        addProgress(1);
     }
-
+    
     public LightmapperOutput bake() {
         this.numberOfThreads = NUMBER_OF_THREADS;
         this.service = Executors.newFixedThreadPool(this.numberOfThreads);
@@ -1900,12 +1891,12 @@ public class Lightmapper {
 
             setStatus("Done", 1);
             addProgress(1);
-
+            
             return new LightmapperOutput(
                     this.lightmapSize,
                     this.lightmapsNames,
-                    this.totalLightmaps.getData(),
-                    this.totalLightmapsEmissive.getData(),
+                    this.totalLightmaps,
+                    this.totalLightmapsEmissive,
                     this.textureColors.getData(),
                     ambientCubeBVH
             );

@@ -29,11 +29,13 @@ package cientistavuador.newrenderingpipeline.newrendering;
 import cientistavuador.newrenderingpipeline.Main;
 import cientistavuador.newrenderingpipeline.util.DXT5TextureStore;
 import cientistavuador.newrenderingpipeline.util.DXT5TextureStore.DXT5Texture;
+import cientistavuador.newrenderingpipeline.util.E8Image;
 import cientistavuador.newrenderingpipeline.util.ObjectCleaner;
 import cientistavuador.newrenderingpipeline.util.StringUtils;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.lang.ref.WeakReference;
 import java.nio.ByteBuffer;
 import java.util.Base64;
 import java.util.Objects;
@@ -102,11 +104,14 @@ public class NCubemap {
     private final NCubemapInfo cubemapInfo;
     private final DXT5Texture[] sideTextures;
     private final int size;
-
+    
     private float intensity = 1f;
-
+    
     private final WrappedCubemap wrappedCubemap;
-
+    
+    @SuppressWarnings("unchecked")
+    private final WeakReference<E8Image>[] sideTexturesData = new WeakReference[SIDES];
+    
     public NCubemap(
             String name,
             String uid,
@@ -181,7 +186,7 @@ public class NCubemap {
         return name;
     }
 
-    public String getUid() {
+    public String getUID() {
         return uid;
     }
 
@@ -200,7 +205,21 @@ public class NCubemap {
     public DXT5Texture getSideTexture(int index) {
         return this.sideTextures[index];
     }
-
+    
+    public E8Image getSideTextureData(int index) {
+        WeakReference<E8Image> reference = this.sideTexturesData[index];
+        if (reference != null) {
+            E8Image cached = reference.get();
+            if (cached != null) {
+                return cached;
+            }
+        }
+        
+        E8Image decompressed = new E8Image(this.sideTextures[index].decompress(), this.size, this.size);
+        this.sideTexturesData[index] = new WeakReference<>(decompressed);
+        return decompressed;
+    }
+    
     public int getSize() {
         return size;
     }

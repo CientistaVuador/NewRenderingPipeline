@@ -36,21 +36,21 @@ import org.joml.Vector3fc;
  * @author Cien
  */
 public class AmbientCube {
-    
+
     public static final AmbientCube NULL_AMBIENT_CUBE = new AmbientCube();
-    
+
     public static final int SIDES = 6;
-    
+
     public static final int POSITIVE_X = 0;
     public static final int NEGATIVE_X = 1;
-    
+
     public static final int POSITIVE_Y = 2;
     public static final int NEGATIVE_Y = 3;
-    
+
     public static final int POSITIVE_Z = 4;
     public static final int NEGATIVE_Z = 5;
-    
-    public static final Vector3fc[] SIDE_DIRECTIONS = new Vector3fc[] {
+
+    public static final Vector3fc[] SIDE_DIRECTIONS = new Vector3fc[]{
         new Vector3f(1f, 0f, 0f),
         new Vector3f(-1f, 0f, 0f),
         new Vector3f(0f, 1f, 0f),
@@ -58,123 +58,119 @@ public class AmbientCube {
         new Vector3f(0f, 0f, 1f),
         new Vector3f(0f, 0f, -1f)
     };
-    
-    public static final Vector3fc[][] SIDE_QUADS = new Vector3fc[][] {
-        new Vector3fc[] {
+
+    public static final Vector3fc[][] SIDE_QUADS = new Vector3fc[][]{
+        new Vector3fc[]{
             new Vector3f(1f, -1f, -1f),
             new Vector3f(1f, 1f, -1f),
             new Vector3f(1f, -1f, 1f),
             new Vector3f(1f, 1f, 1f)
         },
-        new Vector3fc[] {
+        new Vector3fc[]{
             new Vector3f(-1f, -1f, -1f),
             new Vector3f(-1f, 1f, -1f),
             new Vector3f(-1f, -1f, 1f),
             new Vector3f(-1f, 1f, 1f)
         },
-        new Vector3fc[] {
+        new Vector3fc[]{
             new Vector3f(-1f, 1f, -1f),
             new Vector3f(1f, 1f, -1f),
             new Vector3f(-1f, 1f, 1f),
             new Vector3f(1f, 1f, 1f)
         },
-        new Vector3fc[] {
+        new Vector3fc[]{
             new Vector3f(-1f, -1f, -1f),
             new Vector3f(1f, -1f, -1f),
             new Vector3f(-1f, -1f, 1f),
             new Vector3f(1f, -1f, 1f)
         },
-        new Vector3fc[] {
+        new Vector3fc[]{
             new Vector3f(-1f, -1f, 1f),
             new Vector3f(1f, -1f, 1f),
             new Vector3f(-1f, 1f, 1f),
             new Vector3f(1f, 1f, 1f)
         },
-        new Vector3fc[] {
+        new Vector3fc[]{
             new Vector3f(-1f, -1f, -1f),
             new Vector3f(1f, -1f, -1f),
             new Vector3f(-1f, 1f, -1f),
             new Vector3f(1f, 1f, -1f)
         }
     };
-    
-    public static final Vector3fc[][] SIDE_CUBES = new Vector3fc[][] {
+
+    public static final Vector3fc[][] SIDE_CUBES = new Vector3fc[][]{
         {
-            new Vector3f(0.5f, 0f, 0f),
-            new Vector3f(0.5f, 1f, 1f)
+            new Vector3f(0.0f, -1.0f, -1.0f),
+            new Vector3f(1.0f, 1.0f, 1.0f)
         },
         {
-            new Vector3f(-0.5f, 0f, 0f),
-            new Vector3f(0.5f, 1f, 1f)
+            new Vector3f(-1.0f, -1.0f, -1.0f),
+            new Vector3f(0.0f, 1.0f, 1.0f)
         },
         {
-            new Vector3f(0f, 0.5f, 0f),
-            new Vector3f(1f, 0.5f, 1f)
+            new Vector3f(-1.0f, 0.0f, -1.0f),
+            new Vector3f(1.0f, 1.0f, 1.0f)
         },
         {
-            new Vector3f(0f, -0.5f, 0f),
-            new Vector3f(1f, 0.5f, 1f)
+            new Vector3f(-1.0f, -1.0f, -1.0f),
+            new Vector3f(1.0f, 0.0f, 1.0f)
         },
         {
-            new Vector3f(0f, 0f, 0.5f),
-            new Vector3f(1f, 1f, 0.5f)
+            new Vector3f(-1.0f, -1.0f, 0.0f),
+            new Vector3f(1.0f, 1.0f, 1.0f)
         },
         {
-            new Vector3f(0f, 0f, -0.5f),
-            new Vector3f(1f, 1f, 0.5f)
+            new Vector3f(-1.0f, -1.0f, -1.0f),
+            new Vector3f(1.0f, 1.0f, 0.0f)
         }
     };
     
     public static void randomSideDirection180(int side, Vector3f outDirection) {
-        Vector3fc offset = SIDE_CUBES[side][0];
-        Vector3fc halfExtents = SIDE_CUBES[side][1];
-        
+        Vector3fc min = SIDE_CUBES[side][0];
+        Vector3fc max = SIDE_CUBES[side][1];
+
         ThreadLocalRandom random = ThreadLocalRandom.current();
-        
+
         float x;
         float y;
         float z;
         float lengthSquared;
         do {
-            x = (random.nextFloat() * 2f) - 1f;
-            y = (random.nextFloat() * 2f) - 1f;
-            z = (random.nextFloat() * 2f) - 1f;
+            x = random.nextFloat();
+            y = random.nextFloat();
+            z = random.nextFloat();
             
-            x *= halfExtents.x();
-            y *= halfExtents.y();
-            z *= halfExtents.z();
-            
-            x += offset.x();
-            y += offset.y();
-            z += offset.z();
+            x = (min.x() * (1f - x)) + (max.x() * x);
+            y = (min.y() * (1f - y)) + (max.y() * y);
+            z = (min.z() * (1f - z)) + (max.z() * z);
             
             lengthSquared = (x * x) + (y * y) + (z * z);
         } while (lengthSquared == 0f || lengthSquared > 1f);
-        
+
         outDirection.set(x, y, z).normalize();
     }
-    
+
     public static void randomSideDirection90(int side, Vector3f outDirection) {
         Vector3fc[] quad = SIDE_QUADS[side];
-        
+
         ThreadLocalRandom random = ThreadLocalRandom.current();
-        
+
         float w0 = random.nextFloat();
         float w1 = random.nextFloat();
         float w2 = random.nextFloat();
         float w3 = random.nextFloat();
-        
+
         float sum = w0 + w1 + w2 + w3;
-        
+
         if (sum != 0f) {
             float invsum = 1f / sum;
-            
+
             w0 *= invsum;
             w1 *= invsum;
             w2 *= invsum;
             w3 *= invsum;
         }
-        
+
         outDirection
                 .set(
                         quad[0].x() * w0,
@@ -194,48 +190,48 @@ public class AmbientCube {
                         quad[3].z() * w3
                 ).normalize();
     }
-    
+
     private final Vector3f[] sides = new Vector3f[SIDES];
-    
+
     public AmbientCube() {
         for (int i = 0; i < this.sides.length; i++) {
             this.sides[i] = new Vector3f(0f, 0f, 0f);
         }
     }
-    
+
     public Vector3fc getSide(int side) {
         return this.sides[side];
     }
-    
+
     public void setSide(int side, float r, float g, float b) {
         this.sides[side].set(r, g, b);
     }
-    
+
     public void setSide(int side, Vector3fc color) {
         setSide(side, color.x(), color.y(), color.z());
     }
-    
+
     public void setLerp(AmbientCube a, AmbientCube b, float factor) {
         for (int i = 0; i < this.sides.length; i++) {
             Vector3fc colorA = a.getSide(i);
             Vector3fc colorB = b.getSide(i);
-            
+
             this.sides[i].set(colorA).lerp(colorB, factor);
         }
     }
-    
+
     public void set(AmbientCube other) {
         for (int i = 0; i < this.sides.length; i++) {
             setSide(i, other.getSide(i));
         }
     }
-    
+
     public void zero() {
         for (int i = 0; i < AmbientCube.SIDES; i++) {
             this.sides[i].zero();
         }
     }
-    
+
     @Override
     public int hashCode() {
         int hash = 5;
@@ -257,5 +253,5 @@ public class AmbientCube {
         final AmbientCube other = (AmbientCube) obj;
         return Arrays.deepEquals(this.sides, other.sides);
     }
-    
+
 }

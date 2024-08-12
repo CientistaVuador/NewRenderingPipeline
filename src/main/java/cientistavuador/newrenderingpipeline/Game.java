@@ -52,17 +52,12 @@ import cientistavuador.newrenderingpipeline.text.GLFontRenderer;
 import cientistavuador.newrenderingpipeline.text.GLFontSpecifications;
 import cientistavuador.newrenderingpipeline.ubo.CameraUBO;
 import cientistavuador.newrenderingpipeline.ubo.UBOBindingPoints;
-import cientistavuador.newrenderingpipeline.util.DXT5TextureStore;
-import cientistavuador.newrenderingpipeline.util.DXT5TextureStore.DXT5Texture;
-import cientistavuador.newrenderingpipeline.util.M8Image;
 import cientistavuador.newrenderingpipeline.util.StringUtils;
 import cientistavuador.newrenderingpipeline.util.bakedlighting.AmbientCubeDebug;
 import cientistavuador.newrenderingpipeline.util.bakedlighting.Lightmapper;
 import cientistavuador.newrenderingpipeline.util.bakedlighting.Scene;
 import com.jme3.bullet.PhysicsSpace;
 import com.jme3.bullet.objects.PhysicsRigidBody;
-import java.awt.image.BufferedImage;
-import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -70,7 +65,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import javax.imageio.ImageIO;
+import java.util.concurrent.ExecutionException;
 import org.joml.Vector3f;
 import static org.lwjgl.glfw.GLFW.*;
 
@@ -124,7 +119,7 @@ public class Game {
     private NMap map;
     private final N3DObject triceratops;
     private final N3DObject plasticBall;
-    
+
     private NMap nextMap;
 
     private final NLight.NSpotLight flashlight = new NLight.NSpotLight("flashlight");
@@ -137,17 +132,17 @@ public class Game {
     private final PlayerController playerController = new PlayerController();
 
     {
-        
+
         try {
             this.skybox = NCubemapStore.readCubemap("cientistavuador/newrenderingpipeline/resources/cubemaps/skybox.cbm");
-            
+
             List<N3DObject> mapObjects = new ArrayList<>();
             {
                 N3DModel nrpModel = N3DModelStore.readModel("cientistavuador/newrenderingpipeline/resources/models/nrp.n3dm");
                 N3DObject nrp = new N3DObject("nrp", nrpModel);
                 mapObjects.add(nrp);
             }
-            
+
             {
                 N3DModel triceratopsModel = N3DModelStore.readModel("cientistavuador/newrenderingpipeline/resources/models/triceratops.n3dm");
 
@@ -161,13 +156,13 @@ public class Game {
 
                 this.plasticBall = new N3DObject("plastic ball", plasticBallModel);
             }
-
-            this.map = new NMap("map", mapObjects, NMap.DEFAULT_LIGHTMAP_MARGIN, 32f);
+            
+            this.map = new NMap("map", mapObjects, NMap.DEFAULT_LIGHTMAP_MARGIN, 15f);
             this.map.setLightmaps(NLightmapsStore.readLightmaps("cientistavuador/newrenderingpipeline/resources/lightmaps/lightmap.lit"));
 
             this.triceratops.setMap(this.map);
             this.plasticBall.setMap(this.map);
-            
+
             this.flashlight.setInnerConeAngle(10f);
             this.flashlight.setOuterConeAngle(40f);
             this.flashlight.setDiffuseSpecularAmbient(0f);
@@ -237,7 +232,7 @@ public class Game {
                 this.skybox.getCubemapColor().z() * 2f
         );
         this.scene.getLights().add(ambient);
-        
+
         for (NLight light : this.lights) {
             if (light.isDynamic()) {
                 continue;
@@ -265,18 +260,18 @@ public class Game {
     private Game() {
 
     }
-
+    
     public void start() {
         NTextures.NULL_TEXTURE.r_g_b_a();
         NCubemap.NULL_CUBEMAP.cubemap();
         NLightmaps.NULL_LIGHTMAPS.lightmaps();
         
         System.out.println("running!");
-        
+
         this.camera.setUBO(CameraUBO.create(UBOBindingPoints.PLAYER_CAMERA));
-        
+
         DebugCounter e = new DebugCounter();
-        
+
         e.markStart("Load Models");
         for (int i = 0; i < this.map.getNumberOfObjects(); i++) {
             this.map.getObject(i).getN3DModel().load();
@@ -284,7 +279,7 @@ public class Game {
         this.plasticBall.getN3DModel().load();
         this.triceratops.getN3DModel().load();
         e.markEnd("Load Models");
-        
+
         e.markStart("Load Skybox");
         this.skybox.cubemap();
         e.markEnd("Load Skybox");
@@ -292,13 +287,13 @@ public class Game {
         e.markStart("Load Lightmaps");
         this.map.getLightmaps().lightmaps();
         e.markEnd("Load Lightmaps");
-        
+
         e.markStart("Load Cubemaps");
         for (int i = 0; i < this.cubemaps.getNumberOfCubemaps(); i++) {
             this.cubemaps.getCubemap(i).cubemap();
         }
         e.markEnd("Load Cubemaps");
-        
+
         e.print();
     }
 
@@ -321,12 +316,12 @@ public class Game {
         if (this.playerController.getCharacterController().getPosition().y() < -10f) {
             this.playerController.getCharacterController().setPosition(0f, 0.1f, 0f);
         }
-        
+
         this.triceratops.getAnimator().update(Main.TPF);
 
         this.plasticBallRotation.rotateY((float) (Main.TPF * 0.5));
         this.plasticBall.getPosition().set(this.plasticBallRotation).mul(3f).add(15.29, 1.95, -9.52);
-        
+
         this.flashlight.getPosition().set(this.camera.getPosition());
         this.flashlight.getDirection().set(this.camera.getFront());
 
@@ -369,6 +364,11 @@ public class Game {
                 GLFontRenderer.render(-0.94f, 0.94f, GLFontSpecifications.SPACE_MONO_REGULAR_0_035_BLACK, text);
                 GLFontRenderer.render(-0.95f, 0.95f, GLFontSpecifications.SPACE_MONO_REGULAR_0_035_WHITE, text);
             } else {
+                try {
+                    this.status.getTask().get();
+                } catch (InterruptedException | ExecutionException ex) {
+                    throw new RuntimeException(ex);
+                }
                 try {
                     try (FileOutputStream out = new FileOutputStream("lightmap.lit")) {
                         NLightmapsStore.writeLightmaps(this.map.getLightmaps(), out);

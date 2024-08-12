@@ -26,11 +26,13 @@
  */
 package cientistavuador.newrenderingpipeline.util.bakedlighting;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.zip.GZIPInputStream;
@@ -192,6 +194,14 @@ public class LightmapAmbientCubeBVHStore {
         LightmapAmbientCubeBVH bvh = readBVHRecursively(ambientCubes, in);
         
         return bvh;
+    }
+    
+    public static LightmapAmbientCubeBVH readBVH(byte[] data) {
+        try {
+            return readBVH(new ByteArrayInputStream(data));
+        } catch (IOException ex) {
+            throw new UncheckedIOException(ex);
+        }
     }
     
     private LightmapAmbientCubeBVHStore() {

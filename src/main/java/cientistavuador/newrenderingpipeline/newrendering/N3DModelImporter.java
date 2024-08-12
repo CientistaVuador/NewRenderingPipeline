@@ -617,7 +617,7 @@ public class N3DModelImporter {
 
                 NTextures textures = material.getTextures();
 
-                String uid = textures.getUid();
+                String uid = textures.getUID();
                 NTextures alreadyLoaded = loadedTextures.get(uid);
 
                 if (alreadyLoaded != null) {

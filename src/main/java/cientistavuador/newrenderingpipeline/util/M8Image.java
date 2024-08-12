@@ -35,22 +35,18 @@ public class M8Image {
     public static final float MAX_VALUE = 255f / 255f;
     public static final float MIN_VALUE = 1f / 255f;
     
-    public static M8Image createFromRGB(byte[] rgb, int components, int width, int height) {
-        if (components != 3 && components != 4) {
-            throw new IllegalArgumentException("Components must be 3 or 4.");
-        }
-        ImageUtils.validate(rgb, width, height, components);
+    public static void rgbaToM8(byte[] rgba, int width, int height) {
+        ImageUtils.validate(rgba, width, height, 4);
 
-        byte[] rgbm = new byte[width * height * 4];
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
-                float r = (rgb[0 + (x * components) + (y * width * components)] & 0xFF) / 255f;
-                float g = (rgb[1 + (x * components) + (y * width * components)] & 0xFF) / 255f;
-                float b = (rgb[2 + (x * components) + (y * width * components)] & 0xFF) / 255f;
-
-                int iR = 255;
-                int iG = 255;
-                int iB = 255;
+                float r = (rgba[0 + (x * 4) + (y * width * 4)] & 0xFF) / 255f;
+                float g = (rgba[1 + (x * 4) + (y * width * 4)] & 0xFF) / 255f;
+                float b = (rgba[2 + (x * 4) + (y * width * 4)] & 0xFF) / 255f;
+                
+                int iR = 0;
+                int iG = 0;
+                int iB = 0;
                 int iM = 0;
                 encode:
                 {
@@ -69,17 +65,53 @@ public class M8Image {
                     iB = Math.min(Math.max(Math.round(b * 255f), 0), 255);
                     iM = Math.min(Math.max(Math.round(m * 255f), 0), 255);
                 }
-
-                rgbm[0 + (x * 4) + (y * width * 4)] = (byte) iR;
-                rgbm[1 + (x * 4) + (y * width * 4)] = (byte) iG;
-                rgbm[2 + (x * 4) + (y * width * 4)] = (byte) iB;
-                rgbm[3 + (x * 4) + (y * width * 4)] = (byte) iM;
+                
+                rgba[0 + (x * 4) + (y * width * 4)] = (byte) iR;
+                rgba[1 + (x * 4) + (y * width * 4)] = (byte) iG;
+                rgba[2 + (x * 4) + (y * width * 4)] = (byte) iB;
+                rgba[3 + (x * 4) + (y * width * 4)] = (byte) iM;
             }
         }
+    }
+    
+    public static void m8ToRGBA(byte[] rgbm, int width, int height) {
+        ImageUtils.validate(rgbm, width, height, 4);
+        
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                int inputIndex = (x * 4) + (y * width * 4);
+                int outputIndex = (x * 4) + (y * width * 4);
+                
+                float r = (rgbm[inputIndex + 0] & 0xFF) / 255f;
+                float g = (rgbm[inputIndex + 1] & 0xFF) / 255f;
+                float b = (rgbm[inputIndex + 2] & 0xFF) / 255f;
+                float m = (rgbm[inputIndex + 3] & 0xFF) / 255f;
+                
+                r *= m;
+                g *= m;
+                b *= m;
+                
+                int iR = Math.min(Math.max(Math.round(r * 255f), 0), 255);
+                int iG = Math.min(Math.max(Math.round(g * 255f), 0), 255);
+                int iB = Math.min(Math.max(Math.round(b * 255f), 0), 255);
+                int iA = 255;
 
+                rgbm[0 + outputIndex] = (byte) iR;
+                rgbm[1 + outputIndex] = (byte) iG;
+                rgbm[2 + outputIndex] = (byte) iB;
+                rgbm[3 + outputIndex] = (byte) iA;
+            }
+        }
+    }
+    
+    public static M8Image createFromRGBA(byte[] rgba, int width, int height) {
+        ImageUtils.validate(rgba, width, height, 4);
+        
+        byte[] rgbm = rgba.clone();
+        rgbaToM8(rgba, width, height);
         return new M8Image(rgbm, width, height);
     }
-
+    
     private final byte[] rgbm;
     private final int width;
     private final int height;
@@ -104,44 +136,10 @@ public class M8Image {
         return height;
     }
 
-    public byte[] toRGB(boolean withAlpha) {
-        int components = 3;
-        if (withAlpha) {
-            components = 4;
-        }
-
-        byte[] rgb = new byte[this.width * this.height * components];
-
-        for (int y = 0; y < this.height; y++) {
-            for (int x = 0; x < this.width; x++) {
-                int inputIndex = (x * 4) + (y * this.width * 4);
-                int outputIndex = (x * components) + (y * this.width * components);
-
-                float r = (this.rgbm[inputIndex + 0] & 0xFF) / 255f;
-                float g = (this.rgbm[inputIndex + 1] & 0xFF) / 255f;
-                float b = (this.rgbm[inputIndex + 2] & 0xFF) / 255f;
-                float m = (this.rgbm[inputIndex + 3] & 0xFF) / 255f;
-                
-                r *= m;
-                g *= m;
-                b *= m;
-
-                int iR = Math.min(Math.max(Math.round(r * 255f), 0), 255);
-                int iG = Math.min(Math.max(Math.round(g * 255f), 0), 255);
-                int iB = Math.min(Math.max(Math.round(b * 255f), 0), 255);
-                int iA = 255;
-
-                rgb[0 + outputIndex] = (byte) iR;
-                rgb[1 + outputIndex] = (byte) iG;
-                rgb[2 + outputIndex] = (byte) iB;
-
-                if (withAlpha) {
-                    rgb[3 + outputIndex] = (byte) iA;
-                }
-            }
-        }
-
-        return rgb;
+    public byte[] toRGBA() {
+        byte[] copy = this.rgbm.clone();
+        m8ToRGBA(copy, this.width, this.height);
+        return copy;
     }
-
+    
 }

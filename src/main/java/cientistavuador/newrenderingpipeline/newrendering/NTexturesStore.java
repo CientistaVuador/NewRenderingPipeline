@@ -57,7 +57,7 @@ public class NTexturesStore {
         properties.setProperty("name", textures.getName());
         properties.setProperty("blendingMode", textures.getBlendingMode().name());
         properties.setProperty("heightMapSupported", Boolean.toString(textures.isHeightMapSupported()));
-        properties.setProperty("uid", textures.getUid());
+        properties.setProperty("uid", textures.getUID());
         
         properties.storeToXML(out, null, StandardCharsets.UTF_8);
         

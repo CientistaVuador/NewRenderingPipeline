@@ -44,7 +44,7 @@ public class NCubemapBVH {
         
         for (NCubemap cubemap : cubemaps) {
             if (!cubemap.getCubemapInfo().isParallaxCorrected()) {
-                throw new IllegalArgumentException("Cubemap is not parallax corrected, " + cubemap.getName() + ", " + cubemap.getUid());
+                throw new IllegalArgumentException("Cubemap is not parallax corrected, " + cubemap.getName() + ", " + cubemap.getUID());
             }
             
             current.add(new NCubemapBVH(

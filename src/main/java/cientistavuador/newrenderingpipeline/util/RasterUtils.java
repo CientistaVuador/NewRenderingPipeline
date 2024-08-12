@@ -35,6 +35,43 @@ import org.joml.Vector3fc;
  */
 public class RasterUtils {
     
+    public static void directionToCubemapUV(
+            float dirX, float dirY, float dirZ,
+            Vector3f outFaceUv
+    ) {
+	float dirAbsX = Math.abs(dirX);
+        float dirAbsY = Math.abs(dirY);
+        float dirAbsZ = Math.abs(dirZ);
+        
+	float ma;
+	
+        float faceIndex;
+        float u;
+        float v;
+        
+	if(dirAbsZ >= dirAbsX && dirAbsZ >= dirAbsY) {
+		faceIndex = dirZ < 0.0f ? 5.0f : 4.0f;
+		ma = 0.5f / dirAbsZ;
+                u = dirZ < 0.0f ? -dirX : dirX;
+                v = -dirY;
+	} else if(dirAbsY >= dirAbsX) {
+		faceIndex = dirY < 0.0f ? 3.0f : 2.0f;
+		ma = 0.5f / dirAbsY;
+                u = dirX;
+                v = dirY < 0.0 ? -dirZ : dirZ;
+	} else {
+		faceIndex = dirX < 0.0f ? 1.0f : 0.0f;
+		ma = 0.5f / dirAbsX;
+                u = dirX < 0.0 ? dirZ : -dirZ;
+                v = -dirY;
+	}
+        
+        u = (u * ma) + 0.5f;
+        v = (v * ma) + 0.5f;
+        
+        outFaceUv.set(faceIndex, u, v);
+    }
+    
     public static void barycentricWeights(Vector3fc p, Vector3fc a, Vector3fc b, Vector3fc c, Vector3f outWeights) {
         barycentricWeights(
                 p.x(), p.y(), p.z(),

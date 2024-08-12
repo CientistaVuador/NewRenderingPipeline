@@ -27,262 +27,180 @@
 package cientistavuador.newrenderingpipeline.newrendering;
 
 import cientistavuador.newrenderingpipeline.Main;
-import cientistavuador.newrenderingpipeline.util.CryptoUtils;
 import cientistavuador.newrenderingpipeline.util.DXT5TextureStore;
 import cientistavuador.newrenderingpipeline.util.DXT5TextureStore.DXT5Texture;
-import cientistavuador.newrenderingpipeline.util.ImageUtils;
 import cientistavuador.newrenderingpipeline.util.ObjectCleaner;
 import cientistavuador.newrenderingpipeline.util.E8Image;
+import cientistavuador.newrenderingpipeline.util.MipmapUtils;
 import cientistavuador.newrenderingpipeline.util.RGBA8Image;
 import cientistavuador.newrenderingpipeline.util.StringUtils;
 import cientistavuador.newrenderingpipeline.util.bakedlighting.LightmapAmbientCube;
 import cientistavuador.newrenderingpipeline.util.bakedlighting.LightmapAmbientCubeBVH;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 import org.joml.Vector3f;
 import org.joml.Vector4f;
-import org.lwjgl.opengl.ARBTextureCompressionBPTC;
 import org.lwjgl.opengl.EXTTextureCompressionS3TC;
 import org.lwjgl.opengl.EXTTextureFilterAnisotropic;
 import org.lwjgl.opengl.GL;
 import static org.lwjgl.opengl.GL33C.*;
-import org.lwjgl.opengl.GL42C;
 import org.lwjgl.opengl.KHRDebug;
+import static org.lwjgl.system.MemoryUtil.*;
 
 /**
  *
  * @author Cien
  */
 public class NLightmaps {
-    
+
+    public static final float MAX_LOD = 2f;
+
     private static final AtomicLong textureIds = new AtomicLong();
 
-    public static final NLightmaps NULL_LIGHTMAPS = new NLightmaps(
-            "Empty/Null Lightmaps", new String[]{"None"}, 0,
-            1, 1,
-            new float[]{0f, 0f, 0f}, new float[]{0f, 0f, 0f}, new float[]{1f, 1f, 1f, 1f},
-            null, null,
-            0, 0, null,
-            null,
-            null
-    );
+    public static final NLightmaps NULL_LIGHTMAPS;
+    static {
+        try {
+            NULL_LIGHTMAPS = new NLightmaps(
+                    "Null/Empty Lightmaps",
+                    "Null/Empty Lightmaps",
+                    
+                    new String[] {"Empty"},
+                    new DXT5Texture[] {DXT5TextureStore.readDXT5Texture(new ByteArrayInputStream(Base64.getDecoder().decode("KLUv/WDwFAUCAAKECxTApzX/W38mI7RGOVzr6l9D9cpaKU0rIZGWe3AUOCXF+KNQkuevt9uhzhmE3AUFAF01swcAXMCQQOIUgRM=")))},
+                    new E8Image[] {new E8Image(new float[] {0f, 0f, 0f}, 1, 1)},
+                    new RGBA8Image(new byte[] {(byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF}, 1, 1),
+                    
+                    LightmapAmbientCubeBVH.create(new ArrayList<>())
+            );
+        } catch (IOException ex) {
+            throw new UncheckedIOException(ex);
+        }
+    }
     
-    private final String name;
-    private final String[] names;
-    private final int margin;
-
-    private final float[] lightmaps;
-    private final int width;
-    private final int height;
-
-    private final E8Image cpuLightmaps;
-    private final E8Image cpuLightmapsEmissive;
-
-    private final byte[] colorMap;
-    private final int colorMapWidth;
-    private final int colorMapHeight;
-    
-    private final LightmapAmbientCubeBVH ambientCubes;
-
-    private final Map<String, Integer> nameMap = new HashMap<>();
-    private final float[] intensities;
-
-    private final String sha256;
-
     static class WrappedLightmap {
 
         int texture = 0;
     }
 
+    private final String name;
+    private final String uid;
+
+    private final int numberOfLightmaps;
+
+    private final int width;
+    private final int height;
+    private final int cpuLightmapWidth;
+    private final int cpuLightmapHeight;
+
+    private final String[] lightmapsNames;
+    private final DXT5Texture[] lightmaps;
+    private final E8Image[] cpuLightmaps;
+    private final RGBA8Image cpuColor;
+
+    private final LightmapAmbientCubeBVH ambientCubes;
+
+    private final Map<String, Integer> nameMap = new HashMap<>();
+    private final float[] intensities;
+
     private final WrappedLightmap lightmapTexture = new WrappedLightmap();
-    
+
     public NLightmaps(
             String name,
             String uid,
-            
-            String[] lightmapNames, 
+            String[] lightmapNames,
             DXT5Texture[] lightmaps,
             E8Image[] cpuLightmaps,
-            E8Image[] cpuEmissive,
             RGBA8Image cpuColor,
-            
             LightmapAmbientCubeBVH ambientCubes
     ) {
-        throw new RuntimeException("prototype");
-    }
-    
-    public NLightmaps(
-            String name, String[] names, int margin,
-            int width, int height,
-            float[] lightmaps, float[] lightmapsEmissive, float[] color,
-            E8Image cpuLightmaps, E8Image cpuLightmapsEmissive,
-            int colorWidth, int colorHeight, byte[] colorMap,
-            LightmapAmbientCubeBVH ambientCubes,
-            String sha256
-    ) {
+        Objects.requireNonNull(lightmapNames, "Lightmap Names is null.");
+        Objects.requireNonNull(lightmaps, "Lightmaps is null.");
+        Objects.requireNonNull(cpuLightmaps, "CPU Lightmaps is null.");
+        Objects.requireNonNull(cpuColor, "CPU Color is null.");
+        
+        Objects.requireNonNull(ambientCubes, "Ambient Cubes is null.");
+
         if (name == null) {
             name = "Unnamed";
         }
-        Objects.requireNonNull(names, "Names is null");
-        Objects.requireNonNull(lightmaps, "Lightmaps is null");
-        if (width < 0) {
-            throw new IllegalArgumentException("Width is negative");
-        }
-        if (height < 0) {
-            throw new IllegalArgumentException("Height is negative");
-        }
-        if (margin < 0) {
-            throw new IllegalArgumentException("Margin is negative");
-        }
-
-        int requiredPixels = width * height * names.length * 3;
-
-        if (lightmaps.length != requiredPixels) {
-            throw new IllegalArgumentException("Invalid lightmaps size! required " + requiredPixels + ", found " + lightmaps.length);
-        }
-
-        Set<String> nameSet = new HashSet<>();
-        for (int i = 0; i < names.length; i++) {
-            if (names[i] == null) {
-                throw new IllegalArgumentException("Lightmap at index " + i + " has a null name");
-            }
-            if (nameSet.contains(names[i])) {
-                throw new IllegalArgumentException("Duplicate lightmap name: " + names[i]);
-            }
-            nameSet.add(names[i]);
-        }
-        
-        if (ambientCubes == null) {
-            ambientCubes = LightmapAmbientCubeBVH.create(new ArrayList<>());
+        if (uid == null) {
+            uid = UUID.randomUUID().toString();
         }
 
         this.name = name;
-        this.names = names;
-        this.margin = margin;
+        this.uid = uid;
 
-        this.lightmaps = lightmaps;
-        this.width = width;
-        this.height = height;
+        this.numberOfLightmaps = lightmapNames.length;
 
-        int divisions = Math.max((int) Math.floor(Math.log(margin) / Math.log(2.0)), 2);
-
-        if (cpuLightmaps == null) {
-            float[] newLightmaps = lightmaps.clone();
-            int newLightmapsWidth = width;
-            int newLightmapsHeight = height * names.length;
-
-            for (int i = 0; i < divisions; i++) {
-                newLightmaps = ImageUtils.mipmap(newLightmaps, newLightmapsWidth, newLightmapsHeight, 3);
-                newLightmapsWidth /= 2;
-                newLightmapsHeight /= 2;
-            }
-
-            this.cpuLightmaps = new E8Image(newLightmaps, newLightmapsWidth, newLightmapsHeight);
-        } else {
-            this.cpuLightmaps = cpuLightmaps;
+        if (lightmaps.length != this.numberOfLightmaps) {
+            throw new IllegalArgumentException("Lightmaps length is not " + this.numberOfLightmaps);
+        }
+        if (cpuLightmaps.length != this.numberOfLightmaps) {
+            throw new IllegalArgumentException("CPU Lightmaps length is not " + this.numberOfLightmaps);
         }
 
-        if (cpuLightmapsEmissive == null) {
-            Objects.requireNonNull(lightmapsEmissive, "Lightmaps emissive is null.");
-
-            if (lightmapsEmissive.length != requiredPixels) {
-                throw new IllegalArgumentException("Invalid lightmaps emissive size! required " + requiredPixels + ", found " + lightmapsEmissive.length);
+        if (!ambientCubes.getAmbientCubes().isEmpty()) {
+            if (ambientCubes.getAmbientCubes().get(0).getNumberOfAmbientCubes() != this.numberOfLightmaps) {
+                throw new IllegalArgumentException("Ambient Cube BVH amount of lightmaps is not " + this.numberOfLightmaps);
             }
-
-            float[] newEmissive = lightmapsEmissive.clone();
-            int newEmissiveWidth = width;
-            int newEmissiveHeight = height * names.length;
-
-            for (int i = 0; i < divisions; i++) {
-                newEmissive = ImageUtils.mipmap(newEmissive, newEmissiveWidth, newEmissiveHeight, 3);
-                newEmissiveWidth /= 2;
-                newEmissiveHeight /= 2;
-            }
-
-            this.cpuLightmapsEmissive = new E8Image(newEmissive, newEmissiveWidth, newEmissiveHeight);
-        } else {
-            this.cpuLightmapsEmissive = cpuLightmapsEmissive;
         }
 
-        if (colorMap == null) {
-            Objects.requireNonNull(color, "Color is null");
-
-            int requiredColorPixels = width * height * 4;
-
-            if (color.length != requiredColorPixels) {
-                throw new IllegalArgumentException("Invalid color size! required " + requiredColorPixels + ", found " + color.length);
-            }
-
-            float[] newColor = color;
-            int newColorWidth = width;
-            int newColorHeight = height;
-
-            for (int i = 0; i < divisions; i++) {
-                newColor = ImageUtils.mipmap(newColor, newColorWidth, newColorHeight, 4);
-                newColorWidth /= 2;
-                newColorHeight /= 2;
-            }
-
-            this.colorMap = new byte[newColorWidth * newColorHeight * 4];
-            for (int y = 0; y < newColorHeight; y++) {
-                for (int x = 0; x < newColorWidth; x++) {
-                    int r = (int) Math.min(Math.max(newColor[0 + (x * 4) + (y * newColorWidth * 4)] * 255f, 0f), 255f);
-                    int g = (int) Math.min(Math.max(newColor[1 + (x * 4) + (y * newColorWidth * 4)] * 255f, 0f), 255f);
-                    int b = (int) Math.min(Math.max(newColor[2 + (x * 4) + (y * newColorWidth * 4)] * 255f, 0f), 255f);
-                    int a = (int) Math.min(Math.max(newColor[3 + (x * 4) + (y * newColorWidth * 4)] * 255f, 0f), 255f);
-
-                    this.colorMap[0 + (x * 4) + (y * newColorWidth * 4)] = (byte) r;
-                    this.colorMap[1 + (x * 4) + (y * newColorWidth * 4)] = (byte) g;
-                    this.colorMap[2 + (x * 4) + (y * newColorWidth * 4)] = (byte) b;
-                    this.colorMap[3 + (x * 4) + (y * newColorWidth * 4)] = (byte) a;
-                }
-            }
-            this.colorMapWidth = newColorWidth;
-            this.colorMapHeight = newColorHeight;
-        } else {
-            int required = colorWidth * colorHeight * 4;
-            if (colorMap.length != required) {
-                throw new IllegalArgumentException("Color Map requires " + required + " components! but found " + colorMap.length);
-            }
-            
-            this.colorMap = colorMap;
-            this.colorMapWidth = colorWidth;
-            this.colorMapHeight = colorHeight;
+        for (int i = 0; i < this.numberOfLightmaps; i++) {
+            Objects.requireNonNull(lightmapNames[i], "Lightmap Name at index " + i + " is null.");
+            Objects.requireNonNull(lightmaps[i], "Lightmap at index " + i + " is null.");
+            Objects.requireNonNull(cpuLightmaps[i], "CPU Lightmap at index " + i + " is null.");
         }
         
+        int w = 0;
+        int h = 0;
+        int cpuw = 0;
+        int cpuh = 0;
+        if (this.numberOfLightmaps != 0) {
+            w = lightmaps[0].width();
+            h = lightmaps[0].height();
+
+            cpuw = cpuLightmaps[0].getWidth();
+            cpuh = cpuLightmaps[0].getHeight();
+        }
+        this.width = w;
+        this.height = h;
+        this.cpuLightmapWidth = cpuw;
+        this.cpuLightmapHeight = cpuh;
+        
+        for (int i = 0; i < this.numberOfLightmaps; i++) {
+            DXT5Texture lightmap = lightmaps[i];
+            E8Image cLightmap = cpuLightmaps[i];
+
+            if (lightmap.width() != this.width || lightmap.height() != this.height) {
+                throw new IllegalArgumentException("Lightmap at index " + i + " has different dimensions!");
+            }
+            if (cLightmap.getWidth() != this.cpuLightmapWidth || cLightmap.getHeight() != this.cpuLightmapHeight) {
+                throw new IllegalArgumentException("CPU Lightmap at index " + i + " has different dimensions!");
+            }
+        }
+
+        this.lightmapsNames = lightmapNames.clone();
+        this.lightmaps = lightmaps.clone();
+        this.cpuLightmaps = cpuLightmaps.clone();
+        this.cpuColor = cpuColor;
+
         this.ambientCubes = ambientCubes;
-        
-        for (int i = 0; i < this.names.length; i++) {
-            this.nameMap.put(this.names[i], i);
+
+        for (int i = 0; i < this.lightmapsNames.length; i++) {
+            this.nameMap.put(this.lightmapsNames[i], i);
         }
-        this.intensities = new float[this.names.length];
+        this.intensities = new float[this.numberOfLightmaps];
         for (int i = 0; i < this.intensities.length; i++) {
             this.intensities[i] = 1f;
-        }
-
-        if (sha256 == null) {
-            ByteBuffer buffer = ByteBuffer.allocate(
-                    (this.lightmaps.length * 4) + this.cpuLightmaps.getRGBE().length + this.colorMap.length
-            );
-
-            for (float f : this.lightmaps) {
-                buffer.putFloat(f);
-            }
-            buffer.put(this.cpuLightmaps.getRGBE());
-            buffer.put(this.colorMap);
-
-            buffer.flip();
-
-            this.sha256 = CryptoUtils.sha256(buffer);
-        } else {
-            this.sha256 = sha256;
         }
 
         registerForCleaning();
@@ -305,16 +223,12 @@ public class NLightmaps {
         return name;
     }
 
-    public String getName(int index) {
-        return this.names[index];
+    public String getUID() {
+        return uid;
     }
 
-    public int getMargin() {
-        return margin;
-    }
-
-    public float[] getLightmaps() {
-        return lightmaps;
+    public int getNumberOfLightmaps() {
+        return this.numberOfLightmaps;
     }
 
     public int getWidth() {
@@ -325,111 +239,40 @@ public class NLightmaps {
         return height;
     }
 
-    public E8Image getCPULightmaps() {
-        return cpuLightmaps;
+    public int getCPULightmapWidth() {
+        return cpuLightmapWidth;
     }
 
-    public E8Image getCPULightmapsEmissive() {
-        return cpuLightmapsEmissive;
+    public int getCPULightmapHeight() {
+        return cpuLightmapHeight;
+    }
+    
+    public String getLightmapName(int index) {
+        return this.lightmapsNames[index];
     }
 
-    public byte[] getColorMap() {
-        return colorMap;
+    public DXT5Texture getLightmap(int index) {
+        return this.lightmaps[index];
     }
 
-    public int getColorMapWidth() {
-        return colorMapWidth;
+    public E8Image getCPULightmap(int index) {
+        return this.cpuLightmaps[index];
     }
-
-    public int getColorMapHeight() {
-        return colorMapHeight;
+    
+    public RGBA8Image getCPUColor() {
+        return this.cpuColor;
     }
 
     public LightmapAmbientCubeBVH getAmbientCubes() {
         return ambientCubes;
     }
 
-    public String getSha256() {
-        return sha256;
-    }
-    
-    public List<LightmapAmbientCube> searchStaticAmbientCubes(float x, float y, float z) {
-        List<LightmapAmbientCube> cubes = this.ambientCubes.search(
-                x, y, z,
-                this.ambientCubes.getAverageRadius() * 2f
-        );
-        return cubes;
-    }
-
-    public void sampleCPULightmaps(float u, float v, Vector3f outLightmap) {
-        int w = this.cpuLightmaps.getWidth();
-        int h = this.cpuLightmaps.getHeight() / this.intensities.length;
-
-        int x = (int) (u * w);
-        int y = (int) (v * h);
-        x = Math.min(Math.max(x, 0), w - 1);
-        y = Math.min(Math.max(y, 0), h - 1);
-
-        float r = 0f;
-        float g = 0f;
-        float b = 0f;
-        for (int i = 0; i < this.intensities.length; i++) {
-            float intensity = this.intensities[i];
-            this.cpuLightmaps.read(
-                    x,
-                    y + (i * h),
-                    outLightmap
-            );
-
-            r += outLightmap.x() * intensity;
-            g += outLightmap.y() * intensity;
-            b += outLightmap.z() * intensity;
+    public int indexOf(String name) {
+        Integer i = this.nameMap.get(name);
+        if (i == null) {
+            return -1;
         }
-
-        outLightmap.set(r, g, b);
-    }
-
-    public void sampleCPULightmapsEmissive(float u, float v, Vector3f outLightmap) {
-        int w = this.cpuLightmapsEmissive.getWidth();
-        int h = this.cpuLightmapsEmissive.getHeight() / this.intensities.length;
-
-        int x = (int) (u * w);
-        int y = (int) (v * h);
-        x = Math.min(Math.max(x, 0), w - 1);
-        y = Math.min(Math.max(y, 0), h - 1);
-
-        float r = 0f;
-        float g = 0f;
-        float b = 0f;
-        for (int i = 0; i < this.intensities.length; i++) {
-            float intensity = this.intensities[i];
-            this.cpuLightmapsEmissive.read(
-                    x,
-                    y + (i * h),
-                    outLightmap
-            );
-
-            r += outLightmap.x() * intensity;
-            g += outLightmap.y() * intensity;
-            b += outLightmap.z() * intensity;
-        }
-
-        outLightmap.set(r, g, b);
-    }
-
-    public void sampleColorMap(float u, float v, Vector4f outColor) {
-        int x = (int) (u * this.colorMapWidth);
-        int y = (int) (v * this.colorMapHeight);
-        x = Math.min(Math.max(x, 0), this.colorMapWidth - 1);
-        y = Math.min(Math.max(y, 0), this.colorMapHeight - 1);
-
-        int pixelIndex = (x * 4) + (y * this.colorMapWidth * 4);
-        float r = ((this.colorMap[0 + pixelIndex] & 0xFF) / 255f);
-        float g = ((this.colorMap[1 + pixelIndex] & 0xFF) / 255f);
-        float b = ((this.colorMap[2 + pixelIndex] & 0xFF) / 255f);
-        float a = ((this.colorMap[3 + pixelIndex] & 0xFF) / 255f);
-
-        outColor.set(r, g, b, a);
+        return i;
     }
 
     public float getIntensity(int index) {
@@ -440,16 +283,58 @@ public class NLightmaps {
         this.intensities[index] = intensity;
     }
 
-    public int getNumberOfLightmaps() {
-        return this.names.length;
+    public List<LightmapAmbientCube> searchAmbientCubes(float x, float y, float z) {
+        List<LightmapAmbientCube> cubes = getAmbientCubes().search(
+                x, y, z,
+                getAmbientCubes().getAverageRadius() * 2f
+        );
+        return cubes;
     }
 
-    public int indexOf(String name) {
-        Integer i = this.nameMap.get(name);
-        if (i == null) {
-            return -1;
+    public void sampleLightmaps(float u, float v, Vector3f outLightmap) {
+        int w = getCPULightmapWidth();
+        int h = getCPULightmapHeight();
+
+        float r = 0f;
+        float g = 0f;
+        float b = 0f;
+        for (int i = 0; i < getNumberOfLightmaps(); i++) {
+            int x = (int) (u * w);
+            int y = (int) (v * h);
+            x = Math.min(Math.max(x, 0), w - 1);
+            y = Math.min(Math.max(y, 0), h - 1);
+
+            float intensity = getIntensity(i);
+            getCPULightmap(i).read(x, y, outLightmap);
+
+            r += outLightmap.x() * intensity;
+            g += outLightmap.y() * intensity;
+            b += outLightmap.z() * intensity;
         }
-        return i;
+
+        outLightmap.set(r, g, b);
+    }
+
+    public void sampleColor(float u, float v, Vector4f outColor) {
+        RGBA8Image color = getCPUColor();
+
+        int x = (int) (u * color.getWidth());
+        int y = (int) (v * color.getHeight());
+        x = Math.min(Math.max(x, 0), color.getWidth() - 1);
+        y = Math.min(Math.max(y, 0), color.getHeight() - 1);
+
+        color.sample(x, y, outColor);
+    }
+
+    public void sampleColorLinear(float u, float v, Vector4f outColor) {
+        sampleColor(u, v, outColor);
+
+        outColor.set(
+                Math.pow(outColor.x(), 2.2),
+                Math.pow(outColor.y(), 2.2),
+                Math.pow(outColor.z(), 2.2),
+                outColor.w()
+        );
     }
 
     public void manualFree() {
@@ -466,40 +351,86 @@ public class NLightmaps {
             return;
         }
 
-        int internalFormat = GL_R11F_G11F_B10F;
-        
-        String vendor = glGetString(GL_VENDOR);
-        if (vendor != null && vendor.toLowerCase().contains("nvidia")) {
-            if (Main.isSupported(4, 2)) {
-                internalFormat = GL42C.GL_COMPRESSED_RGB_BPTC_UNSIGNED_FLOAT;
-            } else if (GL.getCapabilities().GL_ARB_texture_compression_bptc) {
-                internalFormat = ARBTextureCompressionBPTC.GL_COMPRESSED_RGB_BPTC_UNSIGNED_FLOAT_ARB;
+        glActiveTexture(GL_TEXTURE0);
+
+        int lightmap = glGenTextures();
+        glBindTexture(GL_TEXTURE_2D_ARRAY, lightmap);
+
+        int internalFormat = GL_RGBA8;
+        if (GL.getCapabilities().GL_EXT_texture_compression_s3tc) {
+            internalFormat = EXTTextureCompressionS3TC.GL_COMPRESSED_RGBA_S3TC_DXT5_EXT;
+        }
+
+        int mipLevels = MipmapUtils.numberOfMipmaps(getWidth(), getHeight());
+        for (int i = 0; i < mipLevels; i++) {
+            glTexImage3D(
+                    GL_TEXTURE_2D_ARRAY,
+                    i,
+                    internalFormat,
+                    
+                    MipmapUtils.mipmapSize(getWidth(), i),
+                    MipmapUtils.mipmapSize(getHeight(), i),
+                    getNumberOfLightmaps(),
+                    
+                    0,
+                    
+                    GL_RGBA,
+                    GL_UNSIGNED_BYTE,
+                    (ByteBuffer) null
+            );
+        }
+
+        for (int i = 0; i < getNumberOfLightmaps(); i++) {
+            DXT5Texture texture = getLightmap(i);
+            if (internalFormat == GL_RGBA8) {
+                byte[] uncompressed = texture.decompress();
+
+                ByteBuffer data = memAlloc(uncompressed.length).put(uncompressed).flip();
+                try {
+                    glTexSubImage3D(
+                            GL_TEXTURE_2D_ARRAY,
+                            0,
+                            
+                            0,
+                            0,
+                            i,
+                            
+                            texture.width(),
+                            texture.height(),
+                            1,
+                            
+                            GL_RGBA,
+                            GL_UNSIGNED_BYTE,
+                            data
+                    );
+                } finally {
+                    memFree(data);
+                }
+            } else {
+                for (int j = 0; j < texture.mips(); j++) {
+                    glCompressedTexSubImage3D(
+                            GL_TEXTURE_2D_ARRAY,
+                            j,
+                            
+                            0,
+                            0,
+                            i,
+                            
+                            texture.mipWidth(j),
+                            texture.mipHeight(j),
+                            1,
+                            
+                            internalFormat,
+                            texture.mipSlice(j)
+                    );
+                }
             }
         }
 
-        int maxLod = (int) Math.abs(
-                Math.log(this.margin) / Math.log(2.0)
-        );
-        
-        glActiveTexture(GL_TEXTURE0);
-        
-        int lightmap = glGenTextures();
-        glBindTexture(GL_TEXTURE_2D_ARRAY, lightmap);
-        //glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, internalFormat, this.width, this.height, this.names.length, 0, GL_RGB, GL_FLOAT, this.lightmaps);
-        
-        E8Image image = new E8Image(this.lightmaps, this.width, this.height);
-        DXT5Texture tex = DXT5TextureStore.createDXT5Texture(image.getRGBE(), image.getWidth(), image.getHeight());
-        glCompressedTexImage3D(
-                GL_TEXTURE_2D_ARRAY,
-                0,
-                EXTTextureCompressionS3TC.GL_COMPRESSED_RGBA_S3TC_DXT5_EXT,
-                this.width,
-                this.height,
-                1,
-                0,
-                tex.mipSlice(0)
-        );
-        
+        if (internalFormat == GL_RGBA8) {
+            glGenerateMipmap(GL_TEXTURE_2D_ARRAY);
+        }
+
         glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 
@@ -507,8 +438,7 @@ public class NLightmaps {
         glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
         glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
 
-        glTexParameterf(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAX_LOD, maxLod);
-        glGenerateMipmap(GL_TEXTURE_2D_ARRAY);
+        glTexParameterf(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAX_LOD, MAX_LOD);
 
         if (GL.getCapabilities().GL_EXT_texture_filter_anisotropic) {
             glTexParameterf(

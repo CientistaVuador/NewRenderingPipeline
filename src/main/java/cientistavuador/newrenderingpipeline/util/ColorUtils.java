@@ -88,7 +88,7 @@ public class ColorUtils {
             );
         }
     }
-
+    
     private ColorUtils() {
 
     }

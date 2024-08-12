@@ -29,11 +29,13 @@ package cientistavuador.newrenderingpipeline.newrendering;
 import cientistavuador.newrenderingpipeline.Main;
 import cientistavuador.newrenderingpipeline.util.DXT5TextureStore;
 import cientistavuador.newrenderingpipeline.util.DXT5TextureStore.DXT5Texture;
+import cientistavuador.newrenderingpipeline.util.M8Image;
 import cientistavuador.newrenderingpipeline.util.ObjectCleaner;
 import cientistavuador.newrenderingpipeline.util.StringUtils;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.lang.ref.WeakReference;
 import java.nio.ByteBuffer;
 import java.util.Base64;
 import java.util.Objects;
@@ -97,6 +99,10 @@ public class NTextures {
     private final WrappedTexture r_g_b_a = new WrappedTexture();
     private final WrappedTexture ht_rg_mt_nx = new WrappedTexture();
     private final WrappedTexture er_eg_eb_ny = new WrappedTexture();
+    
+    private WeakReference<byte[]> decompressed_r_g_b_a_ref = null;
+    private WeakReference<byte[]> decompressed_ht_rg_mt_nx_ref = null;
+    private WeakReference<byte[]> decompressed_er_eg_eb_ny_ref = null;
 
     public NTextures(
             String name,
@@ -177,7 +183,7 @@ public class NTextures {
         return name;
     }
 
-    public String getUid() {
+    public String getUID() {
         return uid;
     }
 
@@ -208,17 +214,52 @@ public class NTextures {
     public DXT5Texture texture_er_eg_eb_ny() {
         return texture_er_eg_eb_ny;
     }
-
+    
+    private byte[] getOrNull(WeakReference<byte[]> ref) {
+        if (ref != null) {
+            byte[] result = ref.get();
+            if (result != null) {
+                return result;
+            }
+        }
+        return null;
+    }
+    
     public byte[] data_r_g_b_a() {
-        return texture_r_g_b_a().decompress();
+        byte[] cached = getOrNull(this.decompressed_r_g_b_a_ref);
+        if (cached != null) {
+            return cached;
+        }
+        
+        byte[] decompressed = texture_r_g_b_a().decompress();
+        if (NBlendingMode.OPAQUE.equals(getBlendingMode())) {
+            M8Image.m8ToRGBA(decompressed, this.width, this.height);
+        }
+        
+        this.decompressed_r_g_b_a_ref = new WeakReference<>(decompressed);
+        return decompressed;
     }
 
     public byte[] data_ht_rg_mt_nx() {
-        return texture_ht_rg_mt_nx().decompress();
+        byte[] cached = getOrNull(this.decompressed_ht_rg_mt_nx_ref);
+        if (cached != null) {
+            return cached;
+        }
+        
+        byte[] decompressed = texture_ht_rg_mt_nx().decompress();
+        this.decompressed_ht_rg_mt_nx_ref = new WeakReference<>(decompressed);
+        return decompressed;
     }
 
     public byte[] data_er_eg_eb_ny() {
-        return texture_er_eg_eb_ny().decompress();
+        byte[] cached = getOrNull(this.decompressed_er_eg_eb_ny_ref);
+        if (cached != null) {
+            return cached;
+        }
+        
+        byte[] decompressed = texture_er_eg_eb_ny().decompress();
+        this.decompressed_er_eg_eb_ny_ref = new WeakReference<>(decompressed);
+        return decompressed;
     }
 
     private int loadTexture(DXT5Texture textureData, boolean srgb, String name, long textureId) {

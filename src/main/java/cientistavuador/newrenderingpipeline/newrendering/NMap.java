@@ -29,8 +29,12 @@ package cientistavuador.newrenderingpipeline.newrendering;
 import cientistavuador.newrenderingpipeline.util.bakedlighting.AmbientCube;
 import cientistavuador.newrenderingpipeline.Main;
 import cientistavuador.newrenderingpipeline.util.ColorUtils;
+import cientistavuador.newrenderingpipeline.util.DXT5TextureStore;
+import cientistavuador.newrenderingpipeline.util.DXT5TextureStore.DXT5Texture;
+import cientistavuador.newrenderingpipeline.util.E8Image;
 import cientistavuador.newrenderingpipeline.util.MeshUtils;
 import cientistavuador.newrenderingpipeline.util.Pair;
+import cientistavuador.newrenderingpipeline.util.RGBA8Image;
 import cientistavuador.newrenderingpipeline.util.bakedlighting.LightmapAmbientCube;
 import cientistavuador.newrenderingpipeline.util.bakedlighting.LightmapUVs;
 import cientistavuador.newrenderingpipeline.util.bakedlighting.Lightmapper;
@@ -455,7 +459,7 @@ public class NMap {
 
             Vector4f color = new Vector4f(0f, 0f, 0f, 1f);
             if (this.lightmaps != null) {
-                this.lightmaps.sampleColorMap(lu, lv, color);
+                this.lightmaps.sampleColor(lu, lv, color);
             }
             colors.add(color);
         }
@@ -485,7 +489,7 @@ public class NMap {
             return;
         }
 
-        List<LightmapAmbientCube> lightmapAmbientCubes = this.lightmaps.searchStaticAmbientCubes(
+        List<LightmapAmbientCube> lightmapAmbientCubes = this.lightmaps.searchAmbientCubes(
                 (float) pX, (float) pY, (float) pZ
         );
 
@@ -604,9 +608,7 @@ public class NMap {
         Vector3f direction = new Vector3f();
         Vector3f weights = new Vector3f();
 
-        Vector4f textureColor = new Vector4f();
         Vector3f lightmapColor = new Vector3f();
-        Vector3f emissiveColor = new Vector3f();
 
         final int numberOfRays = 2048;
         for (int i = 0; i < AmbientCube.SIDES; i++) {
@@ -629,13 +631,7 @@ public class NMap {
                     float lu = localRay.lerp(weights, NMesh.OFFSET_LIGHTMAP_TEXTURE_XY + 0);
                     float lv = localRay.lerp(weights, NMesh.OFFSET_LIGHTMAP_TEXTURE_XY + 1);
 
-                    this.lightmaps.sampleCPULightmaps(lu, lv, lightmapColor);
-                    this.lightmaps.sampleCPULightmapsEmissive(lu, lv, emissiveColor);
-                    this.lightmaps.sampleColorMap(lu, lv, textureColor);
-
-                    lightmapColor
-                            .mul(textureColor.x(), textureColor.y(), textureColor.z())
-                            .add(emissiveColor);
+                    this.lightmaps.sampleLightmaps(lu, lv, lightmapColor);
                 } else {
                     lightmapColor.set(ambientColor);
                 }
@@ -818,15 +814,72 @@ public class NMap {
         status.setLightmapper(lightmapper);
 
         Lightmapper.LightmapperOutput output = lightmapper.bake();
-
+        
+        E8Image[] lightmapsImages = new E8Image[output.getNames().length];
+        for (int i = 0; i < lightmapsImages.length; i++) {
+            lightmapsImages[i] = new E8Image(output.getLightmaps()[i], output.getSize(), output.getSize());
+        }
+        
+        DXT5Texture[] lightmapsTextures = new DXT5Texture[lightmapsImages.length];
+        for (int i = 0; i < lightmapsTextures.length; i++) {
+            lightmapsTextures[i] = DXT5TextureStore.createDXT5Texture(lightmapsImages[i].getRGBE(), lightmapsImages[i].getWidth(), lightmapsImages[i].getHeight());
+        }
+        
+        float[] colorFloat = output.getColor();
+        Vector3f lightmapColor = new Vector3f();
+        for (int i = 0; i < lightmapsImages.length; i++) {
+            float[] emissive = output.getLightmapsEmissive()[i];
+            E8Image lightmapImage = lightmapsImages[i];
+            
+            for (int y = 0; y < lightmapImage.getHeight(); y++) {
+                for (int x = 0; x < lightmapImage.getWidth(); x++) {
+                    int index = (x * 3) + (y * output.getSize() * 3);
+                    
+                    float er = emissive[0 + index];
+                    float eg = emissive[1 + index];
+                    float eb = emissive[2 + index];
+                    
+                    lightmapImage.read(x, y, lightmapColor);
+                    
+                    lightmapColor.mul(
+                            colorFloat[0 + (x * 4) + (y * output.getSize() * 4)],
+                            colorFloat[1 + (x * 4) + (y * output.getSize() * 4)],
+                            colorFloat[2 + (x * 4) + (y * output.getSize() * 4)]
+                    )
+                            .mul(colorFloat[3 + (x * 4) + (y * output.getSize() * 4)])
+                            .add(er, eg, eb);
+                    
+                    lightmapImage.write(x, y, lightmapColor);
+                }
+            }
+            
+            lightmapsImages[i] = new E8Image(new RGBA8Image(lightmapImage.getRGBE(), lightmapImage.getWidth(), lightmapImage.getHeight()).mipmap());
+        }
+        
+        RGBA8Image color = new RGBA8Image(output.getSize(), output.getSize());
+        for (int y = 0; y < output.getSize(); y++) {
+            for (int x = 0; x < output.getSize(); x++) {
+                int index = (x * 4) + (y * output.getSize() * 4);
+                
+                color.write(
+                        x, y,
+                        (float) Math.pow(colorFloat[0 + index], 1.0 / 2.2),
+                        (float) Math.pow(colorFloat[1 + index], 1.0 / 2.2),
+                        (float) Math.pow(colorFloat[2 + index], 1.0 / 2.2),
+                        colorFloat[3 + index]
+                );
+            }
+        }
+        color = color.mipmap();
+        
         NLightmaps finalLightmaps = new NLightmaps(
-                this.name, output.getNames(), this.lightmapMargin,
-                this.lightmapSize, this.lightmapSize,
-                output.getLightmaps(), output.getLightmapsEmissive(), output.getColor(),
-                null, null,
-                0, 0, null,
-                output.getAmbientCubes(),
-                null
+                "lightmap_"+this.name,
+                null,
+                output.getNames(),
+                lightmapsTextures,
+                lightmapsImages,
+                color,
+                output.getAmbientCubes()
         );
         
         this.lightmaps = finalLightmaps;

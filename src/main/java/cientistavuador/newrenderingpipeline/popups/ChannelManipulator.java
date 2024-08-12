@@ -963,17 +963,17 @@ public class ChannelManipulator extends javax.swing.JFrame {
     }//GEN-LAST:event_alphaChannelLabelMouseClicked
 
     private void convertToRGBMActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_convertToRGBMActionPerformed
-        byte[] rgb = new byte[this.width * this.height * 3];
+        byte[] rgbm = new byte[this.width * this.height * 4];
         
         for (int y = 0; y < this.height; y++) {
             for (int x = 0; x < this.width; x++) {
-                rgb[0 + (x * 3) + (y * this.width * 3)] = (byte) this.redChannel.getRGB(x, y);
-                rgb[1 + (x * 3) + (y * this.width * 3)] = (byte) this.greenChannel.getRGB(x, y);
-                rgb[2 + (x * 3) + (y * this.width * 3)] = (byte) this.blueChannel.getRGB(x, y);
+                rgbm[0 + (x * 4) + (y * this.width * 4)] = (byte) this.redChannel.getRGB(x, y);
+                rgbm[1 + (x * 4) + (y * this.width * 4)] = (byte) this.greenChannel.getRGB(x, y);
+                rgbm[2 + (x * 4) + (y * this.width * 4)] = (byte) this.blueChannel.getRGB(x, y);
             }
         }
         
-        byte[] rgbm = M8Image.createFromRGB(rgb, 3, this.width, this.height).getRGBM();
+        M8Image.rgbaToM8(rgbm, this.width, this.height);
         
         for (int y = 0; y < this.height; y++) {
             for (int x = 0; x < this.width; x++) {
@@ -993,24 +993,24 @@ public class ChannelManipulator extends javax.swing.JFrame {
     }//GEN-LAST:event_convertToRGBMActionPerformed
 
     private void convertToRGBActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_convertToRGBActionPerformed
-        byte[] rgbm = new byte[this.width * this.height * 4];
+        byte[] rgba = new byte[this.width * this.height * 4];
         
         for (int y = 0; y < this.height; y++) {
             for (int x = 0; x < this.width; x++) {
-                rgbm[0 + (x * 4) + (y * this.width * 4)] = (byte) this.redChannel.getRGB(x, y);
-                rgbm[1 + (x * 4) + (y * this.width * 4)] = (byte) this.greenChannel.getRGB(x, y);
-                rgbm[2 + (x * 4) + (y * this.width * 4)] = (byte) this.blueChannel.getRGB(x, y);
-                rgbm[3 + (x * 4) + (y * this.width * 4)] = (byte) this.alphaChannel.getRGB(x, y);
+                rgba[0 + (x * 4) + (y * this.width * 4)] = (byte) this.redChannel.getRGB(x, y);
+                rgba[1 + (x * 4) + (y * this.width * 4)] = (byte) this.greenChannel.getRGB(x, y);
+                rgba[2 + (x * 4) + (y * this.width * 4)] = (byte) this.blueChannel.getRGB(x, y);
+                rgba[3 + (x * 4) + (y * this.width * 4)] = (byte) this.alphaChannel.getRGB(x, y);
             }
         }
         
-        byte[] rgb = new M8Image(rgbm, this.width, this.height).toRGB(false);
+        M8Image.m8ToRGBA(rgba, this.width, this.height);
         
         for (int y = 0; y < this.height; y++) {
             for (int x = 0; x < this.width; x++) {
-                int r = rgb[0 + (x * 3) + (y * this.width * 3)] & 0xFF;
-                int g = rgb[1 + (x * 3) + (y * this.width * 3)] & 0xFF;
-                int b = rgb[2 + (x * 3) + (y * this.width * 3)] & 0xFF;
+                int r = rgba[0 + (x * 4) + (y * this.width * 4)] & 0xFF;
+                int g = rgba[1 + (x * 4) + (y * this.width * 4)] & 0xFF;
+                int b = rgba[2 + (x * 4) + (y * this.width * 4)] & 0xFF;
                 
                 this.redChannel.setRGB(x, y, grayRGB(r));
                 this.greenChannel.setRGB(x, y, grayRGB(g));

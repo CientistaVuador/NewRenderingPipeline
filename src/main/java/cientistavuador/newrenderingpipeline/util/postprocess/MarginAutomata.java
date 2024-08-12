@@ -92,7 +92,7 @@ public class MarginAutomata {
     };
     private static final int NEIGHBORS_ROTATED = NEIGHBORS_POSITIONS_ROTATED.length / 2;
 
-    private static final ExecutorService THREADS = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors() * 2);
+    private static final ExecutorService THREADS = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
 
     private final MarginAutomataIO io;
     private final int iterations;

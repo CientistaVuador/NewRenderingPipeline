@@ -29,12 +29,12 @@ package cientistavuador.newrenderingpipeline.util;
 import cientistavuador.newrenderingpipeline.MainTasks;
 import java.awt.image.BufferedImage;
 import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
-import java.lang.ref.WeakReference;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.IntBuffer;
@@ -80,14 +80,12 @@ public class DXT5TextureStore {
         private final int[] mipsHeight;
         private final int[] mipsOffset;
         private final int[] mipsSize;
-
-        private WeakReference<byte[]> decompressed = null;
-
+        
         private static class WrappedBuffer {
 
             ByteBuffer buffer;
         }
-
+        
         private final WrappedBuffer wrappedBuffer;
 
         public DXT5Texture(ByteBuffer buffer) {
@@ -276,7 +274,6 @@ public class DXT5TextureStore {
                 t.start();
 
                 byte[] resultData = futureData.join();
-                this.decompressed = new WeakReference<>(resultData);
                 return resultData;
             } finally {
                 MainTasks.run(() -> {
@@ -286,16 +283,7 @@ public class DXT5TextureStore {
         }
 
         public byte[] decompress() {
-            if (this.decompressed != null) {
-                byte[] cached = this.decompressed.get();
-                if (cached != null) {
-                    return cached;
-                } else {
-                    this.decompressed = null;
-                }
-            }
-
-            if (!TextureCompressor.isAnySupported()) {
+            if (!TextureCompressor.isNVIDIATextureToolsSupported()) {
                 return decompressFallback();
             }
 
@@ -323,8 +311,6 @@ public class DXT5TextureStore {
                 Process p;
                 if (TextureCompressor.isNVIDIATextureToolsSupported()) {
                     p = TextureCompressor.callNVIDIATextureTools(workDirFile, false, "-format png " + inputFile.getName() + " " + outputFile.getName());
-                } else if (TextureCompressor.isAMDCompressonatorSupported()) {
-                    p = TextureCompressor.callAMDCompressonator(workDirFile, inputFile.getName() + " " + outputFile.getName());
                 } else {
                     throw new UnsupportedOperationException("Decompression not supported.");
                 }
@@ -375,9 +361,7 @@ public class DXT5TextureStore {
 
                 outputFile.delete();
                 workDirFile.delete();
-
-                this.decompressed = new WeakReference<>(decompressedImage);
-
+                
                 return decompressedImage;
             } catch (IOException ex) {
                 throw new UncheckedIOException(ex);
@@ -459,10 +443,10 @@ public class DXT5TextureStore {
     public static DXT5Texture createDXT5Texture(byte[] rgba, int width, int height) {
         ImageUtils.validate(rgba, width, height, 4);
 
-        if (!TextureCompressor.isAnySupported()) {
+        if (!TextureCompressor.isNVIDIATextureToolsSupported()) {
             return createDXT5TextureFallback(rgba, width, height);
         }
-
+        
         int amountOfMips = MipmapUtils.numberOfMipmaps(width, height);
 
         try {
@@ -485,9 +469,7 @@ public class DXT5TextureStore {
 
             Process p;
             if (TextureCompressor.isNVIDIATextureToolsSupported()) {
-                p = TextureCompressor.callNVIDIATextureTools(workDirFile, true, "-bc3 -max-mip-count " + amountOfMips + " -highest " + inputFile.getName() + " " + outputFile.getName());
-            } else if (TextureCompressor.isAMDCompressonatorSupported()) {
-                p = TextureCompressor.callAMDCompressonator(workDirFile, "-fd DXT5 -miplevels " + amountOfMips + " " + inputFile.getName() + " " + outputFile.getName());
+                p = TextureCompressor.callNVIDIATextureTools(workDirFile, true, "-max-mip-count " + amountOfMips + " -highest -bc3 " + inputFile.getName() + " " + outputFile.getName());
             } else {
                 throw new UnsupportedOperationException("Compression not supported.");
             }
@@ -594,6 +576,14 @@ public class DXT5TextureStore {
         } catch (Throwable t) {
             memFree(decompressed);
             throw t;
+        }
+    }
+    
+    public static DXT5Texture readDXT5Texture(byte[] data) {
+        try {
+            return readDXT5Texture(new ByteArrayInputStream(data));
+        } catch (IOException ex) {
+            throw new UncheckedIOException(ex);
         }
     }
 

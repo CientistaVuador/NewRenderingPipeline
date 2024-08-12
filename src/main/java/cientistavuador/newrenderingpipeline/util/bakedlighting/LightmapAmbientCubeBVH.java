@@ -41,11 +41,20 @@ public class LightmapAmbientCubeBVH {
     public static LightmapAmbientCubeBVH create(List<LightmapAmbientCube> ambientCubes) {
         Vector3f min = new Vector3f();
         Vector3f max = new Vector3f();
-
+        
+        int lightmaps = 0;
+        if (!ambientCubes.isEmpty()) {
+            lightmaps = ambientCubes.get(0).getNumberOfAmbientCubes();
+        }
+        
         List<LightmapAmbientCubeBVH> current = new ArrayList<>();
-
+        
         for (int i = 0; i < ambientCubes.size(); i++) {
             LightmapAmbientCube ambientCube = ambientCubes.get(i);
+            
+            if (ambientCube.getNumberOfAmbientCubes() != lightmaps) {
+                throw new IllegalArgumentException("Ambient cube at index "+i+" has a invalid amount of lightmaps!");
+            }
             
             float radius = ambientCube.getRadius();
 
