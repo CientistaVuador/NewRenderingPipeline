@@ -58,7 +58,7 @@ public class Geometry {
         for (Geometry g:geometries) {
             g.getInverseModel().transformProject(transformedPosition.set(x, y, z));
             
-            if (g.getMesh().getBVH().testSphere(
+            if (g.getMesh().getBVH().fastTestSphere(
                     transformedPosition.x(), transformedPosition.y(), transformedPosition.z(),
                     radius
             )) {

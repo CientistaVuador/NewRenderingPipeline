@@ -1,12 +1,6 @@
-Please contact the developer if you are the owner of a library not on public
-domain that was not declared in here.
-
 Files covered by licenses on this file:
 
-natives_linux.zip
-natives_macos.zip
-windows natives (in the compiled jar)
-natives_bullet.zip
+natives.zip
 
 Index:
  

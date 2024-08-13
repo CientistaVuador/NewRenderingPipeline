@@ -236,7 +236,7 @@ public class NCubemap {
         if (this.wrappedCubemap.texture != 0) {
             return;
         }
-
+        
         glActiveTexture(GL_TEXTURE0);
 
         int cubemapTexture = glGenTextures();

@@ -44,9 +44,9 @@ public class M8Image {
                 float g = (rgba[1 + (x * 4) + (y * width * 4)] & 0xFF) / 255f;
                 float b = (rgba[2 + (x * 4) + (y * width * 4)] & 0xFF) / 255f;
                 
-                int iR = 0;
-                int iG = 0;
-                int iB = 0;
+                int iR = 255;
+                int iG = 255;
+                int iB = 255;
                 int iM = 0;
                 encode:
                 {

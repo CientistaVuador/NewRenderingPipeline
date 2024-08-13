@@ -350,7 +350,7 @@ public class NLightmaps {
         if (this.lightmapTexture.texture != 0) {
             return;
         }
-
+        
         glActiveTexture(GL_TEXTURE0);
 
         int lightmap = glGenTextures();

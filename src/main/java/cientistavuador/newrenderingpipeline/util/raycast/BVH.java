@@ -30,7 +30,9 @@ import cientistavuador.newrenderingpipeline.util.Aab;
 import cientistavuador.newrenderingpipeline.util.MeshUtils;
 import java.util.ArrayList;
 import java.util.BitSet;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import org.joml.Intersectionf;
 import org.joml.Vector3f;
 import org.joml.Vector3fc;
@@ -490,7 +492,7 @@ public class BVH implements Aab {
         return results;
     }
 
-    private boolean testSphere(BVH bvh, float x, float y, float z, float radius) {
+    private boolean fastTestSphere(BVH bvh, float x, float y, float z, float radius) {
         if (bvh == null) {
             return false;
         }
@@ -541,11 +543,71 @@ public class BVH implements Aab {
             return false;
         }
 
-        return testSphere(bvh.getLeft(), x, y, z, radius) || testSphere(bvh.getRight(), x, y, z, radius);
+        return fastTestSphere(bvh.getLeft(), x, y, z, radius) || fastTestSphere(bvh.getRight(), x, y, z, radius);
     }
 
-    public boolean testSphere(float x, float y, float z, float radius) {
-        return testSphere(this, x, y, z, radius);
+    public boolean fastTestSphere(float x, float y, float z, float radius) {
+        return fastTestSphere(this, x, y, z, radius);
+    }
+    
+    private void testSphere(Set<Integer> triangles, BVH bvh, float x, float y, float z, float radius) {
+        if (bvh == null) {
+            return;
+        }
+        
+        if (!Intersectionf.testAabSphere(
+                bvh.getMin().x(), bvh.getMin().y(), bvh.getMin().z(),
+                bvh.getMax().x(), bvh.getMax().y(), bvh.getMax().z(),
+                x, y, z, radius * radius
+        )) {
+            return;
+        }
+
+        if (bvh.getLeft() == null && bvh.getRight() == null) {
+            Vector3f resultVector = new Vector3f();
+            for (int triangle : bvh.getTriangles()) {
+                int i0 = this.indices[(triangle * 3) + 0];
+                int i1 = this.indices[(triangle * 3) + 1];
+                int i2 = this.indices[(triangle * 3) + 2];
+
+                int v0xyz = (i0 * this.vertexSize) + this.xyzOffset;
+                int v1xyz = (i1 * this.vertexSize) + this.xyzOffset;
+                int v2xyz = (i2 * this.vertexSize) + this.xyzOffset;
+
+                float v0x = this.vertices[v0xyz + 0];
+                float v0y = this.vertices[v0xyz + 1];
+                float v0z = this.vertices[v0xyz + 2];
+
+                float v1x = this.vertices[v1xyz + 0];
+                float v1y = this.vertices[v1xyz + 1];
+                float v1z = this.vertices[v1xyz + 2];
+
+                float v2x = this.vertices[v2xyz + 0];
+                float v2y = this.vertices[v2xyz + 1];
+                float v2z = this.vertices[v2xyz + 2];
+
+                int result = Intersectionf.intersectSphereTriangle(
+                        x, y, z, radius,
+                        v0x, v0y, v0z,
+                        v1x, v1y, v1z,
+                        v2x, v2y, v2z,
+                        resultVector
+                );
+
+                if (result != 0 && !triangles.contains(triangle)) {
+                    triangles.add(triangle);
+                }
+            }
+        }
+
+        testSphere(triangles, bvh.getLeft(), x, y, z, radius);
+        testSphere(triangles, bvh.getRight(), x, y, z, radius);
+    }
+    
+    public Set<Integer> testSphere(float x, float y, float z, float radius) {
+        Set<Integer> set = new HashSet<>();
+        testSphere(set, this, x, y, z, radius);
+        return set;
     }
 
 }

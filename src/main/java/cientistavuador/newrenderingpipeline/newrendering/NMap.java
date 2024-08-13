@@ -853,7 +853,7 @@ public class NMap {
                 }
             }
             
-            lightmapsImages[i] = new E8Image(new RGBA8Image(lightmapImage.getRGBE(), lightmapImage.getWidth(), lightmapImage.getHeight()).mipmap());
+            lightmapsImages[i] = new E8Image(new RGBA8Image(lightmapImage.getRGBE(), lightmapImage.getWidth(), lightmapImage.getHeight()).mipmap().mipmap());
         }
         
         RGBA8Image color = new RGBA8Image(output.getSize(), output.getSize());
@@ -870,7 +870,7 @@ public class NMap {
                 );
             }
         }
-        color = color.mipmap();
+        color = color.mipmap().mipmap();
         
         NLightmaps finalLightmaps = new NLightmaps(
                 "lightmap_"+this.name,

@@ -1,7 +1,5 @@
-A Special thanks to those who made:
+A Special thanks to:
 
 https://github.com/nothings/stb
-https://cc0-textures.com/t/th-brick-4
-https://cc0-textures.com/t/cc0t-concrete-017
-https://cc0-textures.com/t/cc0t-grass-001
-https://cc0-textures.com/t/cc0t-asphalt-029-b-bicycle-path
+https://cc0-textures.com/
+https://github.com/stephengold/Libbulletjme

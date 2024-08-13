@@ -1,6 +1,3 @@
-Please contact the developer if you are the owner of a font not on public
-domain that was not declared in here.
-
 Files covered by licenses on this file:
 
 OpenSans-Light-Italic.zip

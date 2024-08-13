@@ -28,7 +28,6 @@ package cientistavuador.newrenderingpipeline;
 
 import cientistavuador.newrenderingpipeline.camera.FreeCamera;
 import cientistavuador.newrenderingpipeline.debug.AabRender;
-import cientistavuador.newrenderingpipeline.debug.DebugCounter;
 import cientistavuador.newrenderingpipeline.debug.LineRender;
 import cientistavuador.newrenderingpipeline.newrendering.N3DModel;
 import cientistavuador.newrenderingpipeline.newrendering.N3DModelStore;
@@ -132,7 +131,6 @@ public class Game {
     private final PlayerController playerController = new PlayerController();
 
     {
-
         try {
             this.skybox = NCubemapStore.readCubemap("cientistavuador/newrenderingpipeline/resources/cubemaps/skybox.cbm");
 
@@ -157,7 +155,7 @@ public class Game {
                 this.plasticBall = new N3DObject("plastic ball", plasticBallModel);
             }
             
-            this.map = new NMap("map", mapObjects, NMap.DEFAULT_LIGHTMAP_MARGIN, 15f);
+            this.map = new NMap("map", mapObjects, NMap.DEFAULT_LIGHTMAP_MARGIN, 61f);
             this.map.setLightmaps(NLightmapsStore.readLightmaps("cientistavuador/newrenderingpipeline/resources/lightmaps/lightmap.lit"));
 
             this.triceratops.setMap(this.map);
@@ -266,35 +264,23 @@ public class Game {
         NCubemap.NULL_CUBEMAP.cubemap();
         NLightmaps.NULL_LIGHTMAPS.lightmaps();
         
-        System.out.println("running!");
-
         this.camera.setUBO(CameraUBO.create(UBOBindingPoints.PLAYER_CAMERA));
-
-        DebugCounter e = new DebugCounter();
-
-        e.markStart("Load Models");
+        
         for (int i = 0; i < this.map.getNumberOfObjects(); i++) {
             this.map.getObject(i).getN3DModel().load();
         }
         this.plasticBall.getN3DModel().load();
         this.triceratops.getN3DModel().load();
-        e.markEnd("Load Models");
-
-        e.markStart("Load Skybox");
+        
         this.skybox.cubemap();
-        e.markEnd("Load Skybox");
-
-        e.markStart("Load Lightmaps");
+        
         this.map.getLightmaps().lightmaps();
-        e.markEnd("Load Lightmaps");
-
-        e.markStart("Load Cubemaps");
+        
         for (int i = 0; i < this.cubemaps.getNumberOfCubemaps(); i++) {
             this.cubemaps.getCubemap(i).cubemap();
         }
-        e.markEnd("Load Cubemaps");
-
-        e.print();
+        
+        System.gc();
     }
 
     private final Vector3f plasticBallRotation = new Vector3f(0f, 0f, 1f);
@@ -497,6 +483,7 @@ public class Game {
                         name,
                         info,
                         256,
+                        8,
                         this.lights,
                         this.cubemaps
                 );
