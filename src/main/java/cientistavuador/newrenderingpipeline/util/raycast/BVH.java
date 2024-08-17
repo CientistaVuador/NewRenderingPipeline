@@ -28,10 +28,14 @@ package cientistavuador.newrenderingpipeline.util.raycast;
 
 import cientistavuador.newrenderingpipeline.util.Aab;
 import cientistavuador.newrenderingpipeline.util.MeshUtils;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.BitSet;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Queue;
 import java.util.Set;
 import org.joml.Intersectionf;
 import org.joml.Vector3f;
@@ -44,60 +48,225 @@ import org.joml.Vector3fc;
 public class BVH implements Aab {
 
     private static final float AABB_OFFSET = 0.001f;
-    
+    private static final float EPSILON = 0.001f;
+    private static final int PLANAR_BVH_MAX_AMOUNT_OF_TRIANGLES = 8;
+
     public static BVH create(float[] vertices, int[] indices, int vertexSize, int xyzOffset) {
         return create(null, vertices, indices, vertexSize, xyzOffset);
     }
 
-    public static BVH create(Object userObject, float[] vertices, int[] indices, int vertexSize, int xyzOffset) {
-        if (vertices.length == 0) {
-            return new BVH(userObject, vertices, indices, vertexSize, xyzOffset, new Vector3f(), new Vector3f());
+    private static List<BVH> createPlanarBVHs(
+            Object userObject,
+            float[] vertices,
+            int[] indices,
+            int vertexSize,
+            int xyzOffset
+    ) {
+        Map<Integer, Vector3f> triangleNormals = new HashMap<>();
+        for (int i = 0; i < indices.length; i += 3) {
+            int v0 = (indices[i + 0] * vertexSize) + xyzOffset;
+            int v1 = (indices[i + 1] * vertexSize) + xyzOffset;
+            int v2 = (indices[i + 2] * vertexSize) + xyzOffset;
+            Vector3f a = new Vector3f(
+                    vertices[v0 + 0],
+                    vertices[v0 + 1],
+                    vertices[v0 + 2]
+            );
+            Vector3f b = new Vector3f(
+                    vertices[v1 + 0],
+                    vertices[v1 + 1],
+                    vertices[v1 + 2]
+            );
+            Vector3f c = new Vector3f(
+                    vertices[v2 + 0],
+                    vertices[v2 + 1],
+                    vertices[v2 + 2]
+            );
+            Vector3f dirA = new Vector3f(b).sub(a).normalize();
+            Vector3f dirB = new Vector3f(c).sub(a).normalize();
+            triangleNormals.put(i / 3, new Vector3f(dirA).cross(dirB).normalize());
         }
-        
-        final int numberOfTriangles = indices.length / 3;
 
-        BVH[] currentArray = new BVH[numberOfTriangles];
+        Map<Vector3f, List<Integer>> vertexMap = new HashMap<>();
+        for (int i = 0; i < indices.length; i++) {
+            Vector3f p = new Vector3f(
+                    vertices[(indices[i] * vertexSize) + xyzOffset + 0],
+                    vertices[(indices[i] * vertexSize) + xyzOffset + 1],
+                    vertices[(indices[i] * vertexSize) + xyzOffset + 2]
+            );
 
-        for (int i = 0; i < numberOfTriangles; i++) {
-            int v0 = (indices[(i * 3) + 0] * vertexSize) + xyzOffset;
-            int v1 = (indices[(i * 3) + 1] * vertexSize) + xyzOffset;
-            int v2 = (indices[(i * 3) + 2] * vertexSize) + xyzOffset;
+            List<Integer> vertexList = vertexMap.get(p);
+            if (vertexList == null) {
+                vertexList = new ArrayList<>();
+                vertexMap.put(p, vertexList);
+            }
+            vertexList.add(i);
+        }
 
-            float v0x = vertices[v0 + 0];
-            float v0y = vertices[v0 + 1];
-            float v0z = vertices[v0 + 2];
+        final class Edge {
 
-            float v1x = vertices[v1 + 0];
-            float v1y = vertices[v1 + 1];
-            float v1z = vertices[v1 + 2];
+            int iA;
+            int iB;
 
-            float v2x = vertices[v2 + 0];
-            float v2y = vertices[v2 + 1];
-            float v2z = vertices[v2 + 2];
+            public Edge(int iA, int iB) {
+                this.iA = iA;
+                this.iB = iB;
+            }
+        }
 
-            float minX = Math.min(v0x, Math.min(v1x, v2x)) - AABB_OFFSET;
-            float minY = Math.min(v0y, Math.min(v1y, v2y)) - AABB_OFFSET;
-            float minZ = Math.min(v0z, Math.min(v1z, v2z)) - AABB_OFFSET;
+        List<BVH> planarBVHs = new ArrayList<>();
+        BitSet processedTriangles = new BitSet(indices.length / 3);
 
-            float maxX = Math.max(v0x, Math.max(v1x, v2x)) + AABB_OFFSET;
-            float maxY = Math.max(v0y, Math.max(v1y, v2y)) + AABB_OFFSET;
-            float maxZ = Math.max(v0z, Math.max(v1z, v2z)) + AABB_OFFSET;
-            
-            BVH e = new BVH(
+        for (int i = 0; i < indices.length; i += 3) {
+            int triangle = i / 3;
+
+            if (processedTriangles.get(triangle)) {
+                continue;
+            }
+            processedTriangles.set(triangle);
+
+            Vector3f triangleNormal = triangleNormals.get(triangle);
+
+            final List<Integer> triangles = new ArrayList<>();
+            final Queue<Edge> edges = new ArrayDeque<>();
+
+            triangles.add(triangle);
+
+            edges.add(new Edge((triangle * 3) + 0, (triangle * 3) + 1));
+            edges.add(new Edge((triangle * 3) + 1, (triangle * 3) + 2));
+            edges.add(new Edge((triangle * 3) + 2, (triangle * 3) + 0));
+
+            Edge e;
+            edgeLoop:
+            while ((e = edges.poll()) != null) {
+                Vector3f pA = new Vector3f(
+                        vertices[(indices[e.iA] * vertexSize) + xyzOffset + 0],
+                        vertices[(indices[e.iA] * vertexSize) + xyzOffset + 1],
+                        vertices[(indices[e.iA] * vertexSize) + xyzOffset + 2]
+                );
+                Vector3f pB = new Vector3f(
+                        vertices[(indices[e.iB] * vertexSize) + xyzOffset + 0],
+                        vertices[(indices[e.iB] * vertexSize) + xyzOffset + 1],
+                        vertices[(indices[e.iB] * vertexSize) + xyzOffset + 2]
+                );
+
+                List<Integer> vertsAtA = vertexMap.get(pA);
+                List<Integer> vertsAtB = vertexMap.get(pB);
+
+                if (vertsAtA.isEmpty() || vertsAtB.isEmpty()) {
+                    continue;
+                }
+
+                for (Integer vA : vertsAtA) {
+                    int otherTriangle = vA / 3;
+                    if (processedTriangles.get(otherTriangle)) {
+                        continue;
+                    }
+                    boolean triangleFound = false;
+                    for (Integer vB : vertsAtB) {
+                        if ((vB / 3) == otherTriangle) {
+                            triangleFound = true;
+                            break;
+                        }
+                    }
+                    if (triangleFound) {
+                        Vector3f otherTriangleNormal = triangleNormals.get(otherTriangle);
+
+                        if (otherTriangleNormal.dot(triangleNormal) >= (1f - EPSILON)) {
+                            processedTriangles.set(otherTriangle);
+
+                            edges.add(new Edge((otherTriangle * 3) + 0, (otherTriangle * 3) + 1));
+                            edges.add(new Edge((otherTriangle * 3) + 1, (otherTriangle * 3) + 2));
+                            edges.add(new Edge((otherTriangle * 3) + 2, (otherTriangle * 3) + 0));
+
+                            triangles.add(otherTriangle);
+                        }
+                    }
+                    if (triangles.size() >= PLANAR_BVH_MAX_AMOUNT_OF_TRIANGLES) {
+                        break edgeLoop;
+                    }
+                }
+            }
+
+            int[] trianglesArray = new int[triangles.size()];
+            for (int j = 0; j < triangles.size(); j++) {
+                trianglesArray[j] = triangles.get(j);
+            }
+
+            float minX = Float.POSITIVE_INFINITY;
+            float minY = Float.POSITIVE_INFINITY;
+            float minZ = Float.POSITIVE_INFINITY;
+
+            float maxX = Float.NEGATIVE_INFINITY;
+            float maxY = Float.NEGATIVE_INFINITY;
+            float maxZ = Float.NEGATIVE_INFINITY;
+
+            for (int currentTriangle : trianglesArray) {
+                int i0 = indices[(currentTriangle * 3) + 0];
+                int i1 = indices[(currentTriangle * 3) + 1];
+                int i2 = indices[(currentTriangle * 3) + 2];
+
+                int v0 = (i0 * vertexSize) + xyzOffset;
+                int v1 = (i1 * vertexSize) + xyzOffset;
+                int v2 = (i2 * vertexSize) + xyzOffset;
+
+                float v0x = vertices[v0 + 0];
+                float v0y = vertices[v0 + 1];
+                float v0z = vertices[v0 + 2];
+
+                float v1x = vertices[v1 + 0];
+                float v1y = vertices[v1 + 1];
+                float v1z = vertices[v1 + 2];
+
+                float v2x = vertices[v2 + 0];
+                float v2y = vertices[v2 + 1];
+                float v2z = vertices[v2 + 2];
+
+                float triangleMinX = Math.min(v0x, Math.min(v1x, v2x)) - AABB_OFFSET;
+                float triangleMinY = Math.min(v0y, Math.min(v1y, v2y)) - AABB_OFFSET;
+                float triangleMinZ = Math.min(v0z, Math.min(v1z, v2z)) - AABB_OFFSET;
+
+                float triangleMaxX = Math.max(v0x, Math.max(v1x, v2x)) + AABB_OFFSET;
+                float triangleMaxY = Math.max(v0y, Math.max(v1y, v2y)) + AABB_OFFSET;
+                float triangleMaxZ = Math.max(v0z, Math.max(v1z, v2z)) + AABB_OFFSET;
+
+                minX = Math.min(minX, triangleMinX);
+                minY = Math.min(minY, triangleMinY);
+                minZ = Math.min(minZ, triangleMinZ);
+
+                maxX = Math.max(maxX, triangleMaxX);
+                maxY = Math.max(maxY, triangleMaxY);
+                maxZ = Math.max(maxZ, triangleMaxZ);
+            }
+
+            BVH bvh = new BVH(
                     userObject,
                     vertices,
                     indices,
                     vertexSize,
                     xyzOffset,
                     minX, minY, minZ,
-                    maxX, maxY, maxZ
+                    maxX, maxY, maxZ,
+                    null, null,
+                    trianglesArray.length, trianglesArray
             );
-            e.amountOfTriangles = 1;
-            e.triangles = new int[]{i};
-            currentArray[i] = e;
+
+            planarBVHs.add(bvh);
         }
-        
-        BVH[] nextArray = new BVH[numberOfTriangles];
+
+        return planarBVHs;
+    }
+
+    public static BVH create(Object userObject, float[] vertices, int[] indices, int vertexSize, int xyzOffset) {
+        if (vertices.length == 0) {
+            return new BVH(userObject, vertices, indices, vertexSize, xyzOffset, 0f, 0f, 0f, 0f, 0f, 0f, null, null, 0, null);
+        }
+
+        List<BVH> planarBVHs = createPlanarBVHs(userObject, vertices, indices, vertexSize, xyzOffset);
+
+        BVH[] currentArray = planarBVHs.toArray(BVH[]::new);
+        BVH[] nextArray = new BVH[currentArray.length];
+
         int currentLength = nextArray.length;
         int nextIndex = 0;
 
@@ -196,11 +365,10 @@ public class BVH implements Aab {
                         vertexSize,
                         xyzOffset,
                         newMinX, newMinY, newMinZ,
-                        newMaxX, newMaxY, newMaxZ
+                        newMaxX, newMaxY, newMaxZ,
+                        current, closest,
+                        current.amountOfTriangles + closest.amountOfTriangles, null
                 );
-                merge.amountOfTriangles = current.amountOfTriangles + closest.amountOfTriangles;
-                merge.left = current;
-                merge.right = closest;
                 current.parent = merge;
                 closest.parent = merge;
 
@@ -229,12 +397,27 @@ public class BVH implements Aab {
     private final Vector3f max = new Vector3f();
 
     protected BVH parent;
-    protected BVH left;
-    protected BVH right;
-    protected int amountOfTriangles = 0;
-    protected int[] triangles = null;
 
-    protected BVH(Object userObject, float[] vertices, int[] indices, int vertexSize, int xyzOffset, float minX, float minY, float minZ, float maxX, float maxY, float maxZ) {
+    private final BVH left;
+    private final BVH right;
+    private final int amountOfTriangles;
+    private final int[] triangles;
+
+    private final boolean planarOptimizationEnabled;
+    private final Vector3f planarNormal;
+    private final Vector3f planarPosition;
+
+    protected BVH(
+            Object userObject,
+            float[] vertices,
+            int[] indices,
+            int vertexSize,
+            int xyzOffset,
+            float minX, float minY, float minZ,
+            float maxX, float maxY, float maxZ,
+            BVH left, BVH right,
+            int amountOfTriangles, int[] triangles
+    ) {
         this.userObject = userObject;
         this.vertices = vertices;
         this.indices = indices;
@@ -242,10 +425,59 @@ public class BVH implements Aab {
         this.xyzOffset = xyzOffset;
         this.min.set(minX, minY, minZ);
         this.max.set(maxX, maxY, maxZ);
-    }
+        this.left = left;
+        this.right = right;
+        this.amountOfTriangles = amountOfTriangles;
+        this.triangles = triangles;
 
-    private BVH(Object userObject, float[] vertices, int[] indices, int vertexSize, int xyzOffset, Vector3fc min, Vector3fc max) {
-        this(userObject, vertices, indices, vertexSize, xyzOffset, min.x(), min.y(), min.z(), max.x(), max.y(), max.z());
+        boolean pEnabled = false;
+        Vector3f pNormal = null;
+        Vector3f pPosition = null;
+        enablePlanarOptimization:
+        {
+            if (this.triangles == null || this.triangles.length <= 1) {
+                break enablePlanarOptimization;
+            }
+            
+            Vector3f normal = new Vector3f();
+            MeshUtils.calculateTriangleNormal(
+                    this.vertices,
+                    this.vertexSize,
+                    this.xyzOffset,
+                    this.indices[(this.triangles[0] * 3) + 0],
+                    this.indices[(this.triangles[0] * 3) + 1],
+                    this.indices[(this.triangles[0] * 3) + 2],
+                    normal
+            );
+            
+            Vector3f otherNormal = new Vector3f();
+            for (int i = 1; i < triangles.length; i++) {
+                MeshUtils.calculateTriangleNormal(
+                        this.vertices,
+                        this.vertexSize,
+                        this.xyzOffset,
+                        this.indices[(this.triangles[i] * 3) + 0],
+                        this.indices[(this.triangles[i] * 3) + 1],
+                        this.indices[(this.triangles[i] * 3) + 2],
+                        otherNormal
+                );
+                if (otherNormal.dot(normal) < (1f - EPSILON)) {
+                    break enablePlanarOptimization;
+                }
+            }
+            
+            int v0 = (this.indices[(this.triangles[0] * 3) + 0] * this.vertexSize) + this.xyzOffset;
+            pEnabled = true;
+            pNormal = normal;
+            pPosition = new Vector3f(
+                    this.vertices[v0 + 0],
+                    this.vertices[v0 + 1],
+                    this.vertices[v0 + 2]
+            );
+        }
+        this.planarOptimizationEnabled = pEnabled;
+        this.planarNormal = pNormal;
+        this.planarPosition = pPosition;
     }
 
     public Object getUserObject() {
@@ -314,6 +546,18 @@ public class BVH implements Aab {
     ) {
         if (rayMin != null && rayMax != null) {
             if (!IntersectionUtils.testAabAab(rayMin, rayMax, e.getMin(), e.getMax())) {
+                return false;
+            }
+        }
+        if (this.planarOptimizationEnabled) {
+            float planeIntersection = Intersectionf.intersectRayPlane(localOrigin, localDirection, this.planarPosition, this.planarNormal, 1f / 100000f);
+            if (planeIntersection < 0f) {
+                return false;
+            }
+            float pX = localOrigin.x() + (localDirection.x() * planeIntersection);
+            float pY = localOrigin.y() + (localDirection.y() * planeIntersection);
+            float pZ = localOrigin.z() + (localDirection.z() * planeIntersection);
+            if (!IntersectionUtils.testAabPoint(e.getMin(), e.getMax(), pX, pY, pZ)) {
                 return false;
             }
         }
@@ -387,7 +631,7 @@ public class BVH implements Aab {
             rayMin.set(minX, minY, minZ);
             rayMax.set(maxX, maxY, maxZ);
         }
-        
+
         return fastTestRay(a, b, c, this, localOrigin, localDirection, maxLength, rayMin, rayMax);
     }
 
@@ -396,6 +640,19 @@ public class BVH implements Aab {
             List<LocalRayResult> resultsOutput, BVH bvh, BitSet tested,
             Vector3f normal, Vector3f hitposition, Vector3f a, Vector3f b, Vector3f c
     ) {
+        if (this.planarOptimizationEnabled) {
+            float planeIntersection = Intersectionf.intersectRayPlane(localOrigin, localDirection, this.planarPosition, this.planarNormal, 1f / 100000f);
+            if (planeIntersection < 0f) {
+                return;
+            }
+            float pX = localOrigin.x() + (localDirection.x() * planeIntersection);
+            float pY = localOrigin.y() + (localDirection.y() * planeIntersection);
+            float pZ = localOrigin.z() + (localDirection.z() * planeIntersection);
+            if (!IntersectionUtils.testAabPoint(bvh.getMin(), bvh.getMax(), pX, pY, pZ)) {
+                return;
+            }
+        }
+        
         if (IntersectionUtils.testRayAab(localOrigin, localDirection, bvh.getMin(), bvh.getMax())) {
             if (bvh.getLeft() == null && bvh.getRight() == null) {
                 int[] nodeTriangles = bvh.getTriangles();
@@ -447,6 +704,10 @@ public class BVH implements Aab {
                         hitposition.set(localDirection).mul(hit).add(localOrigin);
 
                         resultsOutput.add(new LocalRayResult(this, localOrigin, localDirection, hitposition, normal, triangle, frontFace));
+                        
+                        if (this.planarOptimizationEnabled) {
+                            break;
+                        }
                     }
                 }
             }
@@ -549,12 +810,12 @@ public class BVH implements Aab {
     public boolean fastTestSphere(float x, float y, float z, float radius) {
         return fastTestSphere(this, x, y, z, radius);
     }
-    
+
     private void testSphere(Set<Integer> triangles, BVH bvh, float x, float y, float z, float radius) {
         if (bvh == null) {
             return;
         }
-        
+
         if (!Intersectionf.testAabSphere(
                 bvh.getMin().x(), bvh.getMin().y(), bvh.getMin().z(),
                 bvh.getMax().x(), bvh.getMax().y(), bvh.getMax().z(),
@@ -603,7 +864,7 @@ public class BVH implements Aab {
         testSphere(triangles, bvh.getLeft(), x, y, z, radius);
         testSphere(triangles, bvh.getRight(), x, y, z, radius);
     }
-    
+
     public Set<Integer> testSphere(float x, float y, float z, float radius) {
         Set<Integer> set = new HashSet<>();
         testSphere(set, this, x, y, z, radius);

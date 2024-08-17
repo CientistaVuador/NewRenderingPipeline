@@ -307,7 +307,7 @@ public class Game {
 
         this.plasticBallRotation.rotateY((float) (Main.TPF * 0.5));
         this.plasticBall.getPosition().set(this.plasticBallRotation).mul(3f).add(15.29, 1.95, -9.52);
-
+        
         this.flashlight.getPosition().set(this.camera.getPosition());
         this.flashlight.getDirection().set(this.camera.getFront());
 
@@ -333,7 +333,7 @@ public class Game {
         for (int i = 0; i < this.map.getNumberOfObjects(); i++) {
             N3DObjectRenderer.queueRender(this.map.getObject(i));
         }
-
+        
         N3DObjectRenderer.queueRender(this.triceratops);
         N3DObjectRenderer.queueRender(this.plasticBall);
 

@@ -48,6 +48,12 @@ public class IntersectionUtils {
         return Intersectionf.intersectRayTriangle(origin, dir, a, b, c, 1f / 100000f);
     }
     
+    public static boolean testAabPoint(Vector3fc min, Vector3fc max, float x, float y, float z) {
+        return (x >= min.x() && x <= max.x()) 
+                && (y >= min.y() && y <= max.y()) 
+                && (z >= min.z() && z <= max.z());
+    }
+    
     public static boolean lineSegmentLineSegment(float x1, float y1, float x2, float y2, float x3, float y3, float x4, float y4, Vector2f p) {
         float denom = 1f / ((x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4));
         float t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) * denom;

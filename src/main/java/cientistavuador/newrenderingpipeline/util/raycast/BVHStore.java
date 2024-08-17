@@ -131,13 +131,10 @@ public class BVHStore {
                 userObject,
                 vertices, indices, vertexSize, xyzOffset,
                 minX, minY, minZ,
-                maxX, maxY, maxZ
+                maxX, maxY, maxZ,
+                left, right,
+                amountOfTriangles, triangles
         );
-        
-        bvh.left = left;
-        bvh.right = right;
-        bvh.amountOfTriangles = amountOfTriangles;
-        bvh.triangles = triangles;
         
         if (left != null) {
             left.parent = bvh;
