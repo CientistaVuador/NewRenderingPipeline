@@ -38,7 +38,7 @@ import static org.lwjgl.opengl.GL33C.*;
 public class NCubemapRenderer {
 
     public static NCubemap render(
-            String name, NCubemapInfo info, int size, int ssaaScale,
+            String name, NCubemapBox info, int size, int ssaaScale,
             List<NLight> lights, NCubemaps cubemaps
     ) {
         if (ssaaScale < 1) {
@@ -144,7 +144,7 @@ public class NCubemapRenderer {
     }
     
     public static NCubemap render(
-            String name, NCubemapInfo info, int size,
+            String name, NCubemapBox info, int size,
             List<NLight> lights, NCubemaps cubemaps
     ) {
         return render(name, info, size, 4, lights, cubemaps);

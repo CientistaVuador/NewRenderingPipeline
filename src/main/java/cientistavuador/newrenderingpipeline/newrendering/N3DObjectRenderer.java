@@ -72,7 +72,7 @@ public class N3DObjectRenderer {
     public static void queueRender(N3DObject obj) {
         renderQueue.add(obj);
     }
-    
+
     private static NProgram.NProgramLight convertToShaderLight(
             Camera camera, NLight light,
             float redFactor, float greenFactor, float blueFactor, float ambientFactor
@@ -186,7 +186,7 @@ public class N3DObjectRenderer {
                     float width = transformedMax.x() - transformedMin.x();
                     float height = transformedMax.y() - transformedMin.y();
                     float depth = transformedMax.z() - transformedMin.z();
-                    
+
                     if (GPUOcclusion.testCamera(
                             0f, 0f, 0f, camera.getNearPlane() * 1.05f,
                             x, y, z,
@@ -212,21 +212,21 @@ public class N3DObjectRenderer {
                     );
                 }
             }
-            
+
             if (!occluded) {
                 double absCenterX = camera.getPosition().x() + ((transformedMin.x() + transformedMax.x()) * 0.5f);
                 double absCenterY = camera.getPosition().y() + ((transformedMin.y() + transformedMax.y()) * 0.5f);
                 double absCenterZ = camera.getPosition().z() + ((transformedMin.z() + transformedMax.z()) * 0.5f);
-                
+
                 obj.updateAmbientCube(absCenterX, absCenterY, absCenterZ);
-                
+
                 notOccludedObjects.add(obj);
             }
         }
-        
+
         return notOccludedObjects;
     }
-    
+
     private static class ToRender {
 
         public final N3DObject obj;
@@ -270,15 +270,15 @@ public class N3DObjectRenderer {
                 camera,
                 objectsToRender
         );
-        
+
         Matrix4f projectionView = new Matrix4f(camera.getProjection()).mul(camera.getView());
-        
+
         Vector3f transformedMin = new Vector3f();
         Vector3f transformedMax = new Vector3f();
-        
+
         Vector3d lightDirection = new Vector3d();
         Vector3f shadowColor = new Vector3f();
-        
+
         List<ToRender> toRenderList = new ArrayList<>();
 
         {
@@ -332,12 +332,12 @@ public class N3DObjectRenderer {
                                     continue;
                                 }
 
-                                float cubemapMinX = (float) (c.getCubemapInfo().getMin().x() - camera.getPosition().x());
-                                float cubemapMinY = (float) (c.getCubemapInfo().getMin().y() - camera.getPosition().y());
-                                float cubemapMinZ = (float) (c.getCubemapInfo().getMin().z() - camera.getPosition().z());
-                                float cubemapMaxX = (float) (c.getCubemapInfo().getMax().x() - camera.getPosition().x());
-                                float cubemapMaxY = (float) (c.getCubemapInfo().getMax().y() - camera.getPosition().y());
-                                float cubemapMaxZ = (float) (c.getCubemapInfo().getMax().z() - camera.getPosition().z());
+                                float cubemapMinX = (float) (c.getCubemapBox().getMin().x() - camera.getPosition().x());
+                                float cubemapMinY = (float) (c.getCubemapBox().getMin().y() - camera.getPosition().y());
+                                float cubemapMinZ = (float) (c.getCubemapBox().getMin().z() - camera.getPosition().z());
+                                float cubemapMaxX = (float) (c.getCubemapBox().getMax().x() - camera.getPosition().x());
+                                float cubemapMaxY = (float) (c.getCubemapBox().getMax().y() - camera.getPosition().y());
+                                float cubemapMaxZ = (float) (c.getCubemapBox().getMax().z() - camera.getPosition().z());
 
                                 if (projectionView.testAab(
                                         cubemapMinX, cubemapMinY, cubemapMinZ,
@@ -360,13 +360,13 @@ public class N3DObjectRenderer {
 
                         toRenderCubemaps.sort((o1, o2) -> {
                             double o1Dist = Math.min(
-                                    o1.getCubemapInfo().getCubemapPosition().distanceSquared(camera.getPosition()),
-                                    o1.getCubemapInfo().getCubemapPosition().distanceSquared(absCenterX, absCenterY, absCenterZ)
+                                    o1.getCubemapBox().getCubemapPosition().distanceSquared(camera.getPosition()),
+                                    o1.getCubemapBox().getCubemapPosition().distanceSquared(absCenterX, absCenterY, absCenterZ)
                             );
 
                             double o2Dist = Math.min(
-                                    o2.getCubemapInfo().getCubemapPosition().distanceSquared(camera.getPosition()),
-                                    o2.getCubemapInfo().getCubemapPosition().distanceSquared(absCenterX, absCenterY, absCenterZ)
+                                    o2.getCubemapBox().getCubemapPosition().distanceSquared(camera.getPosition()),
+                                    o2.getCubemapBox().getCubemapPosition().distanceSquared(absCenterX, absCenterY, absCenterZ)
                             );
 
                             return Double.compare(
@@ -376,12 +376,12 @@ public class N3DObjectRenderer {
                         });
 
                         NCubemap[] finalToRenderCubemaps = Arrays.copyOf(toRenderCubemaps.toArray(NCubemap[]::new), NProgram.MAX_AMOUNT_OF_CUBEMAPS);
-                        
+
                         List<NProgram.NProgramLight> toRenderLights = new ArrayList<>();
                         lights.sort((o1, o2) -> {
                             double disto1 = 0.0;
                             double disto2 = 0.0;
-                            
+
                             if (o1 instanceof NLight.NSpotLight e) {
                                 disto1 = Math.min(
                                         e.getPosition().distanceSquared(camera.getPosition()),
@@ -393,7 +393,7 @@ public class N3DObjectRenderer {
                                         e.getPosition().distanceSquared(absCenterX, absCenterY, absCenterZ)
                                 );
                             }
-                            
+
                             if (o2 instanceof NLight.NSpotLight e) {
                                 disto2 = Math.min(
                                         e.getPosition().distanceSquared(camera.getPosition()),
@@ -405,10 +405,10 @@ public class N3DObjectRenderer {
                                         e.getPosition().distanceSquared(absCenterX, absCenterY, absCenterZ)
                                 );
                             }
-                            
+
                             return Double.compare(disto1, disto2);
                         });
-                        for (NLight light:lights) {
+                        for (NLight light : lights) {
                             if (!light.isDynamic() && obj.getLightmaps() != NLightmaps.NULL_LIGHTMAPS) {
                                 continue;
                             }
@@ -422,7 +422,7 @@ public class N3DObjectRenderer {
                             if (obj.getMap() != null && obj.getLightmaps() == NLightmaps.NULL_LIGHTMAPS) {
                                 Vector3d lightPosition = null;
                                 double length = Double.POSITIVE_INFINITY;
-                                
+
                                 lightDirection.set(0f, 1f, 0f);
                                 if (light instanceof NLight.NDirectionalLight d) {
                                     lightDirection.set(d.getDirection()).normalize().negate();
@@ -431,26 +431,26 @@ public class N3DObjectRenderer {
                                 } else if (light instanceof NLight.NSpotLight p) {
                                     lightPosition = p.getPosition();
                                 }
-                                
+
                                 if (lightPosition != null) {
                                     lightDirection.set(lightPosition).sub(absCenterX, absCenterY, absCenterZ);
                                     length = lightDirection.length();
                                     lightDirection.div(length);
                                     length -= light.getLightSize();
-                                    
+
                                     if (length < 0.0) {
                                         lightDirection.negate();
                                         length = -length;
                                     }
                                 }
-                                
+
                                 obj.getMap().testShadow(
                                         absCenterX, absCenterY, absCenterZ,
                                         (float) lightDirection.x(), (float) lightDirection.y(), (float) lightDirection.z(),
                                         length,
                                         shadowColor
                                 );
-                                
+
                                 r = shadowColor.x();
                                 g = shadowColor.y();
                                 b = shadowColor.z();
@@ -463,7 +463,7 @@ public class N3DObjectRenderer {
                         finalLights = Arrays.copyOf(finalLights, NProgram.MAX_AMOUNT_OF_LIGHTS);
 
                         float distanceSquared = (centerX * centerX) + (centerY * centerY) + (centerZ * centerZ);
-                        
+
                         toRenderList.add(new ToRender(
                                 obj,
                                 transformation, modelMatrix,
@@ -554,7 +554,7 @@ public class N3DObjectRenderer {
         glBindVertexArray(0);
 
         glUseProgram(0);
-        
+
         Main.NUMBER_OF_DRAWCALLS++;
         Main.NUMBER_OF_VERTICES += NSkybox.AMOUNT_OF_INDICES;
     }
@@ -564,16 +564,14 @@ public class N3DObjectRenderer {
             Camera camera,
             List<ToRender> toRender
     ) {
-        NTextures.NULL_TEXTURE.r_g_b_a();
-        NTextures.NULL_TEXTURE.ht_rg_mt_nx();
-        NTextures.NULL_TEXTURE.er_eg_eb_ny();
-        
+        NLightmaps.NULL_LIGHTMAPS.lightmaps();
+        NCubemap.NULL_CUBEMAP.cubemap();
+        NTextures.NULL_TEXTURES.textures();
+
         for (ToRender t : toRender) {
             NTextures textures = t.geometry.getMaterial().getTextures();
 
-            textures.r_g_b_a();
-            textures.ht_rg_mt_nx();
-            textures.er_eg_eb_ny();
+            textures.textures();
 
             for (NCubemap e : t.cubemaps) {
                 if (e == null) {
@@ -581,34 +579,30 @@ public class N3DObjectRenderer {
                 }
                 e.cubemap();
             }
-            
+
             t.obj.getLightmaps().lightmaps();
+            t.geometry.getMesh().getVAO();
         }
 
         glUseProgram(variant.getProgram());
 
-        BetterUniformSetter.uniformMatrix4fv(variant.locationOf(NProgram.UNIFORM_PROJECTION), camera.getProjection());
-        BetterUniformSetter.uniformMatrix4fv(variant.locationOf(NProgram.UNIFORM_VIEW), camera.getView());
-
-        glUniform1i(variant.locationOf(NProgram.UNIFORM_REFLECTIONS_DEBUG), (REFLECTIONS_DEBUG ? 1 : 0));
-        glUniform1i(variant.locationOf(NProgram.UNIFORM_HDR_OUTPUT), (HDR_OUTPUT ? 1 : 0));
-
         NProgram.sendBoneMatrix(variant, IDENTITY, -1);
 
-        glUniform1i(variant.locationOf(NProgram.UNIFORM_PARALLAX_ENABLED), (PARALLAX_ENABLED ? 1 : 0));
-        glUniform1i(variant.locationOf(NProgram.UNIFORM_REFLECTIONS_ENABLED), (REFLECTIONS_ENABLED ? 1 : 0));
-        glUniform1i(variant.locationOf(NProgram.UNIFORM_REFLECTIONS_SUPPORTED), (REFLECTIONS_ENABLED ? 1 : 0));
-
-        glUniform1i(variant.locationOf(NProgram.UNIFORM_R_G_B_A), 0);
-        glUniform1i(variant.locationOf(NProgram.UNIFORM_HT_RG_MT_NX), 1);
-        glUniform1i(variant.locationOf(NProgram.UNIFORM_ER_EG_EB_NY), 2);
-        glUniform1i(variant.locationOf(NProgram.UNIFORM_LIGHTMAPS), 3);
-
-        glUniform1i(variant.locationOf(NProgram.UNIFORM_REFLECTION_CUBEMAP_0), 4);
-        glUniform1i(variant.locationOf(NProgram.UNIFORM_REFLECTION_CUBEMAP_1), 5);
-        glUniform1i(variant.locationOf(NProgram.UNIFORM_REFLECTION_CUBEMAP_2), 6);
-        glUniform1i(variant.locationOf(NProgram.UNIFORM_REFLECTION_CUBEMAP_3), 7);
-
+        variant
+                .uniformMatrix4fv(NProgram.UNIFORM_PROJECTION, camera.getProjection())
+                .uniformMatrix4fv(NProgram.UNIFORM_VIEW, camera.getView())
+                .uniform1i(NProgram.UNIFORM_REFLECTIONS_DEBUG, (REFLECTIONS_DEBUG ? 1 : 0))
+                .uniform1i(NProgram.UNIFORM_HDR_OUTPUT, (HDR_OUTPUT ? 1 : 0))
+                .uniform1i(NProgram.UNIFORM_PARALLAX_ENABLED, (PARALLAX_ENABLED ? 1 : 0))
+                .uniform1i(NProgram.UNIFORM_REFLECTIONS_ENABLED, (REFLECTIONS_ENABLED ? 1 : 0))
+                .uniform1i(NProgram.UNIFORM_REFLECTIONS_SUPPORTED, (REFLECTIONS_ENABLED ? 1 : 0))
+                .uniform1i(NProgram.UNIFORM_MATERIAL_TEXTURES, 0)
+                .uniform1i(NProgram.UNIFORM_LIGHTMAPS, 1)
+                .uniform1i(NProgram.UNIFORM_REFLECTION_CUBEMAP_0, 2)
+                .uniform1i(NProgram.UNIFORM_REFLECTION_CUBEMAP_1, 3)
+                .uniform1i(NProgram.UNIFORM_REFLECTION_CUBEMAP_2, 4)
+                .uniform1i(NProgram.UNIFORM_REFLECTION_CUBEMAP_3, 5);
+        
         render(variant, camera, toRender);
 
         glUseProgram(0);
@@ -623,7 +617,7 @@ public class N3DObjectRenderer {
         Vector3f relativePosition = new Vector3f();
 
         Matrix4f transformedBone = new Matrix4f();
-        
+
         NProgram.NProgramLight[] lastLights = null;
         AmbientCube lastAmbientCube = null;
         NLightmaps lastLightmaps = null;
@@ -650,14 +644,14 @@ public class N3DObjectRenderer {
             NMesh mesh = render.geometry.getMesh();
             NAnimator animator = render.obj.getAnimator();
             N3DObject fresnel = render.obj;
-            
+
             if (!Arrays.deepEquals(lastLights, lights)) {
                 for (int i = 0; i < lights.length; i++) {
                     NProgram.sendLight(variant, lights[i], i);
                 }
                 lastLights = lights;
             }
-            
+
             if (!ambientCube.equals(lastAmbientCube)) {
                 NProgram.sendAmbientCube(variant, ambientCube);
                 lastAmbientCube = ambientCube;
@@ -682,7 +676,7 @@ public class N3DObjectRenderer {
                     sg = 0f;
                     sb = 0f;
                 }
-                
+
                 NProgram.sendMaterial(variant, new NProgram.NProgramMaterial(
                         d.x(), d.y(), d.z(), d.w(),
                         sr, sg, sb,
@@ -695,21 +689,13 @@ public class N3DObjectRenderer {
             }
 
             if (!textures.equals(lastTextures)) {
-                int r_g_b_a = textures.r_g_b_a();
-                int ht_ie_rf_nx = textures.ht_rg_mt_nx();
-                int er_eg_eb_ny = textures.er_eg_eb_ny();
+                int texturesId = textures.textures();
 
                 glActiveTexture(GL_TEXTURE0);
-                glBindTexture(GL_TEXTURE_2D, r_g_b_a);
+                glBindTexture(GL_TEXTURE_2D_ARRAY, texturesId);
 
-                glActiveTexture(GL_TEXTURE1);
-                glBindTexture(GL_TEXTURE_2D, ht_ie_rf_nx);
-
-                glActiveTexture(GL_TEXTURE2);
-                glBindTexture(GL_TEXTURE_2D, er_eg_eb_ny);
-
-                glUniform1i(
-                        variant.locationOf(NProgram.UNIFORM_PARALLAX_SUPPORTED),
+                variant.uniform1i(
+                        NProgram.UNIFORM_PARALLAX_SUPPORTED,
                         textures.isHeightMapSupported() ? 1 : 0
                 );
 
@@ -719,13 +705,13 @@ public class N3DObjectRenderer {
             if (lastLightmaps != lightmaps) {
                 int maps = lightmaps.lightmaps();
 
-                glActiveTexture(GL_TEXTURE3);
+                glActiveTexture(GL_TEXTURE1);
                 glBindTexture(GL_TEXTURE_2D_ARRAY, maps);
 
                 for (int i = 0; i < lightmaps.getNumberOfLightmaps(); i++) {
                     NProgram.sendLightmapIntensity(variant, lightmaps.getIntensity(i), i);
                 }
-                
+
                 lastLightmaps = lightmaps;
             }
 
@@ -738,9 +724,19 @@ public class N3DObjectRenderer {
                         cubemapObj = cubemap.cubemap();
                     }
 
-                    glActiveTexture(GL_TEXTURE4 + i);
-                    glBindTexture(GL_TEXTURE_CUBE_MAP, cubemapObj);
-
+                    int lastCubemapObj = -1;
+                    if (lastCubemaps != null) {
+                        lastCubemapObj = NCubemap.NULL_CUBEMAP.cubemap();
+                        if (lastCubemaps[i] != null) {
+                            lastCubemapObj = lastCubemaps[i].cubemap();
+                        }
+                    }
+                    
+                    if (cubemapObj != lastCubemapObj) {
+                        glActiveTexture(GL_TEXTURE2 + i);
+                        glBindTexture(GL_TEXTURE_CUBE_MAP, cubemapObj);
+                    }
+                    
                     boolean enabled = false;
                     float intensity = 0f;
 
@@ -748,9 +744,9 @@ public class N3DObjectRenderer {
                         enabled = true;
                         intensity = cubemap.getIntensity();
 
-                        cubemap.getCubemapInfo().calculateRelative(camera.getPosition(), worldToLocal, relativePosition);
+                        cubemap.getCubemapBox().calculateRelative(camera.getPosition(), worldToLocal, relativePosition);
                     }
-
+                    
                     NProgram.sendParallaxCubemapInfo(
                             variant,
                             i,
@@ -759,18 +755,19 @@ public class N3DObjectRenderer {
                             relativePosition.x(), relativePosition.y(), relativePosition.z(),
                             worldToLocal
                     );
+
                 }
 
                 lastCubemaps = cubemaps;
             }
 
             if (!transformation.equals(lastTransformation)) {
-                BetterUniformSetter.uniformMatrix4fv(
-                        variant.locationOf(NProgram.UNIFORM_MODEL),
+                variant.uniformMatrix4fv(
+                        NProgram.UNIFORM_MODEL,
                         transformation
                 );
-                BetterUniformSetter.uniformMatrix3fv(
-                        variant.locationOf(NProgram.UNIFORM_NORMAL_MODEL),
+                variant.uniformMatrix3fv(
+                        NProgram.UNIFORM_NORMAL_MODEL,
                         transformation.normal(normalMatrix)
                 );
                 lastTransformation = transformation;

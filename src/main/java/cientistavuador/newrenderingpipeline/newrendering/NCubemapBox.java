@@ -41,91 +41,92 @@ import org.joml.Vector3fc;
  *
  * @author Cien
  */
-public class NCubemapInfo {
-
-    private final Vector3d cubemapPosition = new Vector3d(0.0, 0.0, 0.0);
-    private final boolean parallaxCorrected;
-    private final Vector3d parallaxPosition = new Vector3d(0.0, 0.0, 0.0);
-    private final Quaternionf parallaxRotation = new Quaternionf(0f, 0f, 0f, 1f);
-    private final Vector3f parallaxHalfExtents = new Vector3f(0f, 0f, 0f);
+public class NCubemapBox {
+    
+    public static final NCubemapBox NULL_CUBEMAP_BOX = new NCubemapBox();
+    
+    private final Vector3d cubemapPosition = new Vector3d();
+    private final Vector3d position = new Vector3d();
+    private final Quaternionf rotation = new Quaternionf();
+    private final Vector3f halfExtents = new Vector3f();
     
     private final Matrix4d localToWorld = new Matrix4d();
     private final Vector3d min = new Vector3d();
     private final Vector3d max = new Vector3d();
     
-    public NCubemapInfo(
-            double pX, double pY, double pZ,
-            double minX, double minY, double minZ,
-            double maxX, double maxY, double maxZ
+    public NCubemapBox(
+            double cubemapX, double cubemapY, double cubemapZ,
+            double x, double y, double z,
+            float quaternionX, float quaternionY, float quaternionZ, float quaternionW,
+            float halfExtentX, float halfExtentY, float halfExtentZ
     ) {
-        this(
-                new Vector3d(pX, pY, pZ),
-                true,
-                new Vector3d(minX, minY, minZ).add(maxX, maxY, maxZ).mul(0.5),
-                null,
-                new Vector3f().set(
-                        (maxX - minX) * 0.5f,
-                        (maxY - minY) * 0.5f,
-                        (maxZ - minZ) * 0.5f
-                )
-        );
-    }
-    
-    public NCubemapInfo(
-            Vector3dc cubemapPosition,
-            boolean parallaxCorrected,
-            Vector3dc parallaxPosition,
-            Quaternionfc parallaxRotation,
-            Vector3fc parallaxHalfExtents
-    ) {
-        if (cubemapPosition != null) {
-            this.cubemapPosition.set(cubemapPosition);
-        }
-        this.parallaxCorrected = parallaxCorrected;
-        if (parallaxPosition != null) {
-            this.parallaxPosition.set(parallaxPosition);
-        }
-        if (parallaxRotation != null) {
-            this.parallaxRotation.set(parallaxRotation);
-        }
-        if (parallaxHalfExtents != null) {
-            this.parallaxHalfExtents.set(parallaxHalfExtents);
-        }
+        this.cubemapPosition.set(cubemapX, cubemapY, cubemapZ);
+        this.position.set(x, y, z);
+        this.rotation.set(quaternionX, quaternionY, quaternionZ, quaternionW);
+        this.halfExtents.set(halfExtentX, halfExtentY, halfExtentZ);
         
         this.localToWorld
                 .identity()
-                .translate(this.parallaxPosition)
-                .rotate(this.parallaxRotation)
-                .scale(this.parallaxHalfExtents.x(), this.parallaxHalfExtents.y(), this.parallaxHalfExtents.z())
+                .translate(this.position)
+                .rotate(this.rotation)
+                .scale(this.halfExtents.x(), this.halfExtents.y(), this.halfExtents.z())
                 ;
         
         this.min.set(-1.0);
         this.max.set(1.0);
         this.localToWorld.transformAab(this.min, this.max, this.min, this.max);
     }
-
-    public NCubemapInfo() {
-        this(null, false, null, null, null);
+    
+    public NCubemapBox(
+            double pX, double pY, double pZ,
+            double minX, double minY, double minZ,
+            double maxX, double maxY, double maxZ
+    ) {
+        this(
+                pX, pY, pZ,
+                (minX + maxX) * 0.5, (minY + maxY) * 0.5, (minZ + maxZ) * 0.5,
+                0f, 0f, 0f, 1f,
+                (float) ((maxX - minX) * 0.5f), (float) ((maxY - minY) * 0.5f), (float) ((maxZ - minZ) * 0.5f)
+        );
     }
-
+    
+    public NCubemapBox(
+            Vector3dc cubemapPosition,
+            Vector3dc position,
+            Quaternionfc rotation,
+            Vector3fc halfExtents
+    ) {
+        this(
+                cubemapPosition.x(), cubemapPosition.y(), cubemapPosition.z(),
+                position.x(), position.y(), position.z(),
+                rotation.x(), rotation.y(), rotation.z(), rotation.w(),
+                halfExtents.x(), halfExtents.y(), halfExtents.z()
+        );
+    }
+    
+    public NCubemapBox() {
+        this(
+                0, 0, 0,
+                0, 0, 0,
+                0, 0, 0, 1,
+                0, 0, 0
+        );
+    }
+    
     public Vector3d getCubemapPosition() {
         return cubemapPosition;
     }
-
-    public boolean isParallaxCorrected() {
-        return parallaxCorrected;
+    
+    public Vector3d getPosition() {
+        return position;
     }
 
-    public Vector3d getParallaxPosition() {
-        return parallaxPosition;
+    public Quaternionf getRotation() {
+        return rotation;
     }
 
-    public Quaternionf getParallaxRotation() {
-        return parallaxRotation;
-    }
-
-    public Vector3f getParallaxHalfExtents() {
-        return parallaxHalfExtents;
+    public Vector3f getHalfExtents() {
+        return halfExtents;
     }
 
     public Matrix4dc getLocalToWorld() {
@@ -149,14 +150,14 @@ public class NCubemapInfo {
             cy = cameraPosition.y();
             cz = cameraPosition.z();
         }
-        float rx = (float) (this.parallaxPosition.x() - cx);
-        float ry = (float) (this.parallaxPosition.y() - cy);
-        float rz = (float) (this.parallaxPosition.z() - cz);
+        float rx = (float) (this.position.x() - cx);
+        float ry = (float) (this.position.y() - cy);
+        float rz = (float) (this.position.z() - cz);
         outWorldToLocal
                 .identity()
                 .translate(rx, ry, rz)
-                .rotate(this.parallaxRotation)
-                .scale(this.parallaxHalfExtents)
+                .rotate(this.rotation)
+                .scale(this.halfExtents)
                 .invert()
                 ;
 
@@ -173,10 +174,9 @@ public class NCubemapInfo {
     public int hashCode() {
         int hash = 3;
         hash = 67 * hash + Objects.hashCode(this.cubemapPosition);
-        hash = 67 * hash + (this.parallaxCorrected ? 1 : 0);
-        hash = 67 * hash + Objects.hashCode(this.parallaxPosition);
-        hash = 67 * hash + Objects.hashCode(this.parallaxRotation);
-        hash = 67 * hash + Objects.hashCode(this.parallaxHalfExtents);
+        hash = 67 * hash + Objects.hashCode(this.position);
+        hash = 67 * hash + Objects.hashCode(this.rotation);
+        hash = 67 * hash + Objects.hashCode(this.halfExtents);
         return hash;
     }
 
@@ -191,20 +191,17 @@ public class NCubemapInfo {
         if (getClass() != obj.getClass()) {
             return false;
         }
-        final NCubemapInfo other = (NCubemapInfo) obj;
-        if (this.parallaxCorrected != other.parallaxCorrected) {
-            return false;
-        }
+        final NCubemapBox other = (NCubemapBox) obj;
         if (!Objects.equals(this.cubemapPosition, other.cubemapPosition)) {
             return false;
         }
-        if (!Objects.equals(this.parallaxPosition, other.parallaxPosition)) {
+        if (!Objects.equals(this.position, other.position)) {
             return false;
         }
-        if (!Objects.equals(this.parallaxRotation, other.parallaxRotation)) {
+        if (!Objects.equals(this.rotation, other.rotation)) {
             return false;
         }
-        return Objects.equals(this.parallaxHalfExtents, other.parallaxHalfExtents);
+        return Objects.equals(this.halfExtents, other.halfExtents);
     }
 
 }

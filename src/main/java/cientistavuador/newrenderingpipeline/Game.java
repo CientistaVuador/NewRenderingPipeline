@@ -35,7 +35,7 @@ import cientistavuador.newrenderingpipeline.newrendering.N3DObject;
 import cientistavuador.newrenderingpipeline.newrendering.N3DObjectRenderer;
 import cientistavuador.newrenderingpipeline.newrendering.NAnimator;
 import cientistavuador.newrenderingpipeline.newrendering.NCubemap;
-import cientistavuador.newrenderingpipeline.newrendering.NCubemapInfo;
+import cientistavuador.newrenderingpipeline.newrendering.NCubemapBox;
 import cientistavuador.newrenderingpipeline.newrendering.NCubemapRenderer;
 import cientistavuador.newrenderingpipeline.newrendering.NCubemapStore;
 import cientistavuador.newrenderingpipeline.newrendering.NCubemaps;
@@ -98,19 +98,19 @@ public class Game {
         "emissive_room_corridor",
         "animation_room_corridor"
     };
-    private final NCubemapInfo[] cubemapInfos = {
-        new NCubemapInfo(-15.62, 2.17, -9.59, -20.59, -0.14, -14.51, -10.49, 5.12, -4.47),
-        new NCubemapInfo(-15.40, 2.49, 3.93, -20.60, -0.13, -2.21, -10.50, 5.63, 7.91),
-        new NCubemapInfo(15.22, 1.48, 2.90, 10.39, -0.08, -2.19, 20.44, 5.35, 7.90),
-        new NCubemapInfo(-0.15, 1.90, -23.44, -5.30, -0.21, -28.60, 4.78, 5.24, -18.52),
-        new NCubemapInfo(12.78, 1.63, -9.40, 10.39, -0.08, -14.59, 15.44, 5.35, -4.4),
-        new NCubemapInfo(17.91, 1.63, -9.29, 15.44, -0.08, -14.59, 20.44, 5.35, -4.4),
-        new NCubemapInfo(-0.31, 3.41, 2.68, -5.59, -0.10, -13.01, 5.50, 5.42, 18.13),
-        new NCubemapInfo(7.62, 1.78, -9.50, 10.40, -0.11, -8.40, 5.44, 2.62, -10.50),
-        new NCubemapInfo(-7.98, 1.67, -9.65, -10.55, -0.11, -10.49, -5.55, 2.62, -8.42),
-        new NCubemapInfo(-0.19, 1.50, -15.30, -1.30, -0.21, -18.52, 0.80, 3.20, -13.03),
-        new NCubemapInfo(8.07, 1.81, 3.07, 5.40, -0.22, 1.80, 10.36, 2.68, 3.98),
-        new NCubemapInfo(-7.99, 1.48, 2.75, -10.56, -0.22, 1.80, -5.59, 2.68, 4.00)
+    private final NCubemapBox[] cubemapInfos = {
+        new NCubemapBox(-15.62, 2.17, -9.59, -20.59, -0.14, -14.51, -10.49, 5.12, -4.47),
+        new NCubemapBox(-15.40, 2.49, 3.93, -20.60, -0.13, -2.21, -10.50, 5.63, 7.91),
+        new NCubemapBox(15.22, 1.48, 2.90, 10.39, -0.08, -2.19, 20.44, 5.35, 7.90),
+        new NCubemapBox(-0.15, 1.90, -23.44, -5.30, -0.21, -28.60, 4.78, 5.24, -18.52),
+        new NCubemapBox(12.78, 1.63, -9.40, 10.39, -0.08, -14.59, 15.44, 5.35, -4.4),
+        new NCubemapBox(17.91, 1.63, -9.29, 15.44, -0.08, -14.59, 20.44, 5.35, -4.4),
+        new NCubemapBox(-0.31, 3.41, 2.68, -5.59, -0.10, -13.01, 5.50, 5.42, 18.13),
+        new NCubemapBox(7.62, 1.78, -9.50, 10.40, -0.11, -8.40, 5.44, 2.62, -10.50),
+        new NCubemapBox(-7.98, 1.67, -9.65, -10.55, -0.11, -10.49, -5.55, 2.62, -8.42),
+        new NCubemapBox(-0.19, 1.50, -15.30, -1.30, -0.21, -18.52, 0.80, 3.20, -13.03),
+        new NCubemapBox(8.07, 1.81, 3.07, 5.40, -0.22, 1.80, 10.36, 2.68, 3.98),
+        new NCubemapBox(-7.99, 1.48, 2.75, -10.56, -0.22, 1.80, -5.59, 2.68, 4.00)
     };
 
     private NCubemaps cubemaps;
@@ -260,7 +260,7 @@ public class Game {
     }
     
     public void start() {
-        NTextures.NULL_TEXTURE.r_g_b_a();
+        NTextures.NULL_TEXTURES.textures();
         NCubemap.NULL_CUBEMAP.cubemap();
         NLightmaps.NULL_LIGHTMAPS.lightmaps();
         
@@ -473,7 +473,7 @@ public class Game {
             List<NCubemap> cubemapsList = new ArrayList<>();
             for (int i = 0; i < this.cubemapNames.length; i++) {
                 String name = this.cubemapNames[i];
-                NCubemapInfo info = this.cubemapInfos[i];
+                NCubemapBox info = this.cubemapInfos[i];
 
                 for (int j = 0; j < this.map.getNumberOfObjects(); j++) {
                     N3DObjectRenderer.queueRender(this.map.getObject(j));

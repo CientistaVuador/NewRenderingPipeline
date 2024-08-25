@@ -59,7 +59,7 @@ public class NMaterial {
 
     private final String name;
 
-    private NTextures textures = NTextures.NULL_TEXTURE;
+    private NTextures textures = NTextures.NULL_TEXTURES;
 
     private final Vector4f diffuseColor = new Vector4f(DEFAULT_DIFFUSE_COLOR);
     private final Vector3f specularColor = new Vector3f(DEFAULT_SPECULAR_COLOR);
@@ -79,7 +79,7 @@ public class NMaterial {
     public NMaterial(String name, NTextures textures) {
         this.name = name;
         if (textures == null) {
-            textures = NTextures.NULL_TEXTURE;
+            textures = NTextures.NULL_TEXTURES;
         }
         this.textures = textures;
     }
@@ -94,7 +94,7 @@ public class NMaterial {
 
     public void setTextures(NTextures textures) {
         if (textures == null) {
-            textures = NTextures.NULL_TEXTURE;
+            textures = NTextures.NULL_TEXTURES;
         }
         this.textures = textures;
     }

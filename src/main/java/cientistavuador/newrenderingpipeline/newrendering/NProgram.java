@@ -33,21 +33,20 @@ import cientistavuador.newrenderingpipeline.util.ProgramCompiler;
 import java.util.Map;
 import org.joml.Matrix4fc;
 import org.joml.Vector3fc;
-import static org.lwjgl.opengl.GL33C.*;
 
 /**
  *
  * @author Cien
  */
 public class NProgram {
-
+    
     public static final float DIELECTRIC_DIFFUSE_STRENGTH = 0.95f;
     public static final float DIELECTRIC_SPECULAR_STRENGTH = 0.05f;
     public static final float METALLIC_DIFFUSE_STRENGTH = 0.00f;
     public static final float METALLIC_SPECULAR_STRENGTH = 1.00f;
 
     public static final float LIGHT_ATTENUATION = 0.75f;
-    
+
     public static final int MAX_AMOUNT_OF_LIGHTS = 24;
     public static final int MAX_AMOUNT_OF_LIGHTMAPS = 32;
 
@@ -55,7 +54,7 @@ public class NProgram {
     public static final int DIRECTIONAL_LIGHT_TYPE = 1;
     public static final int POINT_LIGHT_TYPE = 2;
     public static final int SPOT_LIGHT_TYPE = 3;
-    
+
     public static final int MAX_AMOUNT_OF_CUBEMAPS = 4;
 
     public static final class NProgramLight {
@@ -107,7 +106,7 @@ public class NProgram {
             this.ambientG = ambientG;
             this.ambientB = ambientB;
         }
-        
+
         @Override
         public int hashCode() {
             int hash = 7;
@@ -197,7 +196,7 @@ public class NProgram {
             }
             return Float.floatToIntBits(this.ambientB) == Float.floatToIntBits(other.ambientB);
         }
-        
+
     }
 
     public static final NProgramLight NULL_LIGHT = new NProgramLight(
@@ -276,8 +275,7 @@ public class NProgram {
     public static final BetterUniformSetter VARIANT_ALPHA_BLENDING;
 
     private static final String VERTEX_SHADER
-            = 
-            """
+            = """
             layout (location = VAO_INDEX_POSITION_XYZ) in vec3 vertexPosition;
             layout (location = VAO_INDEX_TEXTURE_XY) in vec2 vertexTexture;
             layout (location = VAO_INDEX_LIGHTMAP_TEXTURE_XY) in vec2 vertexLightmapTexture;
@@ -343,9 +341,39 @@ public class NProgram {
             uniform bool hdrOutput;
             
             //material textures
-            uniform sampler2D r_g_b_a;
-            uniform sampler2D ht_rg_mt_nx;
-            uniform sampler2D er_eg_eb_ny;
+            uniform sampler2DArray materialTextures;
+            
+            float toLinear(float c) {
+                return (c <= 0.04045 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4));
+            }
+            
+            vec4 r_g_b_a(vec2 uv) {
+                #if defined(VARIANT_ALPHA_TESTING)
+                vec4 c = texture(materialTextures, vec3(uv, 0.0), -1.0);
+                #else
+                vec4 c = texture(materialTextures, vec3(uv, 0.0));
+                #endif
+                
+                c.r = toLinear(c.r);
+                c.g = toLinear(c.g);
+                c.b = toLinear(c.b);
+                
+                #if defined(VARIANT_OPAQUE)
+                c.a = toLinear(c.a);
+                c.rgb *= c.a;
+                c.a = 1.0;
+                #endif
+                
+                return c;
+            }
+            
+            vec4 ht_rg_mt_nx(vec2 uv) {
+                return texture(materialTextures, vec3(uv, 1.0));
+            }
+            
+            vec4 er_eg_eb_ny(vec2 uv) {
+                return texture(materialTextures, vec3(uv, 2.0));
+            }
             
             uniform bool parallaxSupported;
             uniform bool parallaxEnabled;
@@ -353,6 +381,18 @@ public class NProgram {
             //lightmaps texture
             uniform float lightmapIntensity[MAX_AMOUNT_OF_LIGHTMAPS];
             uniform sampler2DArray lightmaps;
+            
+            vec4 RGBEToRGBA(vec4 rgbe) {
+                return vec4(rgbe.rgb * pow(RGBE_BASE, (rgbe.a * RGBE_MAX_EXPONENT) - RGBE_BIAS), 1.0);
+            }
+            
+            vec4 sampleLightmaps(vec2 uv, int index, float intensity) {
+                if (intensity == 0.0) return vec4(0.0, 0.0, 0.0, 1.0);
+                vec4 c = texture(lightmaps, vec3(uv, float(index)));
+                c = RGBEToRGBA(c);
+                c.rgb *= intensity;
+                return c;
+            }
             
             //reflection cubemaps
             uniform samplerCube reflectionCubemap_0;
@@ -363,6 +403,68 @@ public class NProgram {
             uniform bool reflectionsSupported;
             uniform bool reflectionsEnabled;
             
+            vec4 sampleCubemap(samplerCube cube, vec3 direction) {
+                return RGBEToRGBA(texture(cube, direction));
+            }
+            
+            vec4 sampleCubemapLod(samplerCube cube, vec3 direction, float lod) {
+                return RGBEToRGBA(textureLod(cube, direction, lod));
+            }
+            
+            float cubemapMipLevels(samplerCube cube) {
+                #ifdef SUPPORTED_430
+                float mipLevels = float(textureQueryLevels(cube));
+                #else
+                ivec2 cubemapSize = textureSize(cube, 0);
+                float mipLevels = 1.0 + floor(log2(max(float(cubemapSize.x), float(cubemapSize.y))));
+                #endif
+                return mipLevels;
+            }
+            
+            vec4 sampleCubemapLod(int index, vec3 direction, float lod) {
+                switch (index) {
+                    case 0:
+                        return sampleCubemapLod(reflectionCubemap_0, direction, lod);
+                    case 1:
+                        return sampleCubemapLod(reflectionCubemap_1, direction, lod);
+                    case 2:
+                        return sampleCubemapLod(reflectionCubemap_2, direction, lod);
+                    case 3:
+                        return sampleCubemapLod(reflectionCubemap_3, direction, lod);
+                }
+                return vec4(0.0, 0.0, 0.0, 1.0);
+            }
+                        
+            vec4 sampleCubemap(int index, vec3 direction) {
+                switch (index) {
+                    case 0:
+                        return sampleCubemap(reflectionCubemap_0, direction);
+                    case 1:
+                        return sampleCubemap(reflectionCubemap_1, direction);
+                    case 2:
+                        return sampleCubemap(reflectionCubemap_2, direction);
+                    case 3:
+                        return sampleCubemap(reflectionCubemap_3, direction);
+                }
+                return vec4(0.0, 0.0, 0.0, 1.0);
+            }
+            
+            float sampleCubemapMiplevels(int index) {
+                float mipLevels = 0.0;
+                ivec2 cubemapSize = ivec2(0);
+                switch (index) {
+                    case 0:
+                        return cubemapMipLevels(reflectionCubemap_0);
+                    case 1:
+                        return cubemapMipLevels(reflectionCubemap_1);
+                    case 2:
+                        return cubemapMipLevels(reflectionCubemap_2);
+                    case 3:
+                        return cubemapMipLevels(reflectionCubemap_3);
+                }
+                return 0.0;
+            }
+            
             //POSITIVE_X
             //NEGATIVE_X
             //POSITIVE_Y
@@ -370,6 +472,15 @@ public class NProgram {
             //POSITIVE_Z
             //NEGATIVE_Z
             uniform vec3 ambientCube[NUMBER_OF_AMBIENT_CUBE_SIDES];
+            
+            vec3 ambientLight(vec3 normal) {
+                vec3 normalSquared = normal * normal;
+                ivec3 negative = ivec3(normal.x < 0.0, normal.y < 0.0, normal.z < 0.0);
+                vec3 ambient = normalSquared.x * ambientCube[negative.x]
+                    + normalSquared.y * ambientCube[negative.y + 2]
+                    + normalSquared.z * ambientCube[negative.z + 4];
+                return ambient;
+            }
             
             struct FresnelOutline {
                 bool enabled;
@@ -445,18 +556,18 @@ public class NProgram {
                 vec2 deltaUv = scaledViewDirection / numLayers;
                 
                 vec2 currentUv = uv;
-                float currentDepth = 1.0 - texture(ht_rg_mt_nx, currentUv)[0];
+                float currentDepth = 1.0 - ht_rg_mt_nx(currentUv)[0];
                 
                 while (currentLayerDepth < currentDepth) {
                     currentUv -= deltaUv;
-                    currentDepth = 1.0 - texture(ht_rg_mt_nx, currentUv)[0];
+                    currentDepth = 1.0 - ht_rg_mt_nx(currentUv)[0];
                     currentLayerDepth += layerDepth;
                 }
                  
                 vec2 previousUv = currentUv + deltaUv;
                 
                 float afterDepth = currentDepth - currentLayerDepth;
-                float beforeDepth = (1.0 - texture(ht_rg_mt_nx, previousUv)[0]) - currentLayerDepth + layerDepth;
+                float beforeDepth = (1.0 - ht_rg_mt_nx(previousUv)[0]) - currentLayerDepth + layerDepth;
                 
                 float weight = afterDepth / (afterDepth - beforeDepth);
                 vec2 finalUv = (previousUv * weight) + (currentUv * (1.0 - weight));
@@ -511,87 +622,6 @@ public class NProgram {
                 }
                 
                 return diffuse + specular + ambient;
-            }
-            
-            vec3 ambientLight(vec3 normal) {
-                vec3 normalSquared = normal * normal;
-                ivec3 negative = ivec3(normal.x < 0.0, normal.y < 0.0, normal.z < 0.0);
-                vec3 ambient = normalSquared.x * ambientCube[negative.x]
-                                + normalSquared.y * ambientCube[negative.y + 2]
-                                + normalSquared.z * ambientCube[negative.z + 4];
-                return ambient;
-            }
-            
-            vec4 RGBEToRGBA(vec4 rgbe) {
-                return vec4(rgbe.rgb * pow(RGBE_BASE, (rgbe.a * RGBE_MAX_EXPONENT) - RGBE_BIAS), 1.0);
-            }
-            
-            vec4 sampleCubemapLod(int index, vec3 direction, float lod) {
-                switch (index) {
-                    case 0:
-                        return RGBEToRGBA(textureLod(reflectionCubemap_0, direction, lod));
-                    case 1:
-                        return RGBEToRGBA(textureLod(reflectionCubemap_1, direction, lod));
-                    case 2:
-                        return RGBEToRGBA(textureLod(reflectionCubemap_2, direction, lod));
-                    case 3:
-                        return RGBEToRGBA(textureLod(reflectionCubemap_3, direction, lod));
-                }
-                return vec4(0.0, 0.0, 0.0, 1.0);
-            }
-            
-            vec4 sampleCubemap(int index, vec3 direction) {
-                switch (index) {
-                    case 0:
-                        return RGBEToRGBA(texture(reflectionCubemap_0, direction));
-                    case 1:
-                        return RGBEToRGBA(texture(reflectionCubemap_1, direction));
-                    case 2:
-                        return RGBEToRGBA(texture(reflectionCubemap_2, direction));
-                    case 3:
-                        return RGBEToRGBA(texture(reflectionCubemap_3, direction));
-                }
-                return vec4(0.0, 0.0, 0.0, 1.0);
-            }
-            
-            float sampleCubemapMiplevels(int index) {
-                float mipLevels = 0.0;
-                ivec2 cubemapSize = ivec2(0);
-                switch (index) {
-                    case 0:
-                        #ifdef SUPPORTED_430
-                        mipLevels = float(textureQueryLevels(reflectionCubemap_0));
-                        #else
-                        cubemapSize = textureSize(reflectionCubemap_0, 0);
-                        mipLevels = 1.0 + floor(log2(max(float(cubemapSize.x), float(cubemapSize.y))));
-                        #endif
-                        return mipLevels;
-                    case 1:
-                        #ifdef SUPPORTED_430
-                        mipLevels = float(textureQueryLevels(reflectionCubemap_1));
-                        #else
-                        cubemapSize = textureSize(reflectionCubemap_1, 0);
-                        mipLevels = 1.0 + floor(log2(max(float(cubemapSize.x), float(cubemapSize.y))));
-                        #endif
-                        return mipLevels;
-                    case 2:
-                        #ifdef SUPPORTED_430
-                        mipLevels = float(textureQueryLevels(reflectionCubemap_2));
-                        #else
-                        cubemapSize = textureSize(reflectionCubemap_2, 0);
-                        mipLevels = 1.0 + floor(log2(max(float(cubemapSize.x), float(cubemapSize.y))));
-                        #endif
-                        return mipLevels;
-                    case 3:
-                        #ifdef SUPPORTED_430
-                        mipLevels = float(textureQueryLevels(reflectionCubemap_3));
-                        #else
-                        cubemapSize = textureSize(reflectionCubemap_3, 0);
-                        mipLevels = 1.0 + floor(log2(max(float(cubemapSize.x), float(cubemapSize.y))));
-                        #endif
-                        return mipLevels;
-                }
-                return 0.0;
             }
             
             vec3 computeReflection(
@@ -674,12 +704,7 @@ public class NProgram {
                     textureUv = parallaxMapping(inVertex.worldTexture, inVertex.tangentPosition, material.parallaxMinLayers, material.parallaxMaxLayers, material.parallaxHeightCoefficient);
                 }
                 
-                vec4 rgba = texture(r_g_b_a, textureUv);
-                #if defined(VARIANT_OPAQUE)
-                rgba.a = (rgba.a <= 0.04045 ? rgba.a / 12.92 : pow((rgba.a + 0.055) / 1.055, 2.4));
-                rgba.rgb *= rgba.a;
-                rgba.a = 1.0;
-                #endif
+                vec4 rgba = r_g_b_a(textureUv);
                 
                 finalColor.a = rgba.a * material.diffuseColor.a;
                 #if defined(VARIANT_ALPHA_TESTING)
@@ -688,8 +713,8 @@ public class NProgram {
                 }
                 #endif
                 
-                vec4 hrmnx = texture(ht_rg_mt_nx, textureUv);
-                vec4 eregebny = texture(er_eg_eb_ny, textureUv);
+                vec4 hrmnx = ht_rg_mt_nx(textureUv);
+                vec4 eregebny = er_eg_eb_ny(textureUv);
                 
                 vec3 vertexNormal = normalize(inVertex.worldNormal);
                 mat3 TBN = inVertex.TBN;
@@ -728,7 +753,7 @@ public class NProgram {
                     if (i < MAX_AMOUNT_OF_LIGHTMAPS) {
                         intensity = lightmapIntensity[i];
                     }
-                    finalColor.rgb += RGBEToRGBA(texture(lightmaps, vec3(inVertex.worldLightmapTexture, float(i)))).rgb * intensity * diffuseColor * lightmapAo;
+                    finalColor.rgb += sampleLightmaps(inVertex.worldLightmapTexture, i, intensity).rgb * diffuseColor * lightmapAo;
                 }
                 
                 for (int i = 0; i < MAX_AMOUNT_OF_LIGHTS; i++) {
@@ -756,15 +781,15 @@ public class NProgram {
                     finalColor.rgb = computeReflection(worldPosition, fragDirection, vertexNormal, vec3(1.0), 0.0, 1.0);
                 }
                 
-                if (!hdrOutput) {
-                    finalColor.rgb = gammaCorrection(ACESFilm(finalColor.rgb));
-                }
-                
                 if (fresnelOutline.enabled) {
                     float fresnel = pow(1.0 - max(dot(fragDirection, vertexNormal), 0.0), fresnelOutline.exponent);
                     finalColor.rgb = mix(finalColor.rgb, fresnelOutline.color, fresnel);
                 }
-            
+                
+                if (!hdrOutput) {
+                    finalColor.rgb = gammaCorrection(ACESFilm(finalColor.rgb));
+                }
+                
                 #if defined(VARIANT_ALPHA_TESTING) || defined(VARIANT_OPAQUE)
                 outputFragColor = vec4(finalColor.rgb, 1.0);
                 #endif
@@ -824,9 +849,7 @@ public class NProgram {
     public static final String UNIFORM_VIEW = "view";
     public static final String UNIFORM_MODEL = "model";
     public static final String UNIFORM_NORMAL_MODEL = "normalModel";
-    public static final String UNIFORM_R_G_B_A = "r_g_b_a";
-    public static final String UNIFORM_HT_RG_MT_NX = "ht_rg_mt_nx";
-    public static final String UNIFORM_ER_EG_EB_NY = "er_eg_eb_ny";
+    public static final String UNIFORM_MATERIAL_TEXTURES = "materialTextures";
     public static final String UNIFORM_LIGHTMAPS = "lightmaps";
     public static final String UNIFORM_PARALLAX_SUPPORTED = "parallaxSupported";
     public static final String UNIFORM_PARALLAX_ENABLED = "parallaxEnabled";
@@ -843,15 +866,33 @@ public class NProgram {
         if (material == null) {
             material = NULL_MATERIAL;
         }
-        glUniform4f(uniforms.locationOf("material.diffuseColor"), material.diffuseColorR, material.diffuseColorG, material.diffuseColorB, material.diffuseColorA);
-        glUniform3f(uniforms.locationOf("material.specularColor"), material.specularColorR, material.specularColorG, material.specularColorB);
-        glUniform3f(uniforms.locationOf("material.emissiveColor"), material.emissiveColorR, material.emissiveColorG, material.emissiveColorB);
-        glUniform3f(uniforms.locationOf("material.reflectionColor"), material.reflectionColorR, material.reflectionColorG, material.reflectionColorB);
-        glUniform1f(uniforms.locationOf("material.minExponent"), material.minExponent);
-        glUniform1f(uniforms.locationOf("material.maxExponent"), material.maxExponent);
-        glUniform1f(uniforms.locationOf("material.parallaxHeightCoefficient"), material.parallaxHeightCoefficient);
-        glUniform1f(uniforms.locationOf("material.parallaxMinLayers"), material.parallaxMinLayers);
-        glUniform1f(uniforms.locationOf("material.parallaxMinLayers"), material.parallaxMaxLayers);
+        uniforms
+                .uniform4f("material.diffuseColor",
+                        material.diffuseColorR,
+                        material.diffuseColorG,
+                        material.diffuseColorB, 
+                        material.diffuseColorA
+                )
+                .uniform3f("material.specularColor",
+                        material.specularColorR,
+                        material.specularColorG,
+                        material.specularColorB
+                )
+                .uniform3f("material.emissiveColor",
+                        material.emissiveColorR,
+                        material.emissiveColorG,
+                        material.emissiveColorB
+                )
+                .uniform3f("material.reflectionColor",
+                        material.reflectionColorR,
+                        material.reflectionColorG,
+                        material.reflectionColorB
+                )
+                .uniform1f("material.minExponent", material.minExponent)
+                .uniform1f("material.maxExponent", material.maxExponent)
+                .uniform1f("material.parallaxHeightCoefficient", material.parallaxHeightCoefficient)
+                .uniform1f("material.parallaxMinLayers", material.parallaxMinLayers)
+                .uniform1f("material.parallaxMinLayers", material.parallaxMaxLayers);
     }
 
     public static void sendLight(BetterUniformSetter uniforms, NProgramLight light, int index) {
@@ -861,15 +902,16 @@ public class NProgram {
         if (light == null) {
             light = NULL_LIGHT;
         }
-        glUniform1i(uniforms.locationOf("lights[" + index + "].type"), light.type);
+        uniforms.uniform1i("lights[" + index + "].type", light.type);
         if (light != NULL_LIGHT) {
-            glUniform3f(uniforms.locationOf("lights[" + index + "].position"), light.x, light.y, light.z);
-            glUniform3f(uniforms.locationOf("lights[" + index + "].direction"), light.dirX, light.dirY, light.dirZ);
-            glUniform1f(uniforms.locationOf("lights[" + index + "].innerCone"), light.innerCone);
-            glUniform1f(uniforms.locationOf("lights[" + index + "].outerCone"), light.outerCone);
-            glUniform3f(uniforms.locationOf("lights[" + index + "].diffuse"), light.diffuseR, light.diffuseG, light.diffuseB);
-            glUniform3f(uniforms.locationOf("lights[" + index + "].specular"), light.specularR, light.specularG, light.specularB);
-            glUniform3f(uniforms.locationOf("lights[" + index + "].ambient"), light.ambientR, light.ambientG, light.ambientB);
+            uniforms
+                    .uniform3f("lights[" + index + "].position", light.x, light.y, light.z)
+                    .uniform3f("lights[" + index + "].direction", light.dirX, light.dirY, light.dirZ)
+                    .uniform1f("lights[" + index + "].innerCone", light.innerCone)
+                    .uniform1f("lights[" + index + "].outerCone", light.outerCone)
+                    .uniform3f("lights[" + index + "].diffuse", light.diffuseR, light.diffuseG, light.diffuseB)
+                    .uniform3f("lights[" + index + "].specular", light.specularR, light.specularG, light.specularB)
+                    .uniform3f("lights[" + index + "].ambient", light.ambientR, light.ambientG, light.ambientB);
         }
     }
 
@@ -877,38 +919,40 @@ public class NProgram {
         if (index < 0 || index > MAX_AMOUNT_OF_LIGHTMAPS) {
             throw new IllegalArgumentException("Out of bounds index: " + index);
         }
-        glUniform1f(uniforms.locationOf("lightmapIntensity[" + index + "]"), intensity);
+        uniforms.uniform1f("lightmapIntensity[" + index + "]", intensity);
     }
 
     public static void sendBoneMatrix(BetterUniformSetter uniforms, Matrix4fc matrix, int boneId) {
-        BetterUniformSetter.uniformMatrix4fv(uniforms.locationOf("boneMatrices[" + (boneId + 1) + "]"), matrix);
+        uniforms.uniformMatrix4fv("boneMatrices[" + (boneId + 1) + "]", matrix);
     }
 
     public static void sendParallaxCubemapInfo(BetterUniformSetter uniforms, int index, boolean enabled, float intensity, float x, float y, float z, Matrix4fc worldToLocal) {
-        glUniform1i(uniforms.locationOf("parallaxCubemaps["+index+"].enabled"), (enabled ? 1 : 0));
+        uniforms.uniform1i("parallaxCubemaps[" + index + "].enabled", (enabled ? 1 : 0));
         if (enabled) {
-            glUniform1f(uniforms.locationOf("parallaxCubemaps["+index+"].intensity"), intensity);
-            glUniform3f(uniforms.locationOf("parallaxCubemaps["+index+"].position"), x, y, z);
-            BetterUniformSetter.uniformMatrix4fv(uniforms.locationOf("parallaxCubemaps["+index+"].worldToLocal"), worldToLocal);
+            uniforms
+                    .uniform1f("parallaxCubemaps[" + index + "].intensity", intensity)
+                    .uniform3f("parallaxCubemaps[" + index + "].position", x, y, z)
+                    .uniformMatrix4fv("parallaxCubemaps[" + index + "].worldToLocal", worldToLocal);
         }
     }
 
     public static void sendFresnelOutlineInfo(BetterUniformSetter uniforms, boolean enabled, float exponent, float r, float g, float b) {
-        glUniform1i(uniforms.locationOf("fresnelOutline.enabled"), (enabled ? 1 : 0));
+        uniforms.uniform1i("fresnelOutline.enabled", (enabled ? 1 : 0));
         if (enabled) {
-            glUniform1f(uniforms.locationOf("fresnelOutline.exponent"), exponent);
-            glUniform3f(uniforms.locationOf("fresnelOutline.color"), r, g, b);
+            uniforms
+                    .uniform1f("fresnelOutline.exponent", exponent)
+                    .uniform3f("fresnelOutline.color", r, g, b);
         }
     }
-    
+
     public static void sendAmbientCube(BetterUniformSetter uniforms, AmbientCube ambientCube) {
         if (ambientCube == null) {
             ambientCube = AmbientCube.NULL_AMBIENT_CUBE;
         }
         for (int i = 0; i < AmbientCube.SIDES; i++) {
             Vector3fc color = ambientCube.getSide(i);
-            glUniform3f(
-                    uniforms.locationOf("ambientCube["+i+"]"),
+            uniforms.uniform3f(
+                    "ambientCube[" + i + "]",
                     color.x(), color.y(), color.z()
             );
         }

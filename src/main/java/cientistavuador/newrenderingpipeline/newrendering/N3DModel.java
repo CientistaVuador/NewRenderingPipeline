@@ -175,7 +175,7 @@ public class N3DModel {
                         materialsList.add(material);
                     }
 
-                    if (materialTextures != NTextures.NULL_TEXTURE && !texturesList.contains(materialTextures)) {
+                    if (materialTextures != NTextures.NULL_TEXTURES && !texturesList.contains(materialTextures)) {
                         texturesList.add(materialTextures);
                     }
 
@@ -437,9 +437,7 @@ public class N3DModel {
     
     public void load() {
         for (NTextures t:this.textures) {
-            t.r_g_b_a();
-            t.er_eg_eb_ny();
-            t.ht_rg_mt_nx();
+            t.textures();
         }
         
         for (NMesh m:this.meshes) {

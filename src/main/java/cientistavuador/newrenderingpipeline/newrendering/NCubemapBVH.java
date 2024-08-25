@@ -43,13 +43,13 @@ public class NCubemapBVH {
         List<NCubemapBVH> current = new ArrayList<>();
         
         for (NCubemap cubemap : cubemaps) {
-            if (!cubemap.getCubemapInfo().isParallaxCorrected()) {
+            if (!cubemap.isParallaxCorrected()) {
                 throw new IllegalArgumentException("Cubemap is not parallax corrected, " + cubemap.getName() + ", " + cubemap.getUID());
             }
             
             current.add(new NCubemapBVH(
-                    cubemap.getCubemapInfo().getMin(),
-                    cubemap.getCubemapInfo().getMax(),
+                    cubemap.getCubemapBox().getMin(),
+                    cubemap.getCubemapBox().getMax(),
                     cubemap,
                     null, null
             ));

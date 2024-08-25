@@ -27,9 +27,11 @@
 package cientistavuador.newrenderingpipeline.newrendering;
 
 import cientistavuador.newrenderingpipeline.Main;
+import cientistavuador.newrenderingpipeline.debug.DebugCounter;
 import cientistavuador.newrenderingpipeline.util.DXT5TextureStore;
 import cientistavuador.newrenderingpipeline.util.DXT5TextureStore.DXT5Texture;
 import cientistavuador.newrenderingpipeline.util.M8Image;
+import cientistavuador.newrenderingpipeline.util.MipmapUtils;
 import cientistavuador.newrenderingpipeline.util.ObjectCleaner;
 import cientistavuador.newrenderingpipeline.util.StringUtils;
 import java.io.ByteArrayInputStream;
@@ -43,11 +45,10 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 import org.lwjgl.opengl.EXTTextureCompressionS3TC;
 import org.lwjgl.opengl.EXTTextureFilterAnisotropic;
-import org.lwjgl.opengl.EXTTextureSRGB;
 import org.lwjgl.opengl.GL;
 import org.lwjgl.opengl.KHRDebug;
-import org.lwjgl.system.MemoryUtil;
 import static org.lwjgl.opengl.GL33C.*;
+import static org.lwjgl.system.MemoryUtil.*;
 
 /**
  *
@@ -60,16 +61,16 @@ public class NTextures {
     public static final String ERROR_R_G_B_A_DATA = "KLUv/aDwVQUA9AIA0oUPGMCnNd7//+r/0890pNcol2T9xZau2d22Un93FxVR8bd2d/d/axFieLBnPd0YzJij/JI4TfXTwIoQDhnMWgEIAIXnA3BykD/4qf358w9Q/lD/AwgJJM4VB+zWAUwAAAj/AQD8/zkQAiUBAJAAAAUFUFARRBFEF7gXuKqqqqoEAF0Fel7/AU/y/zP1OqAuEA==";
     public static final String ERROR_HT_RG_MT_NX_DATA = "KLUv/aDwVQUAVAIAksQNFdBdA4AKeMBEAKKkVBxtUTmLlUtUCrXWeu21/0/pyZDRk+oX/zn8e5H9txXh5X/x4IsZ/zxOqQUA2v5n5gsgJJA4VxywWwdEAAAAAQD9/5NPIEUAAAABAO1VOQAC";
     public static final String ERROR_ER_EG_EB_NY_DATA = "KLUv/aDwVQUALAIAkoQMFMBrDv/D/I9YrqzKzPdv1ZBak0Skd3f/N80iDQm2rJ+rwYy14xGjKdE/A6MknFHJWgEFANr+Z+YLICSQOFccsFsHRAAAAAEA/f+TTyBFAAAAAQDtVTkAAg==";
-    
-    public static final NTextures NULL_TEXTURE;
-    
+
+    public static final NTextures NULL_TEXTURES;
+
     static {
         try {
             DXT5Texture r_g_b_a = DXT5TextureStore.readDXT5Texture(new ByteArrayInputStream(Base64.getDecoder().decode(ERROR_R_G_B_A_DATA)));
             DXT5Texture ht_rg_mt_nx = DXT5TextureStore.readDXT5Texture(new ByteArrayInputStream(Base64.getDecoder().decode(ERROR_HT_RG_MT_NX_DATA)));
             DXT5Texture er_eg_eb_ny = DXT5TextureStore.readDXT5Texture(new ByteArrayInputStream(Base64.getDecoder().decode(ERROR_ER_EG_EB_NY_DATA)));
-            
-            NULL_TEXTURE = new NTextures(
+
+            NULL_TEXTURES = new NTextures(
                     "Error/Null/Empty Texture",
                     "Error/Null/Empty Texture",
                     NBlendingMode.OPAQUE,
@@ -81,9 +82,9 @@ public class NTextures {
         }
     }
 
-    private static class WrappedTexture {
+    private static class WrappedTextures {
 
-        public int texture = 0;
+        public int textures = 0;
     }
 
     private final String name;
@@ -95,11 +96,9 @@ public class NTextures {
     private final DXT5Texture texture_r_g_b_a;
     private final DXT5Texture texture_ht_rg_mt_nx;
     private final DXT5Texture texture_er_eg_eb_ny;
-
-    private final WrappedTexture r_g_b_a = new WrappedTexture();
-    private final WrappedTexture ht_rg_mt_nx = new WrappedTexture();
-    private final WrappedTexture er_eg_eb_ny = new WrappedTexture();
     
+    private final WrappedTextures wrappedTextures = new WrappedTextures();
+
     private WeakReference<byte[]> decompressed_r_g_b_a_ref = null;
     private WeakReference<byte[]> decompressed_ht_rg_mt_nx_ref = null;
     private WeakReference<byte[]> decompressed_er_eg_eb_ny_ref = null;
@@ -146,39 +145,27 @@ public class NTextures {
             blendingMode = NBlendingMode.OPAQUE;
         }
         this.blendingMode = blendingMode;
-        
+
         this.heightMapSupported = heightMapSupported;
-        
+
         registerForCleaning();
     }
 
     private void registerForCleaning() {
-        final WrappedTexture final_r_g_b_a = this.r_g_b_a;
-        final WrappedTexture final_ht_rg_mt_nx = this.ht_rg_mt_nx;
-        final WrappedTexture final_er_eg_eb_ny = this.er_eg_eb_ny;
+        final WrappedTextures final_textures = this.wrappedTextures;
 
         ObjectCleaner.get().register(this, () -> {
             Main.MAIN_TASKS.add(() -> {
-                int tex_r_g_b_a = final_r_g_b_a.texture;
-                int tex_ht_rg_mt_nx = final_ht_rg_mt_nx.texture;
-                int tex_er_eg_eb_ny = final_er_eg_eb_ny.texture;
+                int tex_textures = final_textures.textures;
 
-                if (tex_r_g_b_a != 0) {
-                    glDeleteTextures(tex_r_g_b_a);
-                    final_r_g_b_a.texture = 0;
-                }
-                if (tex_ht_rg_mt_nx != 0) {
-                    glDeleteTextures(tex_ht_rg_mt_nx);
-                    final_ht_rg_mt_nx.texture = 0;
-                }
-                if (tex_er_eg_eb_ny != 0) {
-                    glDeleteTextures(tex_er_eg_eb_ny);
-                    final_er_eg_eb_ny.texture = 0;
+                if (tex_textures != 0) {
+                    glDeleteTextures(tex_textures);
+                    final_textures.textures = 0;
                 }
             });
         });
     }
-
+    
     public String getName() {
         return name;
     }
@@ -214,7 +201,7 @@ public class NTextures {
     public DXT5Texture texture_er_eg_eb_ny() {
         return texture_er_eg_eb_ny;
     }
-    
+
     private byte[] getOrNull(WeakReference<byte[]> ref) {
         if (ref != null) {
             byte[] result = ref.get();
@@ -224,18 +211,18 @@ public class NTextures {
         }
         return null;
     }
-    
+
     public byte[] data_r_g_b_a() {
         byte[] cached = getOrNull(this.decompressed_r_g_b_a_ref);
         if (cached != null) {
             return cached;
         }
-        
+
         byte[] decompressed = texture_r_g_b_a().decompress();
         if (NBlendingMode.OPAQUE.equals(getBlendingMode())) {
             M8Image.m8ToRGBA(decompressed, this.width, this.height);
         }
-        
+
         this.decompressed_r_g_b_a_ref = new WeakReference<>(decompressed);
         return decompressed;
     }
@@ -245,7 +232,7 @@ public class NTextures {
         if (cached != null) {
             return cached;
         }
-        
+
         byte[] decompressed = texture_ht_rg_mt_nx().decompress();
         this.decompressed_ht_rg_mt_nx_ref = new WeakReference<>(decompressed);
         return decompressed;
@@ -256,155 +243,137 @@ public class NTextures {
         if (cached != null) {
             return cached;
         }
-        
+
         byte[] decompressed = texture_er_eg_eb_ny().decompress();
         this.decompressed_er_eg_eb_ny_ref = new WeakReference<>(decompressed);
         return decompressed;
     }
+    
+    private void validateTextures() {
+        if (this.wrappedTextures.textures != 0) {
+            return;
+        }
 
-    private int loadTexture(DXT5Texture textureData, boolean srgb, String name, long textureId) {
-        int texture = glGenTextures();
-        glBindTexture(GL_TEXTURE_2D, texture);
+        long textureId = NTextures.textureIds.getAndIncrement();
+        glActiveTexture(GL_TEXTURE0);
+        
+        int textures = glGenTextures();
+        glBindTexture(GL_TEXTURE_2D_ARRAY, textures);
+        
+        int internalFormat = GL_RGBA8;
+        if (GL.getCapabilities().GL_EXT_texture_compression_s3tc) {
+            internalFormat = EXTTextureCompressionS3TC.GL_COMPRESSED_RGBA_S3TC_DXT5_EXT;
+        }
+        
+        DXT5Texture[] texturesArray = {
+            this.texture_r_g_b_a,
+            this.texture_ht_rg_mt_nx,
+            this.texture_er_eg_eb_ny
+        };
+        
+        int mipLevels = MipmapUtils.numberOfMipmaps(getWidth(), getHeight());
+        for (int i = 0; i < mipLevels; i++) {
+            glTexImage3D(
+                    GL_TEXTURE_2D_ARRAY,
+                    i,
+                    internalFormat,
+                    MipmapUtils.mipmapSize(getWidth(), i),
+                    MipmapUtils.mipmapSize(getHeight(), i),
+                    texturesArray.length,
+                    0,
+                    GL_RGBA,
+                    GL_UNSIGNED_BYTE,
+                    (ByteBuffer) null
+            );
+        }
+        
+        for (int i = 0; i < texturesArray.length; i++) {
+            DXT5Texture texture = texturesArray[i];
+            if (internalFormat == GL_RGBA8) {
+                byte[] uncompressed = texture.decompress();
 
-        int internalFormat;
-        boolean compressed = false;
-
-        if (srgb) {
-            internalFormat = GL_SRGB8_ALPHA8;
-            if (GL.getCapabilities().GL_EXT_texture_compression_s3tc
-                    && GL.getCapabilities().GL_EXT_texture_sRGB) {
-                internalFormat = EXTTextureSRGB.GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT;
-                compressed = true;
-            }
-        } else {
-            internalFormat = GL_RGBA8;
-            if (GL.getCapabilities().GL_EXT_texture_compression_s3tc) {
-                internalFormat = EXTTextureCompressionS3TC.GL_COMPRESSED_RGBA_S3TC_DXT5_EXT;
-                compressed = true;
+                ByteBuffer data = memAlloc(uncompressed.length).put(uncompressed).flip();
+                try {
+                    glTexSubImage3D(
+                            GL_TEXTURE_2D_ARRAY,
+                            0,
+                            0,
+                            0,
+                            i,
+                            texture.width(),
+                            texture.height(),
+                            1,
+                            GL_RGBA,
+                            GL_UNSIGNED_BYTE,
+                            data
+                    );
+                } finally {
+                    memFree(data);
+                }
+            } else {
+                for (int j = 0; j < texture.mips(); j++) {
+                    glCompressedTexSubImage3D(
+                            GL_TEXTURE_2D_ARRAY,
+                            j,
+                            0,
+                            0,
+                            i,
+                            texture.mipWidth(j),
+                            texture.mipHeight(j),
+                            1,
+                            internalFormat,
+                            texture.mipSlice(j)
+                    );
+                }
             }
         }
         
-        if (compressed) {
-            for (int i = 0; i < textureData.mips(); i++) {
-                glCompressedTexImage2D(
-                        GL_TEXTURE_2D,
-                        i,
-                        internalFormat, textureData.mipWidth(i), textureData.mipHeight(i),
-                        0,
-                        textureData.mipSlice(i)
-                );
-            }
-        } else {
-            byte[] uncompressedTextureData = textureData.decompress();
-            ByteBuffer uncompressed = MemoryUtil
-                    .memAlloc(uncompressedTextureData.length)
-                    .put(uncompressedTextureData)
-                    .flip();
-            try {
-                glTexImage2D(
-                        GL_TEXTURE_2D,
-                        0,
-                        internalFormat, textureData.width(), textureData.height(),
-                        0,
-                        GL_RGBA, GL_UNSIGNED_BYTE, uncompressed
-                );
-                glGenerateMipmap(GL_TEXTURE_2D);
-            } finally {
-                MemoryUtil.memFree(uncompressed);
-            }
+        if (internalFormat == GL_RGBA8) {
+            glGenerateMipmap(GL_TEXTURE_2D_ARRAY);
         }
 
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-
+        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        
+        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_R, GL_REPEAT);
+        
         if (GL.getCapabilities().GL_EXT_texture_filter_anisotropic) {
             glTexParameterf(
-                    GL_TEXTURE_2D,
+                    GL_TEXTURE_2D_ARRAY,
                     EXTTextureFilterAnisotropic.GL_TEXTURE_MAX_ANISOTROPY_EXT,
                     glGetFloat(EXTTextureFilterAnisotropic.GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT)
             );
         }
 
-        glBindTexture(GL_TEXTURE_2D, 0);
-
+        glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
+        
         if (GL.getCapabilities().GL_KHR_debug) {
-            KHRDebug.glObjectLabel(GL_TEXTURE, texture,
-                    StringUtils.truncateStringTo255Bytes(name + "_" + textureId + "_" + this.name)
+            KHRDebug.glObjectLabel(GL_TEXTURE, textures,
+                    StringUtils.truncateStringTo255Bytes("textures_" + textureId + "_" + this.name)
             );
         }
-
-        return texture;
-    }
-    
-    private void validateTextures() {
-        if (this.r_g_b_a.texture != 0) {
-            return;
-        }
         
-        long textureId = NTextures.textureIds.getAndIncrement();
-        glActiveTexture(GL_TEXTURE0);
-
-        this.r_g_b_a.texture = loadTexture(
-                this.texture_r_g_b_a,
-                true,
-                "r_g_b_a",
-                textureId
-        );
-        this.ht_rg_mt_nx.texture = loadTexture(
-                this.texture_ht_rg_mt_nx,
-                false,
-                "ht_rg_mt_nx",
-                textureId
-        );
-        this.er_eg_eb_ny.texture = loadTexture(
-                this.texture_er_eg_eb_ny,
-                false,
-                "er_eg_eb_ny",
-                textureId
-        );
+        this.wrappedTextures.textures = textures;
     }
 
-    public int r_g_b_a() {
+    public int textures() {
         validateTextures();
-        return this.r_g_b_a.texture;
-    }
-
-    public int ht_rg_mt_nx() {
-        validateTextures();
-        return this.ht_rg_mt_nx.texture;
-    }
-
-    public int er_eg_eb_ny() {
-        validateTextures();
-        return this.er_eg_eb_ny.texture;
+        return this.wrappedTextures.textures;
     }
 
     public void manualFree() {
-        final WrappedTexture final_r_g_b_a = this.r_g_b_a;
-        final WrappedTexture final_ht_rg_mt_nx = this.ht_rg_mt_nx;
-        final WrappedTexture final_er_eg_eb_ny = this.er_eg_eb_ny;
+        final WrappedTextures final_textures = this.wrappedTextures;
 
-        int tex_r_g_b_a = final_r_g_b_a.texture;
-        int tex_ht_rg_mt_nx = final_ht_rg_mt_nx.texture;
-        int tex_er_eg_eb_ny = final_er_eg_eb_ny.texture;
+        int tex_textures = final_textures.textures;
 
-        if (tex_r_g_b_a != 0) {
-            glDeleteTextures(tex_r_g_b_a);
-            final_r_g_b_a.texture = 0;
-        }
-        if (tex_ht_rg_mt_nx != 0) {
-            glDeleteTextures(tex_ht_rg_mt_nx);
-            final_ht_rg_mt_nx.texture = 0;
-        }
-        if (tex_er_eg_eb_ny != 0) {
-            glDeleteTextures(tex_er_eg_eb_ny);
-            final_er_eg_eb_ny.texture = 0;
+        if (tex_textures != 0) {
+            glDeleteTextures(tex_textures);
+            final_textures.textures = 0;
         }
     }
-
+    
     @Override
     public boolean equals(Object obj) {
         if (this == obj) {

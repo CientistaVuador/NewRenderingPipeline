@@ -32,6 +32,7 @@ import cientistavuador.newrenderingpipeline.util.E8Image;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import org.joml.Vector3f;
 
 /**
  *
@@ -42,7 +43,7 @@ public class NCubemapImporter {
     public static NCubemap create(
             String name,
             String uid,
-            NCubemapInfo cubemapInfo,
+            NCubemapBox cubemapBox,
             int size,
             float[][] sideTextures
     ) {
@@ -95,7 +96,7 @@ public class NCubemapImporter {
         totalAverageG *= inv;
         totalAverageB *= inv;
 
-        return new NCubemap(name, uid, totalAverageR, totalAverageG, totalAverageB, cubemapInfo, sidesDXT5);
+        return new NCubemap(name, uid, cubemapBox, sidesDXT5, new Vector3f(totalAverageR, totalAverageG, totalAverageB));
     }
 
     private static byte[] getSide(

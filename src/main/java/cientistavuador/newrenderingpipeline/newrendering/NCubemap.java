@@ -48,8 +48,8 @@ import org.lwjgl.opengl.EXTTextureCompressionS3TC;
 import org.lwjgl.opengl.EXTTextureFilterAnisotropic;
 import org.lwjgl.opengl.GL;
 import static org.lwjgl.opengl.GL33C.*;
-import static org.lwjgl.system.MemoryUtil.*;
 import org.lwjgl.opengl.KHRDebug;
+import static org.lwjgl.system.MemoryUtil.*;
 
 /**
  *
@@ -57,34 +57,52 @@ import org.lwjgl.opengl.KHRDebug;
  */
 public class NCubemap {
 
-    public static final int SIDES = 6;
+    public static void calculateColor(DXT5Texture side, Vector3f outColor) {
+        Objects.requireNonNull(side, "Side is null.");
+        if (side.width() == 0 || side.height() == 0) {
+            outColor.set(0f, 0f, 0f);
+            return;
+        }
 
-    public static final int POSITIVE_X = 0;
-    public static final int NEGATIVE_X = 1;
+        E8Image img = new E8Image(side.decompress(), side.width(), side.height());
 
-    public static final int POSITIVE_Y = 2;
-    public static final int NEGATIVE_Y = 3;
+        float r = 0f;
+        float g = 0f;
+        float b = 0f;
+        for (int y = 0; y < img.getHeight(); y++) {
+            for (int x = 0; x < img.getWidth(); x++) {
+                img.read(x, y, outColor);
 
-    public static final int POSITIVE_Z = 4;
-    public static final int NEGATIVE_Z = 5;
-    
+                r += outColor.x();
+                g += outColor.y();
+                b += outColor.z();
+            }
+        }
+        float inv = 1f / (img.getWidth() * img.getHeight());
+        r *= inv;
+        g *= inv;
+        b *= inv;
+
+        outColor.set(r, g, b);
+    }
+
     public static final String ERROR_CUBEMAP_SIDE_DATA = "KLUv/aTwVQUA9AIA0oUPGMCnNf//m/7vk8qEpNcol2T9xZau2d22Un93FxVR8bd2d/d/axFieLBnPd0YzJij/JI4TfXTwIoQDhnMWgEIAIXnA3BykD/4qf358w9Q/lD/AwgJJM4VB+zWAUwAAAh/AQD8/zkQAiUBAJAAAAUFUFARRBFEF7gXuKqqqqoEAF0Fel7/AU/y/zP1OqAuEMj5YlU=";
     public static final NCubemap NULL_CUBEMAP;
-    
+
     static {
         try {
             DXT5Texture errorCubemapSide = DXT5TextureStore.readDXT5Texture(new ByteArrayInputStream(Base64.getDecoder().decode(ERROR_CUBEMAP_SIDE_DATA)));
-            DXT5Texture[] sides = new DXT5Texture[SIDES];
+            DXT5Texture[] sides = new DXT5Texture[NCubemap.SIDES];
             for (int i = 0; i < sides.length; i++) {
                 sides[i] = errorCubemapSide;
             }
-            
+
             NULL_CUBEMAP = new NCubemap(
                     "Error/Null/Empty Cubemap Texture",
                     "Error/Null/Empty Cubemap Texture",
-                    0.5f, 0f, 0.5f,
                     null,
-                    sides
+                    sides,
+                    new Vector3f(0.5f, 0f, 0.5f)
             );
         } catch (IOException ex) {
             throw new UncheckedIOException(ex);
@@ -98,26 +116,37 @@ public class NCubemap {
         int texture = 0;
     }
 
+    public static final int SIDES = 6;
+
+    public static final int POSITIVE_X = 0;
+    public static final int NEGATIVE_X = 1;
+
+    public static final int POSITIVE_Y = 2;
+    public static final int NEGATIVE_Y = 3;
+
+    public static final int POSITIVE_Z = 4;
+    public static final int NEGATIVE_Z = 5;
+
     private final String name;
     private final String uid;
-    private final Vector3f cubemapColor = new Vector3f(0f, 0f, 0f);
-    private final NCubemapInfo cubemapInfo;
+    private final NCubemapBox cubemapBox;
     private final DXT5Texture[] sideTextures;
     private final int size;
-    
+    private final Vector3f cubemapColor;
+
     private float intensity = 1f;
-    
-    private final WrappedCubemap wrappedCubemap;
-    
+
     @SuppressWarnings("unchecked")
     private final WeakReference<E8Image>[] sideTexturesData = new WeakReference[SIDES];
-    
+
+    private final WrappedCubemap wrappedCubemap;
+
     public NCubemap(
             String name,
             String uid,
-            float colorR, float colorG, float colorB,
-            NCubemapInfo cubemapInfo,
-            DXT5Texture[] sideTextures
+            NCubemapBox cubemapBox,
+            DXT5Texture[] sideTextures,
+            Vector3fc cubemapColor
     ) {
         if (name == null) {
             name = "Unnamed";
@@ -129,12 +158,10 @@ public class NCubemap {
         }
         this.uid = uid;
 
-        this.cubemapColor.set(colorR, colorG, colorB);
-
-        if (cubemapInfo == null) {
-            cubemapInfo = new NCubemapInfo();
+        if (cubemapBox == NCubemapBox.NULL_CUBEMAP_BOX) {
+            cubemapBox = null;
         }
-        this.cubemapInfo = cubemapInfo;
+        this.cubemapBox = cubemapBox;
 
         if (sideTextures == null) {
             throw new NullPointerException("Side Textures is null.");
@@ -144,7 +171,7 @@ public class NCubemap {
         }
 
         int cubemapSize = -1;
-        this.sideTextures = new DXT5Texture[SIDES];
+        this.sideTextures = new DXT5TextureStore.DXT5Texture[SIDES];
         for (int i = 0; i < sideTextures.length; i++) {
             DXT5Texture texture = sideTextures[i];
             if (texture == null) {
@@ -163,8 +190,29 @@ public class NCubemap {
         }
         this.size = cubemapSize;
 
-        this.wrappedCubemap = new WrappedCubemap();
+        this.cubemapColor = new Vector3f();
+        if (cubemapColor == null) {
+            float r = 0f;
+            float g = 0f;
+            float b = 0f;
+            for (int i = 0; i < this.sideTextures.length; i++) {
+                calculateColor(this.sideTextures[i], this.cubemapColor);
+                r += this.cubemapColor.x();
+                g += this.cubemapColor.y();
+                b += this.cubemapColor.z();
+            }
+            float inv = 1f / SIDES;
+            r *= inv;
+            g *= inv;
+            b *= inv;
 
+            this.cubemapColor.set(r, g, b);
+        } else {
+            this.cubemapColor.set(cubemapColor);
+        }
+
+        this.wrappedCubemap = new WrappedCubemap();
+        
         registerForCleaning();
     }
 
@@ -190,12 +238,12 @@ public class NCubemap {
         return uid;
     }
 
-    public Vector3fc getCubemapColor() {
-        return cubemapColor;
+    public NCubemapBox getCubemapBox() {
+        return cubemapBox;
     }
 
-    public NCubemapInfo getCubemapInfo() {
-        return cubemapInfo;
+    public boolean isParallaxCorrected() {
+        return getCubemapBox() != null;
     }
 
     public int getNumberOfSides() {
@@ -205,7 +253,7 @@ public class NCubemap {
     public DXT5Texture getSideTexture(int index) {
         return this.sideTextures[index];
     }
-    
+
     public E8Image getSideTextureData(int index) {
         WeakReference<E8Image> reference = this.sideTexturesData[index];
         if (reference != null) {
@@ -214,14 +262,18 @@ public class NCubemap {
                 return cached;
             }
         }
-        
+
         E8Image decompressed = new E8Image(this.sideTextures[index].decompress(), this.size, this.size);
         this.sideTexturesData[index] = new WeakReference<>(decompressed);
         return decompressed;
     }
-    
+
     public int getSize() {
         return size;
+    }
+
+    public Vector3fc getCubemapColor() {
+        return cubemapColor;
     }
 
     public float getIntensity() {
@@ -236,7 +288,7 @@ public class NCubemap {
         if (this.wrappedCubemap.texture != 0) {
             return;
         }
-        
+
         glActiveTexture(GL_TEXTURE0);
 
         int cubemapTexture = glGenTextures();
@@ -246,13 +298,13 @@ public class NCubemap {
         if (GL.getCapabilities().GL_EXT_texture_compression_s3tc) {
             internalFormat = EXTTextureCompressionS3TC.GL_COMPRESSED_RGBA_S3TC_DXT5_EXT;
         }
-        
-        for (int i = 0; i < this.sideTextures.length; i++) {
-            DXT5Texture texture = this.sideTextures[i];
+
+        for (int i = 0; i < this.getNumberOfSides(); i++) {
+            DXT5Texture texture = this.getSideTexture(i);
 
             if (internalFormat == GL_RGBA8) {
                 byte[] uncompressed = texture.decompress();
-                
+
                 ByteBuffer data = memAlloc(uncompressed.length).put(uncompressed).flip();
                 try {
                     glTexImage2D(
@@ -307,18 +359,18 @@ public class NCubemap {
         if (GL.getCapabilities().GL_ARB_seamless_cubemap_per_texture) {
             glTexParameteri(GL_TEXTURE_CUBE_MAP, ARBSeamlessCubemapPerTexture.GL_TEXTURE_CUBE_MAP_SEAMLESS, GL_TRUE);
         }
-
+        
         glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
 
         if (GL.getCapabilities().GL_KHR_debug) {
             KHRDebug.glObjectLabel(GL_TEXTURE, cubemapTexture,
-                    StringUtils.truncateStringTo255Bytes("cubemap_" + textureIds.getAndIncrement() + "_" + this.name)
+                    StringUtils.truncateStringTo255Bytes("cubemap_" + textureIds.getAndIncrement() + "_" + this.getName())
             );
         }
 
         this.wrappedCubemap.texture = cubemapTexture;
     }
-    
+
     public void manualFree() {
         final WrappedCubemap wrapped = this.wrappedCubemap;
 
