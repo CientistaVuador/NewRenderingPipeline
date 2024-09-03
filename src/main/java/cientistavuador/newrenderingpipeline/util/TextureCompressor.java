@@ -138,7 +138,7 @@ public class TextureCompressor {
     }
     
     public static void init() {
-
+        
     }
     
     public static boolean isNVIDIATextureToolsSupported() {
@@ -175,11 +175,7 @@ public class TextureCompressor {
     }
     
     public static int paddingSize4(int value) {
-        int padding = value % 4;
-        if (padding != 0) {
-            padding = 4 - padding;
-        }
-        return value + padding;
+        return value + 3 & ~3;
     }
 
     public static int DXT5Size(int width, int height) {

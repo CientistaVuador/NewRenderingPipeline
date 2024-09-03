@@ -38,13 +38,7 @@ public class MipmapUtils {
         if (size <= 0) {
             return 0;
         }
-        if (level == 0) {
-            return size;
-        }
-        if (level == 1) {
-            return Math.max(size / 2, 1);
-        }
-        return (int) Math.max(size / Math.pow(2.0, level), 1);
+        return Math.max(size >> level, 1);
     }
     
     public static int mipmapSize(int size) {
@@ -52,7 +46,8 @@ public class MipmapUtils {
     }
     
     public static int numberOfMipmaps(int width, int height) {
-        return (int) Math.abs(Math.log(Math.max(width, height)) / Math.log(2.0)) + 1;
+        int x = (width > height) ? width : height;
+        return (31 - Integer.numberOfLeadingZeros(x)) + 1;
     }
     
     public static Pair<Pair<Integer, Integer>, byte[]> mipmap(
