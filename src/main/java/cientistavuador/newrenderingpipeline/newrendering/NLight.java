@@ -38,8 +38,8 @@ public abstract class NLight {
     private final String name;
     
     private final Vector3f diffuse = new Vector3f(1f);
-    private final Vector3f specular = new Vector3f(1f);
-    private final Vector3f ambient = new Vector3f(0.03f);
+    private final Vector3f specular = new Vector3f(0.5f);
+    private final Vector3f ambient = new Vector3f(0.05f);
     
     private float lightSize = 0.02f;
     private boolean dynamic = true;
@@ -70,7 +70,7 @@ public abstract class NLight {
     
     public void setDiffuseSpecularAmbient(float r, float g, float b) {
         this.diffuse.set(r, g, b);
-        this.specular.set(r, g, b);
+        this.specular.set(r, g, b).mul(0.5f);
         this.ambient.set(r, g, b).mul(0.05f);
     }
     

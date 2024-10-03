@@ -148,13 +148,13 @@ public class Game {
                 this.triceratops.getPosition().set(-15f, 0.9f, 3f);
                 this.triceratops.setAnimator(new NAnimator(triceratopsModel, triceratopsModel.getAnimation("Armature|Armature|Fall")));
             }
-
+            
             {
                 N3DModel plasticBallModel = N3DModelStore.readModel("cientistavuador/newrenderingpipeline/resources/models/metal_ball.n3dm");
-
+                
                 this.plasticBall = new N3DObject("plastic ball", plasticBallModel);
             }
-            
+
             this.map = new NMap("map", mapObjects, NMap.DEFAULT_LIGHTMAP_MARGIN, 61f);
             this.map.setLightmaps(NLightmapsStore.readLightmaps("cientistavuador/newrenderingpipeline/resources/lightmaps/lightmap.lit"));
 
@@ -258,28 +258,28 @@ public class Game {
     private Game() {
 
     }
-    
+
     public void start() {
         NTextures.NULL_TEXTURES.textures();
         NCubemap.NULL_CUBEMAP.cubemap();
         NLightmaps.NULL_LIGHTMAPS.lightmaps();
-        
+
         this.camera.setUBO(CameraUBO.create(UBOBindingPoints.PLAYER_CAMERA));
-        
+
         for (int i = 0; i < this.map.getNumberOfObjects(); i++) {
             this.map.getObject(i).getN3DModel().load();
         }
         this.plasticBall.getN3DModel().load();
         this.triceratops.getN3DModel().load();
-        
+
         this.skybox.cubemap();
-        
+
         this.map.getLightmaps().lightmaps();
-        
+
         for (int i = 0; i < this.cubemaps.getNumberOfCubemaps(); i++) {
             this.cubemaps.getCubemap(i).cubemap();
         }
-        
+
         System.gc();
     }
 
@@ -333,7 +333,7 @@ public class Game {
         for (int i = 0; i < this.map.getNumberOfObjects(); i++) {
             N3DObjectRenderer.queueRender(this.map.getObject(i));
         }
-        
+
         N3DObjectRenderer.queueRender(this.triceratops);
         N3DObjectRenderer.queueRender(this.plasticBall);
 

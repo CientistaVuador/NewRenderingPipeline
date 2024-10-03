@@ -40,10 +40,9 @@ import org.joml.Vector3fc;
  */
 public class NProgram {
     
-    public static final float DIELECTRIC_DIFFUSE_STRENGTH = 0.95f;
-    public static final float DIELECTRIC_SPECULAR_STRENGTH = 0.05f;
-    public static final float METALLIC_DIFFUSE_STRENGTH = 0.00f;
-    public static final float METALLIC_SPECULAR_STRENGTH = 1.00f;
+    public static final float FRESNEL_STRENGTH = 0.90f;
+    public static final float DIFFUSE_STRENGTH = 0.95f;
+    public static final float MAX_SHININESS = 2048f;
 
     public static final float LIGHT_ATTENUATION = 0.75f;
 
@@ -403,66 +402,29 @@ public class NProgram {
             uniform bool reflectionsSupported;
             uniform bool reflectionsEnabled;
             
-            vec4 sampleCubemap(samplerCube cube, vec3 direction) {
-                return RGBEToRGBA(texture(cube, direction));
-            }
-            
-            vec4 sampleCubemapLod(samplerCube cube, vec3 direction, float lod) {
-                return RGBEToRGBA(textureLod(cube, direction, lod));
-            }
-            
-            float cubemapMipLevels(samplerCube cube) {
+            vec3 cubemapReflection(samplerCube cube, float roughness, vec3 direction) {
                 #ifdef SUPPORTED_430
                 float mipLevels = float(textureQueryLevels(cube));
                 #else
                 ivec2 cubemapSize = textureSize(cube, 0);
                 float mipLevels = 1.0 + floor(log2(max(float(cubemapSize.x), float(cubemapSize.y))));
                 #endif
-                return mipLevels;
+                float lodLevel = mipLevels * sqrt(roughness);
+                return RGBEToRGBA(textureLod(cube, direction, lodLevel)).rgb;
             }
             
-            vec4 sampleCubemapLod(int index, vec3 direction, float lod) {
+            vec3 cubemapReflectionIndexed(int index, float roughness, vec3 direction) {
                 switch (index) {
                     case 0:
-                        return sampleCubemapLod(reflectionCubemap_0, direction, lod);
+                        return cubemapReflection(reflectionCubemap_0, roughness, direction);
                     case 1:
-                        return sampleCubemapLod(reflectionCubemap_1, direction, lod);
+                        return cubemapReflection(reflectionCubemap_1, roughness, direction);
                     case 2:
-                        return sampleCubemapLod(reflectionCubemap_2, direction, lod);
+                        return cubemapReflection(reflectionCubemap_2, roughness, direction);
                     case 3:
-                        return sampleCubemapLod(reflectionCubemap_3, direction, lod);
+                        return cubemapReflection(reflectionCubemap_3, roughness, direction);
                 }
-                return vec4(0.0, 0.0, 0.0, 1.0);
-            }
-                        
-            vec4 sampleCubemap(int index, vec3 direction) {
-                switch (index) {
-                    case 0:
-                        return sampleCubemap(reflectionCubemap_0, direction);
-                    case 1:
-                        return sampleCubemap(reflectionCubemap_1, direction);
-                    case 2:
-                        return sampleCubemap(reflectionCubemap_2, direction);
-                    case 3:
-                        return sampleCubemap(reflectionCubemap_3, direction);
-                }
-                return vec4(0.0, 0.0, 0.0, 1.0);
-            }
-            
-            float sampleCubemapMiplevels(int index) {
-                float mipLevels = 0.0;
-                ivec2 cubemapSize = ivec2(0);
-                switch (index) {
-                    case 0:
-                        return cubemapMipLevels(reflectionCubemap_0);
-                    case 1:
-                        return cubemapMipLevels(reflectionCubemap_1);
-                    case 2:
-                        return cubemapMipLevels(reflectionCubemap_2);
-                    case 3:
-                        return cubemapMipLevels(reflectionCubemap_3);
-                }
-                return 0.0;
+                return vec3(0.0);
             }
             
             //POSITIVE_X
@@ -577,71 +539,73 @@ public class NProgram {
             
             vec3 calculateLight(
                 Light light,
-                vec3 diffuseColor,
-                vec3 specularColor,
-                float exponent,
-                float normalizationFactor,
+                vec3 fragPosition,
+                vec3 viewDirection,
                 vec3 normal,
-                vec3 fragDirection,
-                vec3 worldPosition
+                vec3 color,
+                float metallic,
+                float roughness
             ) {
+                float shininess = pow(MAX_SHININESS, 1.0 - roughness);
+                float specular = ((shininess + 2.0) * (shininess + 4.0)) / (8.0 * PI * (pow(2.0, -shininess * 0.5) + shininess));
+                specular = max(specular - 0.3496155267919281, 0.0) * PI;
+                
                 int lightType = light.type;
                 
-                vec3 oppositeLightDirection;
+                vec3 lightDirection;
                 if (lightType == DIRECTIONAL_LIGHT_TYPE) {
-                    oppositeLightDirection = normalize(-light.direction);
+                    lightDirection = normalize(light.direction);
                 } else {
-                    oppositeLightDirection = normalize(light.position - worldPosition);
+                    lightDirection = normalize(fragPosition - light.position);
                 }
                 
-                vec3 halfwayDirection = normalize(oppositeLightDirection + fragDirection);
+                vec3 halfwayDirection = -normalize(lightDirection + viewDirection);
+                float diffuseFactor = max(dot(normal, -lightDirection), 0.0);
+                float specularFactor = pow(max(dot(normal, halfwayDirection), 0.0), shininess) * diffuseFactor * specular;
                 
-                float diffuseFactor = max(dot(normal, oppositeLightDirection), 0.0);
-                float specularFactor = pow(max(dot(normal, halfwayDirection), 0.0), exponent) * diffuseFactor;
-                
-                vec3 diffuse = light.diffuse * diffuseFactor * diffuseColor;
-                vec3 specular = light.specular * specularFactor * specularColor * normalizationFactor;
-                vec3 ambient = light.ambient * diffuseColor;
+                vec3 diffuseLight = light.diffuse * mix(diffuseFactor * color * DIFFUSE_STRENGTH, vec3(0.0), metallic);
+                vec3 specularLight = light.specular * mix(vec3(specularFactor) * (1.0 - DIFFUSE_STRENGTH), specularFactor * color, metallic);
+                vec3 ambientLight = light.ambient * mix(color, vec3(0.0), metallic);
                 
                 if (lightType != DIRECTIONAL_LIGHT_TYPE) {
-                    float distance = length(light.position - worldPosition);
+                    float distance = length(light.position - fragPosition);
                     float pointAttenuation = 1.0 / ((distance * distance) + LIGHT_ATTENUATION);
                     
-                    diffuse *= pointAttenuation;
-                    specular *= pointAttenuation;
-                    ambient *= pointAttenuation;
+                    diffuseLight *= pointAttenuation;
+                    specularLight *= pointAttenuation;
+                    ambientLight *= pointAttenuation;
                     
                     if (lightType == SPOT_LIGHT_TYPE) {
-                        float theta = dot(oppositeLightDirection, normalize(-light.direction));
+                        float theta = dot(lightDirection, normalize(light.direction));
                         float epsilon = light.innerCone - light.outerCone;
                         float spotIntensity = clamp((theta - light.outerCone) / epsilon, 0.0, 1.0);
                         
-                        diffuse *= spotIntensity;
-                        specular *= spotIntensity;
+                        diffuseLight *= spotIntensity;
                     }
                 }
                 
-                return diffuse + specular + ambient;
+                return diffuseLight + specularLight + ambientLight;
             }
             
             vec3 computeReflection(
                 vec3 fragPosition,
-                vec3 fragDirection,
+                vec3 viewDirection,
                 vec3 normal,
-                vec3 metallicColor,
-                float roughness,
-                float metallic
+                vec3 color,
+                float metallic,
+                float roughness
             ) {
-                float metallicRoughness = pow(roughness, 1.0/2.41);
-                float dielectricIntensity = (0.10 + pow(1.0 - max(dot(fragDirection, normal), 0.0), 5.0) * 0.90) * (1.0 - pow(roughness, 1.0 / 4.0));
-                
                 vec3 totalReflection = vec3(0.0);
                 int count = 0;
                 
+                vec3 reflectedDirection = reflect(viewDirection, normal);
+                float distances[MAX_AMOUNT_OF_CUBEMAPS];
+                vec3 directions[MAX_AMOUNT_OF_CUBEMAPS];
                 for (int i = 0; i < MAX_AMOUNT_OF_CUBEMAPS; i++) {
                     ParallaxCubemap parallaxCubemap = parallaxCubemaps[i];
                     
                     if (!parallaxCubemap.enabled) {
+                        distances[i] = -1.0;
                         continue;
                     }
                     
@@ -649,36 +613,42 @@ public class NProgram {
                     
                     vec3 absLocalPosition = abs(localPosition);
                     if (max(absLocalPosition.x, max(absLocalPosition.y, absLocalPosition.z)) > 1.0) {
+                        distances[i] = -1.0;
                         continue;
                     }
                     
-                    vec3 reflectedDirection = reflect(-fragDirection, normal);
                     vec3 localDirection = mat3(parallaxCubemap.worldToLocal) * reflectedDirection;
                     
                     vec3 firstPlane = (vec3(-1.0) - localPosition) / localDirection;
                     vec3 secondPlane = (vec3(1.0) - localPosition) / localDirection;
                     
                     vec3 furthestPlane = max(firstPlane, secondPlane);
-                    
                     float distance = min(furthestPlane.x, min(furthestPlane.y, furthestPlane.z));
                     
                     vec3 intersectionPosition = fragPosition + (reflectedDirection * distance);
-                    reflectedDirection = normalize(intersectionPosition - parallaxCubemap.position);
-                    
-                    vec3 metallicColor = sampleCubemapLod(i, reflectedDirection, sampleCubemapMiplevels(i) * metallicRoughness).rgb * metallicColor * parallaxCubemap.intensity;
-                    vec3 dielectricColor = sampleCubemap(i, reflectedDirection).rgb * dielectricIntensity * parallaxCubemap.intensity;
-                    
-                    vec3 reflection = material.reflectionColor * mix(dielectricColor, metallicColor, metallic);
-                    
-                    totalReflection += reflection;
-                    count++;
+                    directions[i] = normalize(intersectionPosition - parallaxCubemap.position);
+                    distances[i] = distance;
                 }
-                
-                if (count != 0) {
-                    totalReflection /= float(count);
+                int furthest = -1;
+                for (int i = 0; i < MAX_AMOUNT_OF_CUBEMAPS; i++) {
+                    float currentDistance = distances[i];
+                    if (currentDistance < 0.0) {
+                        continue;
+                    }
+                    if (furthest == -1 || currentDistance > distances[furthest]) {
+                        furthest = i;
+                    }
                 }
-                
-                return totalReflection;
+                if (furthest != -1) {
+                    float fresnel = ((1.0 - FRESNEL_STRENGTH) + pow(1.0 - max(dot(-viewDirection, normal), 0.0), 5.0) * FRESNEL_STRENGTH);
+                    vec3 reflectedColor = cubemapReflectionIndexed(furthest, roughness, directions[furthest]);
+                    return mix(
+                                reflectedColor * fresnel * pow(1.0 - roughness, 2.0),
+                                reflectedColor * color,
+                                metallic
+                            );
+                }
+                return vec3(0.0);
             }
             
             vec3 ACESFilm(vec3 rgb) {
@@ -722,29 +692,16 @@ public class NProgram {
                 float ny = (eregebny[3] * 2.0) - 1.0;
                 vec3 normal = normalize(TBN * vec3(nx, ny, sqrt(abs(1.0 - (nx * nx) - (ny * ny)))));
                 
+                vec4 color = material.diffuseColor * rgba;
                 float roughness = hrmnx[1];
                 float metallic = hrmnx[2];
                 
+                if (!reflectionsSupported || !reflectionsEnabled) {
+                    metallic = 0.0;
+                }
+                
                 vec3 worldPosition = inVertex.worldPosition;
-                vec3 fragDirection = normalize(-worldPosition);
-                
-                float exponent = (pow((material.maxExponent - material.minExponent) + 1.0, 1.0 - roughness) - 1.0) + material.minExponent;
-                float normalizationFactor = ((exponent + 2.0) * (exponent + 4.0)) / (8.0 * PI * (pow(2.0, -exponent * 0.5) + exponent));
-                
-                vec3 metallicColor = material.diffuseColor.rgb * rgba.rgb;
-                
-                vec3 diffuseColor = metallicColor;
-                vec3 specularColor = material.specularColor;
-                
-                float metallicStrength = (reflectionsEnabled ? metallic : 0.0);
-                
-                float diffuseStrength = mix(DIELECTRIC_DIFFUSE_STRENGTH, METALLIC_DIFFUSE_STRENGTH, metallicStrength);
-                float specularStrength = mix(DIELECTRIC_SPECULAR_STRENGTH, METALLIC_SPECULAR_STRENGTH, metallicStrength);
-                
-                specularColor = mix(specularColor, diffuseColor, metallicStrength);
-                
-                diffuseColor *= diffuseStrength;
-                specularColor *= specularStrength;
+                vec3 viewDirection = normalize(worldPosition);
                 
                 float lightmapAo = pow(max(dot(vertexNormal, normal), 0.0), 1.4);
                 int amountOfLightmaps = textureSize(lightmaps, 0).z;
@@ -753,7 +710,7 @@ public class NProgram {
                     if (i < MAX_AMOUNT_OF_LIGHTMAPS) {
                         intensity = lightmapIntensity[i];
                     }
-                    finalColor.rgb += sampleLightmaps(inVertex.worldLightmapTexture, i, intensity).rgb * diffuseColor * lightmapAo;
+                    finalColor.rgb += sampleLightmaps(inVertex.worldLightmapTexture, i, intensity).rgb * mix(color.rgb, vec3(0.0), metallic) * lightmapAo;
                 }
                 
                 for (int i = 0; i < MAX_AMOUNT_OF_LIGHTS; i++) {
@@ -761,29 +718,23 @@ public class NProgram {
                     if (light.type == NULL_LIGHT_TYPE) {
                         break;
                     }
-                    finalColor.rgb += calculateLight(
-                        light,
-                        diffuseColor, specularColor,
-                        exponent, normalizationFactor,
-                        normal, fragDirection,
-                        worldPosition
-                    );
+                    finalColor.rgb += calculateLight(light, worldPosition, viewDirection, normal, color.rgb, metallic, roughness);
                 }
                 
-                finalColor.rgb += ambientLight(normal) * diffuseColor;
+                finalColor.rgb += mix(ambientLight(normal) * color.rgb, vec3(0.0), metallic);
                 finalColor.rgb += eregebny.rgb * material.emissiveColor;
                 
                 if (reflectionsSupported && reflectionsEnabled) {
-                    finalColor.rgb += computeReflection(worldPosition, fragDirection, normal, metallicColor, roughness, metallic);
-                }
-                
-                if (reflectionsDebug) {
-                    finalColor.rgb = computeReflection(worldPosition, fragDirection, vertexNormal, vec3(1.0), 0.0, 1.0);
+                    finalColor.rgb += computeReflection(worldPosition, viewDirection, normal, color.rgb, metallic, roughness);
                 }
                 
                 if (fresnelOutline.enabled) {
-                    float fresnel = pow(1.0 - max(dot(fragDirection, vertexNormal), 0.0), fresnelOutline.exponent);
+                    float fresnel = pow(1.0 - max(dot(-viewDirection, vertexNormal), 0.0), fresnelOutline.exponent);
                     finalColor.rgb = mix(finalColor.rgb, fresnelOutline.color, fresnel);
+                }
+                
+                if (reflectionsDebug) {
+                    finalColor.rgb = computeReflection(worldPosition, viewDirection, vertexNormal, vec3(1.0), 1.0, 0.0);
                 }
                 
                 if (!hdrOutput) {
@@ -818,15 +769,14 @@ public class NProgram {
         new ProgramCompiler.ShaderConstant("LIGHT_ATTENUATION", LIGHT_ATTENUATION),
         new ProgramCompiler.ShaderConstant("MAX_AMOUNT_OF_BONES", NMesh.MAX_AMOUNT_OF_BONES),
         new ProgramCompiler.ShaderConstant("MAX_AMOUNT_OF_BONE_WEIGHTS", NMesh.MAX_AMOUNT_OF_BONE_WEIGHTS),
-        new ProgramCompiler.ShaderConstant("DIELECTRIC_DIFFUSE_STRENGTH", DIELECTRIC_DIFFUSE_STRENGTH),
-        new ProgramCompiler.ShaderConstant("DIELECTRIC_SPECULAR_STRENGTH", DIELECTRIC_SPECULAR_STRENGTH),
-        new ProgramCompiler.ShaderConstant("METALLIC_DIFFUSE_STRENGTH", METALLIC_DIFFUSE_STRENGTH),
-        new ProgramCompiler.ShaderConstant("METALLIC_SPECULAR_STRENGTH", METALLIC_SPECULAR_STRENGTH),
         new ProgramCompiler.ShaderConstant("MAX_AMOUNT_OF_CUBEMAPS", MAX_AMOUNT_OF_CUBEMAPS),
         new ProgramCompiler.ShaderConstant("NUMBER_OF_AMBIENT_CUBE_SIDES", AmbientCube.SIDES),
         new ProgramCompiler.ShaderConstant("RGBE_BASE", E8Image.BASE),
         new ProgramCompiler.ShaderConstant("RGBE_MAX_EXPONENT", E8Image.MAX_EXPONENT),
-        new ProgramCompiler.ShaderConstant("RGBE_BIAS", E8Image.BIAS)
+        new ProgramCompiler.ShaderConstant("RGBE_BIAS", E8Image.BIAS),
+        new ProgramCompiler.ShaderConstant("FRESNEL_STRENGTH", FRESNEL_STRENGTH),
+        new ProgramCompiler.ShaderConstant("DIFFUSE_STRENGTH", DIFFUSE_STRENGTH),
+        new ProgramCompiler.ShaderConstant("MAX_SHININESS", MAX_SHININESS)
     };
 
     static {
