@@ -30,7 +30,6 @@ import cientistavuador.newrenderingpipeline.camera.FreeCamera;
 import cientistavuador.newrenderingpipeline.debug.AabRender;
 import cientistavuador.newrenderingpipeline.debug.LineRender;
 import cientistavuador.newrenderingpipeline.newrendering.N3DModel;
-import cientistavuador.newrenderingpipeline.newrendering.N3DModelImporter;
 import cientistavuador.newrenderingpipeline.newrendering.N3DModelStore;
 import cientistavuador.newrenderingpipeline.newrendering.N3DObject;
 import cientistavuador.newrenderingpipeline.newrendering.N3DObjectRenderer;
@@ -52,6 +51,7 @@ import cientistavuador.newrenderingpipeline.text.GLFontRenderer;
 import cientistavuador.newrenderingpipeline.text.GLFontSpecifications;
 import cientistavuador.newrenderingpipeline.ubo.CameraUBO;
 import cientistavuador.newrenderingpipeline.ubo.UBOBindingPoints;
+import cientistavuador.newrenderingpipeline.util.DebugRenderer;
 import cientistavuador.newrenderingpipeline.util.StringUtils;
 import cientistavuador.newrenderingpipeline.util.bakedlighting.AmbientCubeDebug;
 import cientistavuador.newrenderingpipeline.util.bakedlighting.Lightmapper;
@@ -280,7 +280,7 @@ public class Game {
         for (int i = 0; i < this.cubemaps.getNumberOfCubemaps(); i++) {
             this.cubemaps.getCubemap(i).cubemap();
         }
-
+        
         System.gc();
     }
 
@@ -330,11 +330,11 @@ public class Game {
                     this.camera.getProjection(), this.camera.getView(), this.camera.getPosition()
             );
         }
-
+        
         for (int i = 0; i < this.map.getNumberOfObjects(); i++) {
             N3DObjectRenderer.queueRender(this.map.getObject(i));
         }
-
+        
         N3DObjectRenderer.queueRender(this.triceratops);
         N3DObjectRenderer.queueRender(this.plasticBall);
 
@@ -342,6 +342,7 @@ public class Game {
 
         AabRender.renderQueue(this.camera);
         LineRender.renderQueue(this.camera);
+        DebugRenderer.render();
 
         if (this.status != null) {
             if (!this.status.getTask().isDone()) {

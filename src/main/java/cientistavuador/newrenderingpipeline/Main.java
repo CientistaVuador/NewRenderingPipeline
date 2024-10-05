@@ -42,6 +42,7 @@ import cientistavuador.newrenderingpipeline.util.TextureCompressor;
 import cientistavuador.newrenderingpipeline.util.Aab;
 import cientistavuador.newrenderingpipeline.util.ConvexPolygonRenderer;
 import cientistavuador.newrenderingpipeline.util.Cursors;
+import cientistavuador.newrenderingpipeline.util.DebugRenderer;
 import cientistavuador.newrenderingpipeline.util.GPUOcclusion;
 import java.io.IOException;
 import java.io.InputStream;
@@ -497,6 +498,7 @@ public class Main {
         
         Main.checkGLError();
         
+        DebugRenderer.init();
         TextureCompressor.init();
         GLFonts.init();
         Textures.init();
