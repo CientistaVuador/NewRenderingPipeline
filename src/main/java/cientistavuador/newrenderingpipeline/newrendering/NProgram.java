@@ -537,54 +537,66 @@ public class NProgram {
                 return finalUv;
             }
             
-            vec3 calculateLight(
-                Light light,
-                vec3 fragPosition,
-                vec3 viewDirection,
-                vec3 normal,
-                vec3 color,
-                float metallic,
-                float roughness
+            struct BlinnPhongMaterial {
+                float shininess;
+                vec3 diffuse;
+                vec3 specular;
+                vec3 ambient;
+            };
+            
+            BlinnPhongMaterial convertPBRMaterialToBlinnPhong(
+                vec3 color, float metallic, float roughness, float ambientOcclusion
             ) {
                 float shininess = pow(MAX_SHININESS, 1.0 - roughness);
                 float specular = ((shininess + 2.0) * (shininess + 4.0)) / (8.0 * PI * (pow(2.0, -shininess * 0.5) + shininess));
                 specular = max(specular - 0.3496155267919281, 0.0) * PI;
-                
-                int lightType = light.type;
-                
-                vec3 lightDirection;
-                if (lightType == DIRECTIONAL_LIGHT_TYPE) {
-                    lightDirection = normalize(light.direction);
-                } else {
-                    lightDirection = normalize(fragPosition - light.position);
-                }
+                return BlinnPhongMaterial(
+                    shininess,
+                    mix(color * DIFFUSE_STRENGTH, vec3(0.0), metallic),
+                    mix(vec3(specular) * (1.0 - DIFFUSE_STRENGTH), vec3(specular) * color, metallic),
+                    mix(vec3(ambientOcclusion) * color, vec3(0.0), metallic)
+                );
+            }
+            
+            float calculateSpotlightIntensity(float theta, float innerCone, float outerCone) {
+                float epsilon = innerCone - outerCone;
+                return clamp((theta - outerCone) / epsilon, 0.0, 1.0);
+            }
+            
+            vec3 calculateLight(
+                Light light,
+                BlinnPhongMaterial bpMaterial,
+                vec3 fragPosition,
+                vec3 viewDirection,
+                vec3 normal
+            ) {
+                vec3 lightDirection = (light.type == DIRECTIONAL_LIGHT_TYPE 
+                                    ? normalize(light.direction) 
+                                    : normalize(fragPosition - light.position));
                 
                 vec3 halfwayDirection = -normalize(lightDirection + viewDirection);
                 float diffuseFactor = max(dot(normal, -lightDirection), 0.0);
-                float specularFactor = pow(max(dot(normal, halfwayDirection), 0.0), shininess) * diffuseFactor * specular;
+                float specularFactor = pow(max(dot(normal, halfwayDirection), 0.0), bpMaterial.shininess) * diffuseFactor;
+                float ambientFactor = 1.0;
                 
-                vec3 diffuseLight = light.diffuse * mix(diffuseFactor * color * DIFFUSE_STRENGTH, vec3(0.0), metallic);
-                vec3 specularLight = light.specular * mix(vec3(specularFactor) * (1.0 - DIFFUSE_STRENGTH), specularFactor * color, metallic);
-                vec3 ambientLight = light.ambient * mix(color, vec3(0.0), metallic);
-                
-                if (lightType != DIRECTIONAL_LIGHT_TYPE) {
+                if (light.type != DIRECTIONAL_LIGHT_TYPE) {
                     float distance = length(light.position - fragPosition);
                     float pointAttenuation = 1.0 / ((distance * distance) + LIGHT_ATTENUATION);
                     
-                    diffuseLight *= pointAttenuation;
-                    specularLight *= pointAttenuation;
-                    ambientLight *= pointAttenuation;
+                    diffuseFactor *= pointAttenuation;
+                    specularFactor *= pointAttenuation;
+                    ambientFactor *= pointAttenuation;
                     
-                    if (lightType == SPOT_LIGHT_TYPE) {
+                    if (light.type == SPOT_LIGHT_TYPE) {
                         float theta = dot(lightDirection, normalize(light.direction));
-                        float epsilon = light.innerCone - light.outerCone;
-                        float spotIntensity = clamp((theta - light.outerCone) / epsilon, 0.0, 1.0);
-                        
-                        diffuseLight *= spotIntensity;
+                        diffuseFactor *= calculateSpotlightIntensity(theta, light.innerCone, light.outerCone);
+                        specularFactor *= calculateSpotlightIntensity(theta, light.innerCone, cos(radians(90.0)));
                     }
                 }
                 
-                return diffuseLight + specularLight + ambientLight;
+                return (light.diffuse * bpMaterial.diffuse * diffuseFactor) 
+                        + (light.specular * bpMaterial.specular * specularFactor) 
+                        + (light.ambient * bpMaterial.ambient * ambientFactor);
             }
             
             vec3 computeReflection(
@@ -599,13 +611,13 @@ public class NProgram {
                 int count = 0;
                 
                 vec3 reflectedDirection = reflect(viewDirection, normal);
-                float distances[MAX_AMOUNT_OF_CUBEMAPS];
-                vec3 directions[MAX_AMOUNT_OF_CUBEMAPS];
+                float furthestDistance = -1.0;
+                int furthestIndex = -1;
+                vec3 resultDirection = vec3(0.0);
                 for (int i = 0; i < MAX_AMOUNT_OF_CUBEMAPS; i++) {
                     ParallaxCubemap parallaxCubemap = parallaxCubemaps[i];
                     
                     if (!parallaxCubemap.enabled) {
-                        distances[i] = -1.0;
                         continue;
                     }
                     
@@ -613,7 +625,6 @@ public class NProgram {
                     
                     vec3 absLocalPosition = abs(localPosition);
                     if (max(absLocalPosition.x, max(absLocalPosition.y, absLocalPosition.z)) > 1.0) {
-                        distances[i] = -1.0;
                         continue;
                     }
                     
@@ -625,23 +636,18 @@ public class NProgram {
                     vec3 furthestPlane = max(firstPlane, secondPlane);
                     float distance = min(furthestPlane.x, min(furthestPlane.y, furthestPlane.z));
                     
-                    vec3 intersectionPosition = fragPosition + (reflectedDirection * distance);
-                    directions[i] = normalize(intersectionPosition - parallaxCubemap.position);
-                    distances[i] = distance;
-                }
-                int furthest = -1;
-                for (int i = 0; i < MAX_AMOUNT_OF_CUBEMAPS; i++) {
-                    float currentDistance = distances[i];
-                    if (currentDistance < 0.0) {
+                    if (furthestDistance >= 0.0 && distance < furthestDistance) {
                         continue;
                     }
-                    if (furthest == -1 || currentDistance > distances[furthest]) {
-                        furthest = i;
-                    }
+                    
+                    vec3 intersectionPosition = fragPosition + (reflectedDirection * distance);
+                    resultDirection = normalize(intersectionPosition - parallaxCubemap.position);
+                    furthestDistance = distance;
+                    furthestIndex = i;
                 }
-                if (furthest != -1) {
+                if (furthestDistance >= 0.0) {
                     float fresnel = ((1.0 - FRESNEL_STRENGTH) + pow(1.0 - max(dot(-viewDirection, normal), 0.0), 5.0) * FRESNEL_STRENGTH);
-                    vec3 reflectedColor = cubemapReflectionIndexed(furthest, roughness, directions[furthest]);
+                    vec3 reflectedColor = cubemapReflectionIndexed(furthestIndex, roughness, resultDirection);
                     return mix(
                                 reflectedColor * fresnel * pow(1.0 - roughness, 2.0),
                                 reflectedColor * color,
@@ -713,12 +719,13 @@ public class NProgram {
                     finalColor.rgb += sampleLightmaps(inVertex.worldLightmapTexture, i, intensity).rgb * mix(color.rgb, vec3(0.0), metallic) * lightmapAo;
                 }
                 
+                BlinnPhongMaterial bpMaterial = convertPBRMaterialToBlinnPhong(color.rgb, metallic, roughness, 1.0);
                 for (int i = 0; i < MAX_AMOUNT_OF_LIGHTS; i++) {
                     Light light = lights[i];
                     if (light.type == NULL_LIGHT_TYPE) {
                         break;
                     }
-                    finalColor.rgb += calculateLight(light, worldPosition, viewDirection, normal, color.rgb, metallic, roughness);
+                    finalColor.rgb += calculateLight(light, bpMaterial, worldPosition, viewDirection, normal);
                 }
                 
                 finalColor.rgb += mix(ambientLight(normal) * color.rgb, vec3(0.0), metallic);
