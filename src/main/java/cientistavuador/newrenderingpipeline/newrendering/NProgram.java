@@ -549,12 +549,23 @@ public class NProgram {
             ) {
                 float shininess = pow(MAX_SHININESS, 1.0 - roughness);
                 float specular = ((shininess + 2.0) * (shininess + 4.0)) / (8.0 * PI * (pow(2.0, -shininess * 0.5) + shininess));
-                specular = max(specular - 0.3496155267919281, 0.0) * PI;
                 return BlinnPhongMaterial(
                     shininess,
-                    mix(color * DIFFUSE_STRENGTH, vec3(0.0), metallic),
-                    mix(vec3(specular) * (1.0 - DIFFUSE_STRENGTH), vec3(specular) * color, metallic),
-                    mix(vec3(ambientOcclusion) * color, vec3(0.0), metallic)
+                    mix(
+                        color * DIFFUSE_STRENGTH,
+                        vec3(0.0),
+                        metallic
+                    ),
+                    mix(
+                        vec3(max(specular - 0.3496155267919281, 0.0) * PI * (1.0 - DIFFUSE_STRENGTH)),
+                        vec3(specular) * color,
+                        metallic
+                    ),
+                    mix(
+                        vec3(ambientOcclusion) * color,
+                        vec3(0.0),
+                        metallic
+                    )
                 );
             }
             
